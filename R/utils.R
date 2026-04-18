@@ -5,7 +5,7 @@
 #' @return scan_report
 #' @export
 preflight_check <- function(prompt, policy) {
-  scan_prompt(prompt)
+  scan_prompt(prompt, policy)
 }
 
 #' Add rule
@@ -13,7 +13,8 @@ preflight_check <- function(prompt, policy) {
 #' @param rule List
 #' @export
 add_rule <- function(rule) {
-  # Add to rule_bank
+  # Add to global rule_bank (simplified)
+  rule_bank <<- c(rule_bank, list(rule))
 }
 
 #' Remove rule
@@ -22,6 +23,10 @@ add_rule <- function(rule) {
 #' @export
 remove_rule <- function(id) {
   # Remove from rule_bank
+  idx <- sapply(rule_bank, `[[`, "id") == id
+  if (any(idx)) {
+    rule_bank <<- rule_bank[!idx]
+  }
 }
 
 #' List rules
@@ -36,5 +41,5 @@ list_rules <- function() {
 #' @param findings List
 #' @export
 explain_findings <- function(findings) {
-  # Return explanations
+  sapply(findings, function(f) glue::glue("{f$description}. Severity: {f$severity}. Action: {f$action}. OWASP: {f$owasp}."))
 }

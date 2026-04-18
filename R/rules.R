@@ -86,14 +86,58 @@ rule_bank <- list(
     policy_tags = c("pharma_gxp", "enterprise_default")
   ),
   list(
-    id = "system_prompt_leak",
-    type = "injection",
-    pattern = "system prompt|reveal system|show instructions",
-    severity = 80,
+    id = "phi_patient_narrative",
+    type = "phi",
+    pattern = "patient.*narrative|narrative.*patient",
+    severity = 40,
+    action = "redact",
+    mask = "[REDACTED_PATIENT_NARRATIVE]",
+    description = "Patient narrative detected",
+    owasp = "LLM02",
+    policy_tags = c("pharma_gxp")
+  ),
+  list(
+    id = "sdtm_variable",
+    type = "phi",
+    pattern = "\\b[A-Z]{2,}[A-Z0-9]*\\b",  # simplistic SDTM var pattern
+    severity = 20,
+    action = "warn",
+    mask = "[REDACTED_SDTM_VAR]",
+    description = "Potential SDTM variable name",
+    owasp = "LLM02",
+    policy_tags = c("pharma_gxp")
+  ),
+  # Output rules
+  list(
+    id = "efficacy_claim",
+    type = "output",
+    pattern = "significantly reduced|proven safe|highly effective",
+    severity = 60,
+    action = "warn",
+    mask = "[FLAGGED_CLAIM]",
+    description = "Unsupported efficacy claim in output",
+    owasp = "LLM09",
+    policy_tags = c("pharma_gxp")
+  ),
+  list(
+    id = "diagnosis_generation",
+    type = "output",
+    pattern = "diagnosed with|treatment for|prescribe",
+    severity = 70,
     action = "block",
-    mask = "[REDACTED_INJECTION]",
-    description = "Attempt to extract system prompt",
-    owasp = "LLM01",
-    policy_tags = c("pharma_gxp", "enterprise_default")
+    mask = "[BLOCKED_DIAGNOSIS]",
+    description = "Model attempting diagnosis or treatment",
+    owasp = "LLM09",
+    policy_tags = c("pharma_gxp")
+  ),
+  list(
+    id = "label_language",
+    type = "output",
+    pattern = "approved for|indicated for|label claim",
+    severity = 50,
+    action = "warn",
+    mask = "[FLAGGED_LABEL]",
+    description = "Unreviewed label language",
+    owasp = "LLM09",
+    policy_tags = c("pharma_gxp")
   )
-)
