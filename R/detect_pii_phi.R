@@ -1,14 +1,50 @@
-#' Detect PII/PHI in text
+#' Detect PII / PHI in Text
 #'
-#' @param text Character string to scan
-#' @return List of findings
+#' Scans a text string for Personally Identifiable Information (PII) and
+#' Protected Health Information (PHI). Detects email addresses, phone numbers,
+#' Social Security Numbers, dates of birth, medical record numbers, CDISC
+#' subject identifiers, patient narratives, and credit card numbers.
+#'
+#' @param text A single character string to scan.
+#'
+#' @return A list of matched rule objects. Returns an empty list if no PII/PHI
+#'   is found.
+#'
+#' @seealso [detect_secrets()], [detect_injection()], [scan_prompt()]
+#'
+#' @examples
+#' # No PII — returns empty list
+#' detect_pii_phi("Explain the SDTM IG structure.")
+#'
+#' # CDISC subject identifier detected
+#' detect_pii_phi("Patient USUBJID: STUDY01-SITE03-SUBJ042")
+#'
+#' # Email address detected
+#' detect_pii_phi("Contact the PI at jane.doe@pharma.com for details.")
+#'
+#' # Phone number detected
+#' detect_pii_phi("Call the site at 555-867-5309 for enrollment.")
+#'
+#' # SSN pattern detected
+#' detect_pii_phi("SSN: 123-45-6789")
+#'
+#' # Medical Record Number detected
+#' detect_pii_phi("MRN: A12345678")
+#'
+#' @export
 detect_pii_phi <- function(text) {
-  rules <- rule_bank[sapply(rule_bank, `[[`, "type") == "phi"]
-  findings <- list()
-  for (rule in rules) {
-    if (grepl(rule$pattern, text, ignore.case = TRUE)) {
-      findings <- c(findings, list(rule))
-    }
+  if (!rlang::is_string(text)) {
+    abort_input_validation(
+      arg      = "text",
+      expected = "a single character string",
+      got      = paste0("{.obj_type_friendly {text}}"),
+      fn       = "detect_pii_phi"
+    )
   }
-  findings
+
+  rules <- purrr::keep(get_active_rules(), ~ .x$type == "phi")
+
+  purrr::keep(rules, function(rule) {
+    stringr::str_detect(text, stringr::regex(rule$pattern, ignore_case = TRUE))
+  })
 }

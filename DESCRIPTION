@@ -1,10 +1,32 @@
 Package: llmshieldr
 Title: A Pharma-First LLM Security Layer for R
-Description: Wraps any R LLM call with preflight prompt scanning, automated redaction, policy enforcement, postflight output checks, and audit records.
+Description: Wraps any R LLM call with preflight prompt scanning, automated
+    redaction, policy enforcement, postflight output checks, and audit records.
+    Built for regulated industries including pharma, finance, and legal.
 Version: 0.1.0
-Authors@R: person("Neel", email = "neel@example.com", role = c("aut", "cre"))
-Depends: R (>= 4.0.0)
-Imports: stringr, purrr, tibble, dplyr, glue, cli, jsonlite, rlang, ellmer, testthat
-License: MIT
+Authors@R: 
+    person("Indraneel", "Chakraborty",, "hello.indraneel@gmail.com", 
+           role = c("aut", "cre"), comment = c(ORCID = "0000-0001-6958-8269"))
+Maintainer: Indraneel Chakraborty <hello.indraneel@gmail.com>
+Depends: R (>= 4.1.0)
+Imports:
+    cli (>= 3.6.0),
+    dplyr,
+    glue,
+    jsonlite,
+    purrr,
+    rlang (>= 1.1.0),
+    stringr,
+    tibble
+Suggests:
+    ellmer,
+    testthat (>= 3.0.0),
+    withr
+License: Apache License 2.0
 Encoding: UTF-8
 LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Config/testthat/edition: 3
+URL: https://github.com/ineelhere/llmshieldr
+BugReports: https://github.com/ineelhere/llmshieldr/issues
