@@ -5,31 +5,45 @@
 [![R-CMD-check](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-**A pharma-first LLM security layer for R** — built for the R/Pharma 2026 community.
+**llmshieldr** is a comprehensive, pharma-first security layer for R-based LLM workflows. Built for the R/Pharma 2026 community, it empowers you to safely use generative AI in regulated, enterprise, and clinical environments.
 
-`llmshieldr` wraps any R LLM call with a **preflight prompt scan**, **automated redaction**, **policy enforcement**, a **postflight output check**, and an **audit record** — all in one function call.
+> **Protect every LLM call:**
+> - Preflight prompt scan
+> - Automated redaction
+> - Policy enforcement
+> - Postflight output check
+> - Full audit record
+> — all in one function call.
 
 ## Why llmshieldr?
 
-The R/Pharma community has accelerated GenAI adoption — ADaM pair programmers, CDISC-automated dataset pipelines, multi-agent coding assistants, and LLM-driven Shiny apps. But **nobody in R had answered the risks half**.
+The R/Pharma community is rapidly adopting GenAI: ADaM pair programmers, CDISC-automated dataset pipelines, multi-agent coding assistants, and LLM-driven Shiny apps. But **risk management has lagged behind innovation**.
 
-By 2026, that gap is a liability. FDA AI guidance, ICH E6(R3) GCP principles, and ICH M10/M11 digital standards all expect **auditability and control** for AI-generated content in regulated workflows.
+By 2026, this gap is a liability. FDA AI guidance, ICH E6(R3) GCP, and ICH M10/M11 digital standards all demand **auditability and control** for AI-generated content in regulated workflows.
 
-**`llmshieldr` is the missing piece that makes those uses *defensible*.**
+**llmshieldr** is the missing piece that makes these uses *defensible* and *compliant*.
 
 ## Features
 
-| Feature | What it does | OWASP LLM |
+| OWASP Risk | Feature | What it does |
 |---|---|---|
-| 🔑 **Secret detection** | API keys, tokens, passwords, connection strings, private keys | LLM02 |
-| 🏥 **PII/PHI detection** | Emails, phones, SSNs, DOBs, MRNs, CDISC subject IDs, patient narratives | LLM02 |
-| 🛡️ **Prompt injection detection** | Instruction overrides, system prompt extraction, jailbreaks, encoding bypasses | LLM01, LLM07 |
-| 📊 **Risk scoring** | Weighted severity scoring with band assignment (low/moderate/high/critical) | — |
-| ✂️ **Redaction engine** | Typed masks (`[REDACTED_API_KEY]`, `[REDACTED_EMAIL]`) with audit log | — |
-| 🔒 **Policy enforcement** | `pharma_gxp`, `enterprise_default`, `finance_guard`, `legal_guard` presets | — |
-| 🔍 **Output scanning** | Efficacy claims, diagnosis/prescribing, label language, autonomous actions | LLM06, LLM09 |
-| 📋 **Audit logging** | Structured JSONL export for SIEM integration and regulatory compliance | — |
-| 💬 **`secure_chat()`** | Drop-in wrapper for any `ellmer`-based LLM workflow | — |
+| [LLM01](https://genai.owasp.org/llm-top-10/) | 🛡️ **Prompt injection detection** | Detects instruction overrides, system prompt extraction, jailbreaks, encoding bypasses |
+| LLM02 | 🔑 **Secret detection** | Finds API keys, tokens, passwords, connection strings, private keys |
+| LLM02 | 🏥 **PII/PHI detection** | Flags emails, phones, SSNs, DOBs, MRNs, CDISC subject IDs, patient narratives |
+| LLM06 | 🔍 **Output scanning** | Detects autonomous actions in LLM output |
+| LLM07 | 🛡️ **Prompt injection detection** | Catches system prompt extraction attempts |
+| LLM09 | 🔍 **Output scanning** | Flags efficacy claims, diagnosis/prescribing, label language |
+| — | 📊 **Risk scoring** | Severity scoring with band assignment (low/moderate/high/critical) |
+| — | ✂️ **Redaction engine** | Typed masks (`[REDACTED_API_KEY]`, `[REDACTED_EMAIL]`) with full audit log |
+| — | 🔒 **Policy enforcement** | Built-in presets: `pharma_gxp`, `enterprise_default`, `finance_guard`, `legal_guard` |
+| — | 📋 **Audit logging** | Structured JSONL export for SIEM integration and compliance |
+| — | 💬 **`secure_chat()`** | Drop-in wrapper for any `ellmer`-based LLM workflow |
+
+**Key advantages:**
+- **Regulatory alignment:** Designed for FDA, ICH, and GxP requirements
+- **Enterprise ready:** Policy presets for pharma, finance, and legal
+- **Plug-and-play:** Works with any R LLM provider (via `ellmer`)
+- **Customizable:** Add/remove rules, tailor policies, and audit everything
 
 ## Installation
 
@@ -111,7 +125,7 @@ result$audit         # Full audit record
 result$risk_summary  # One-row tibble summary
 ```
 
-## OWASP Top 10 for LLMs Coverage
+## [OWASP Top 10 for LLMs](https://genai.owasp.org/llm-top-10/) Coverage
 
 | OWASP Risk | Covered By |
 |---|---|
@@ -185,6 +199,10 @@ write_audit_log(audit, "audit_trail.jsonl")
 | `rlang` | Input validation and error handling |
 | `ellmer` *(Suggests)* | LLM provider integration |
 
+## Get Started
+
+Ready to secure your LLM workflows? **Install llmshieldr and start protecting your R/Pharma projects today.**
+
 ## License
 
-MIT
+Licensed under the MIT License.
