@@ -4,14 +4,19 @@
 \alias{scan_context}
 \title{Scan Context for Risky Content}
 \usage{
-scan_context(text, policy = NULL)
+scan_context(text, policy = NULL, text_col = NULL)
 }
 \arguments{
-\item{text}{A character vector, or a single character string. Each element
-is scanned separately.}
+\item{text}{A character vector, a single character string, or a data frame.
+When a data frame is supplied, one text column is extracted and scanned
+row by row.}
 
 \item{policy}{A policy list (from \code{\link[=policy_preset]{policy_preset()}}). When \code{NULL}, default
 rules and thresholds are used.}
+
+\item{text_col}{Optional column to scan when \code{text} is a data frame. Supply
+a column name or 1-based column index. When omitted, the first character
+column is used.}
 }
 \value{
 A list of \code{scan_report} objects — one per element of \code{text}.
@@ -40,6 +45,17 @@ reports[[3]]$passed
 # Scan a single context string
 report <- scan_context("Contact PI at jane.doe@site.com")
 report[[1]]$findings
+
+# Scan a data frame by choosing the text column automatically
+docs_tbl <- data.frame(
+  id = 1:2,
+  narrative = c(
+    "The AE domain stores adverse event records.",
+    "Patient USUBJID-042 experienced a serious adverse event."
+  )
+)
+reports <- scan_context(docs_tbl)
+reports[[2]]$action
 
 # Scan with a policy preset
 policy <- policy_preset("pharma_gxp")

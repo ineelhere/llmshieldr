@@ -3,12 +3,16 @@
 #' Translates a numeric risk score and policy configuration into an action
 #' string. The action determines how `llmshieldr` handles the prompt or
 #' output: block it, redact risky content, warn the user, or allow it through.
+#' Rule-level actions are also respected, so a single `"block"` finding can
+#' escalate the final decision even when thresholds alone would not.
 #'
 #' @param score A single numeric risk score (from [score_findings()]).
 #' @param policy A policy list (from [policy_preset()]). May contain a
 #'   `thresholds` element with custom `block`, `redact`, and `warn` values.
 #'   If `NULL` or missing `thresholds`, built-in defaults are used:
 #'   block \eqn{\geq 100}, redact \eqn{\geq 50}, warn \eqn{\geq 20}.
+#' @param findings Optional list of rule objects. When supplied, the strongest
+#'   `action` found in the rules is combined with the threshold-based action.
 #'
 #' @return A character string: `"block"`, `"redact"`, `"warn"`, or `"allow"`.
 #'
@@ -28,8 +32,12 @@
 #' )
 #' decide_action(50, strict_policy)
 #'
+#' # Rule-level actions can escalate the final decision
+#' findings <- list(list(action = "block"))
+#' decide_action(10, strict_policy, findings)
+#'
 #' @export
-decide_action <- function(score, policy) {
+decide_action <- function(score, policy = NULL, findings = list()) {
   if (!is.numeric(score) || length(score) != 1L) {
     abort_input_validation(
       arg      = "score",
@@ -39,14 +47,13 @@ decide_action <- function(score, policy) {
     )
   }
 
-  # Extract thresholds from policy, or use defaults
- thresholds <- if (!is.null(policy) && !is.null(policy$thresholds)) {
+  thresholds <- if (!is.null(policy) && !is.null(policy$thresholds)) {
     policy$thresholds
   } else {
     list(block = 100, redact = 50, warn = 20)
   }
 
-  if (score >= thresholds$block) {
+  threshold_action <- if (score >= thresholds$block) {
     "block"
   } else if (score >= thresholds$redact) {
     "redact"
@@ -55,4 +62,38 @@ decide_action <- function(score, policy) {
   } else {
     "allow"
   }
+
+  rule_action <- .strongest_finding_action(findings)
+
+  .strongest_action(c(threshold_action, rule_action))
+}
+
+
+#' @noRd
+#' @keywords internal
+.action_levels <- c("allow", "warn", "redact", "block")
+
+
+#' @noRd
+#' @keywords internal
+.strongest_action <- function(actions) {
+  actions <- stats::na.omit(actions)
+  ranks <- match(actions, .action_levels)
+  ranks <- stats::na.omit(ranks)
+  if (length(ranks) == 0L) {
+    return("allow")
+  }
+  .action_levels[[max(ranks, na.rm = TRUE)]]
+}
+
+
+#' @noRd
+#' @keywords internal
+.strongest_finding_action <- function(findings) {
+  if (length(findings) == 0L) {
+    return("allow")
+  }
+
+  actions <- vapply(findings, `[[`, character(1), "action")
+  .strongest_action(actions)
 }

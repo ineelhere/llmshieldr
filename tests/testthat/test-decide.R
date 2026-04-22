@@ -20,6 +20,22 @@ test_that("decide_action respects policy thresholds", {
   expect_equal(decide_action(80, strict_policy), "block")
 })
 
+test_that("decide_action respects rule-level escalation", {
+  strict_policy <- list(
+    name = "strict",
+    thresholds = list(block = 80, redact = 40, warn = 10)
+  )
+
+  expect_equal(
+    decide_action(10, strict_policy, findings = list(list(action = "block"))),
+    "block"
+  )
+  expect_equal(
+    decide_action(10, strict_policy, findings = list(list(action = "redact"))),
+    "redact"
+  )
+})
+
 test_that("decide_action rejects non-numeric score", {
   expect_error(decide_action("high", NULL))
   expect_error(decide_action(c(10, 20), NULL))

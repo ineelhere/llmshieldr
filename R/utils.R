@@ -73,16 +73,7 @@ preflight_check <- function(prompt, policy = NULL) {
 #'
 #' @export
 add_rule <- function(rule) {
-  required_fields <- c("id", "type", "pattern", "severity", "action",
-                       "mask", "description", "owasp", "policy_tags")
-  missing <- setdiff(required_fields, names(rule))
-  if (length(missing) > 0L) {
-    abort_rule_error(
-      "Rule is missing required field{?s}: {.val {missing}}.",
-      "i" = "Required fields: {.val {required_fields}}.",
-      "i" = "See {.code ?add_rule} for the expected rule structure."
-    )
-  }
+  rule <- .validate_rule(rule)
 
   # Check for duplicate ID
   existing_ids <- vapply(get_active_rules(), `[[`, character(1), "id")
@@ -241,4 +232,69 @@ explain_findings <- function(findings) {
     allow = "No action required. The content appears safe."
   )
   hints[[action]] %||% "Review the finding and take appropriate action."
+}
+
+
+#' @noRd
+#' @keywords internal
+.validate_rule <- function(rule) {
+  required_fields <- c(
+    "id", "type", "pattern", "severity", "action",
+    "mask", "description", "owasp", "policy_tags"
+  )
+  missing <- setdiff(required_fields, names(rule))
+
+  if (length(missing) > 0L) {
+    abort_rule_error(
+      "Rule is missing required field{?s}: {.val {missing}}.",
+      "i" = "Required fields: {.val {required_fields}}.",
+      "i" = "See {.code ?add_rule} for the expected rule structure."
+    )
+  }
+
+  if (!rlang::is_string(rule$id) || identical(rule$id, "")) {
+    abort_rule_error("Rule `id` must be a non-empty string.")
+  }
+
+  valid_types <- c("secret", "phi", "injection", "output")
+  if (!rlang::is_string(rule$type) || !rule$type %in% valid_types) {
+    abort_rule_error(
+      "Rule `type` must be one of {.val {valid_types}}.",
+      "i" = "Received {.val {rule$type}}."
+    )
+  }
+
+  if (!rlang::is_string(rule$pattern) || identical(rule$pattern, "")) {
+    abort_rule_error("Rule `pattern` must be a non-empty regular expression string.")
+  }
+
+  if (!is.numeric(rule$severity) || length(rule$severity) != 1L || is.na(rule$severity)) {
+    abort_rule_error("Rule `severity` must be a single numeric value.")
+  }
+
+  valid_actions <- c("allow", "warn", "redact", "block")
+  if (!rlang::is_string(rule$action) || !rule$action %in% valid_actions) {
+    abort_rule_error(
+      "Rule `action` must be one of {.val {valid_actions}}.",
+      "i" = "Received {.val {rule$action}}."
+    )
+  }
+
+  if (!rlang::is_string(rule$mask) || identical(rule$mask, "")) {
+    abort_rule_error("Rule `mask` must be a non-empty string.")
+  }
+
+  if (!rlang::is_string(rule$description) || identical(rule$description, "")) {
+    abort_rule_error("Rule `description` must be a non-empty string.")
+  }
+
+  if (!rlang::is_string(rule$owasp) || identical(rule$owasp, "")) {
+    abort_rule_error("Rule `owasp` must be a non-empty string.")
+  }
+
+  if (!is.character(rule$policy_tags) || length(rule$policy_tags) == 0L) {
+    abort_rule_error("Rule `policy_tags` must be a non-empty character vector.")
+  }
+
+  rule
 }

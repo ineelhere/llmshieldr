@@ -1,14 +1,18 @@
 Package: llmshieldr
-Title: A Pharma-First LLM Security Layer for R
-Description: Wraps any R LLM call with preflight prompt scanning, automated
-    redaction, policy enforcement, postflight output checks, and audit records.
-    Built for regulated industries including pharma, finance, and legal.
-Version: 0.1.0
-Authors@R: 
-    person("Indraneel", "Chakraborty",, "hello.indraneel@gmail.com", 
-           role = c("aut", "cre"), comment = c(ORCID = "0000-0001-6958-8269"))
-Maintainer: Indraneel Chakraborty <hello.indraneel@gmail.com>
-Depends: R (>= 4.1.0)
+Title: Security Scanning and Policy Enforcement for LLM Workflows
+Version: 0.1.1
+Description: Provides preflight scanning, redaction, policy-based action
+    selection, postflight output checks, and audit logging for large language
+    model (LLM) workflows in R. Includes rule-based detection of secrets,
+    personally identifiable or protected health information, prompt injection
+    patterns, and domain-specific output risks. Designed for regulated
+    workflows and extensible to project-specific policies.
+Authors@R:
+    person("Indraneel", "Chakraborty", , "hello.indraneel@gmail.com",
+           role = c("aut", "cre", "cph"),
+           comment = c(ORCID = "0000-0001-6958-8269"))
+Depends:
+    R (>= 4.1.0)
 Imports:
     cli (>= 3.6.0),
     dplyr,
@@ -20,13 +24,19 @@ Imports:
     tibble
 Suggests:
     ellmer,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
     withr
 License: Apache License 2.0
 Encoding: UTF-8
 LazyData: true
+ByteCompile: true
+Language: en-US
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+VignetteBuilder: knitr
 Config/testthat/edition: 3
-URL: https://github.com/ineelhere/llmshieldr
+Config/Needs/website: pkgdown, knitr, rmarkdown
+URL: https://github.com/ineelhere/llmshieldr, http://www.indraneelchakraborty.com/llmshieldr/
 BugReports: https://github.com/ineelhere/llmshieldr/issues

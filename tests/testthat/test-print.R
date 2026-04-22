@@ -15,7 +15,7 @@ test_that("summary.scan_report works", {
 
 test_that("as_tibble.scan_report returns tibble", {
   report <- scan_prompt("Patient USUBJID-042 enrolled.")
-  tbl <- as_tibble.scan_report(report)
+  tbl <- tibble::as_tibble(report)
   expect_s3_class(tbl, "tbl_df")
   expect_true("passed" %in% names(tbl))
   expect_true("score" %in% names(tbl))
@@ -40,7 +40,7 @@ test_that("as_tibble.shield_audit returns tibble", {
     provider = "ollama", input_report = input_rpt,
     output_report = output_rpt, final_action = "allow"
   )
-  tbl <- as_tibble.shield_audit(audit)
+  tbl <- tibble::as_tibble(audit)
   expect_s3_class(tbl, "tbl_df")
 })
 

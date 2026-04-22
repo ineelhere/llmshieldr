@@ -4,7 +4,7 @@
 \alias{decide_action}
 \title{Decide Action Based on Score and Policy}
 \usage{
-decide_action(score, policy)
+decide_action(score, policy = NULL, findings = list())
 }
 \arguments{
 \item{score}{A single numeric risk score (from \code{\link[=score_findings]{score_findings()}}).}
@@ -13,6 +13,9 @@ decide_action(score, policy)
 \code{thresholds} element with custom \code{block}, \code{redact}, and \code{warn} values.
 If \code{NULL} or missing \code{thresholds}, built-in defaults are used:
 block \eqn{\geq 100}, redact \eqn{\geq 50}, warn \eqn{\geq 20}.}
+
+\item{findings}{Optional list of rule objects. When supplied, the strongest
+\code{action} found in the rules is combined with the threshold-based action.}
 }
 \value{
 A character string: \code{"block"}, \code{"redact"}, \code{"warn"}, or \code{"allow"}.
@@ -21,6 +24,8 @@ A character string: \code{"block"}, \code{"redact"}, \code{"warn"}, or \code{"al
 Translates a numeric risk score and policy configuration into an action
 string. The action determines how \code{llmshieldr} handles the prompt or
 output: block it, redact risky content, warn the user, or allow it through.
+Rule-level actions are also respected, so a single \code{"block"} finding can
+escalate the final decision even when thresholds alone would not.
 }
 \examples{
 # Default thresholds
@@ -35,6 +40,10 @@ strict_policy <- list(
   thresholds = list(block = 80, redact = 40, warn = 10)
 )
 decide_action(50, strict_policy)
+
+# Rule-level actions can escalate the final decision
+findings <- list(list(action = "block"))
+decide_action(10, strict_policy, findings)
 
 }
 \seealso{

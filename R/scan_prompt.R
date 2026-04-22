@@ -81,7 +81,7 @@ scan_prompt <- function(text, policy = NULL) {
   # Score, band, action
   score  <- score_findings(findings)
   band   <- get_band(score)
-  action <- decide_action(score, policy)
+  action <- decide_action(score, policy, findings = findings)
 
   # Redact
   redaction <- redact_text(text, findings)

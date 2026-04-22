@@ -16,14 +16,6 @@
 #'
 #' @export
 print.scan_report <- function(x, ...) {
-  band_style <- switch(
-    x$band,
-    critical = "danger",
-    high     = "warning",
-    moderate = "warning",
-    low      = "success"
-  )
-
   cli::cli_h2("llmshieldr Scan Report")
 
   if (x$passed) {

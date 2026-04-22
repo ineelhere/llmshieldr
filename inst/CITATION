@@ -1,0 +1,14 @@
+bibentry(
+  bibtype = "Manual",
+  title = "llmshieldr: Security Scanning and Policy Enforcement for LLM Workflows",
+  author = personList(
+    person(
+      given = "Indraneel",
+      family = "Chakraborty",
+      email = "hello.indraneel@gmail.com"
+    )
+  ),
+  year = "2026",
+  note = "R package version 0.1.1",
+  url = "https://github.com/ineelhere/llmshieldr"
+)

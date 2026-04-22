@@ -61,6 +61,7 @@
 #' @noRd
 #' @keywords internal
 abort_policy_block <- function(policy_name, findings, score, band,
+                               block_threshold = NULL,
                                call = rlang::caller_env()) {
 
   # Group finding IDs by OWASP category
@@ -114,8 +115,14 @@ abort_policy_block <- function(policy_name, findings, score, band,
     "i"
   ))
   bullets <- c(bullets, stats::setNames(
-    paste0("Policy thresholds: block \u2265 {.val {policy_name}} ",
-           "configured threshold."),
+    paste0(
+      "Policy block threshold: ",
+      if (is.null(block_threshold)) {
+        "see the active policy configuration."
+      } else {
+        "score >= {.val {block_threshold}}."
+      }
+    ),
     "i"
   ))
 

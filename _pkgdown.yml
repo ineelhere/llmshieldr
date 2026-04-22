@@ -5,14 +5,63 @@ template:
   light-switch: true
   bootswatch: zephyr
 
+development:
+  mode: auto
+
+home:
+  title: llmshieldr
+  description: Security scanning, redaction, and audit logging for LLM workflows in R.
+
 navbar:
   structure:
+    left: [intro, reference, articles, news]
     right: [search, github, lightswitch]
   components:
+    intro:
+      text: Get Started
+      href: articles/getting-started.html
     github:
       icon: fa-github
       href: https://github.com/ineelhere/llmshieldr
       aria-label: GitHub
+
+reference:
+  - title: Core workflow
+    contents:
+      - secure_chat
+      - preflight_check
+      - scan_prompt
+      - scan_output
+      - scan_context
+      - shield_audit
+      - write_audit_log
+  - title: Rules and policies
+    contents:
+      - rule_bank
+      - policy_preset
+      - add_rule
+      - remove_rule
+      - list_rules
+      - explain_findings
+  - title: Detection and scoring
+    contents:
+      - detect_secrets
+      - detect_pii_phi
+      - detect_injection
+      - score_findings
+      - get_band
+      - decide_action
+      - redact_text
+  - title: Examples and printing
+    contents:
+      - example_prompts
+      - matches("print\\.")
+
+articles:
+  - title: Articles
+    navbar: ~
+    contents:
+      - getting-started
 
 search:
   enabled: true
@@ -22,4 +71,4 @@ footer:
   structure:
     left: [developed_by]
   components:
-    developed_by: Developed by <a href="https://www.linkedin.com/in/indraneelchakraborty/" target="_blank">Indraneel Chakraborty </a>
+    developed_by: Developed by <a href="https://www.linkedin.com/in/indraneelchakraborty/" target="_blank">Indraneel Chakraborty</a>

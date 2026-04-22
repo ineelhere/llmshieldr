@@ -59,7 +59,7 @@ scan_output <- function(text, policy = NULL) {
 
   score  <- score_findings(findings)
   band   <- get_band(score)
-  action <- decide_action(score, policy)
+  action <- decide_action(score, policy, findings = findings)
 
   redaction <- redact_text(text, findings)
 
