@@ -25,6 +25,9 @@ print.scan_report <- function(x, ...) {
   }
 
   cli::cli_alert_info("Score: {.val {x$score}} | Band: {.val {x$band}} | Action: {.val {x$action}}")
+  if (!is.null(x$method)) {
+    cli::cli_alert_info("Checks used: {.val {x$method}}")
+  }
 
   if (length(x$findings) > 0L) {
     cli::cli_h3("Findings ({length(x$findings)})")
@@ -97,7 +100,7 @@ as_tibble.scan_report <- function(x, ...) {
 #' input_rpt <- scan_prompt("Safe SDTM question.")
 #' output_rpt <- scan_output("AE domain captures events.")
 #' audit <- shield_audit(
-#'   policy = "pharma_gxp", model = "llama3.2",
+#'   policy = "pharma_gxp", model = "gemma3:4b",
 #'   provider = "ollama", input_report = input_rpt,
 #'   output_report = output_rpt, final_action = "allow"
 #' )
@@ -111,6 +114,8 @@ print.shield_audit <- function(x, ...) {
     "Policy"       = x$policy,
     "Model"        = x$model,
     "Provider"     = x$provider,
+    "Reviewer"     = x$reviewer_model %||% "N/A",
+    "Checks"       = x$checks %||% "rules",
     "Input Score"  = paste0(x$input_report$score %||% "N/A",
                            " (", x$input_report$band %||% "N/A", ")"),
     "Output Score" = paste0(x$output_report$score %||% "N/A",
@@ -136,6 +141,9 @@ as_tibble.shield_audit <- function(x, ...) {
     policy          = x$policy,
     model           = x$model,
     provider        = x$provider,
+    reviewer_model  = x$reviewer_model %||% NA_character_,
+    reviewer_provider = x$reviewer_provider %||% NA_character_,
+    checks          = x$checks %||% NA_character_,
     input_score     = x$input_report$score %||% NA_real_,
     input_band      = x$input_report$band %||% NA_character_,
     output_score    = x$output_report$score %||% NA_real_,
@@ -172,7 +180,8 @@ print.secure_result <- function(x, ...) {
     "Input"  = paste0(x$risk_summary$input_score, " (", x$risk_summary$input_band, ")"),
     "Output" = paste0(x$risk_summary$output_score, " (", x$risk_summary$output_band, ")"),
     "Rules Triggered" = as.character(x$risk_summary$rules_triggered),
-    "Action" = x$risk_summary$action_taken
+    "Action" = x$risk_summary$action_taken,
+    "Checks" = x$risk_summary$checks_used %||% "rules"
   ))
 
   invisible(x)

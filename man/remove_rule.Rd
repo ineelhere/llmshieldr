@@ -14,7 +14,7 @@ Invisibly returns the updated list of custom rules.
 }
 \description{
 Removes a custom rule from the session-level rule set. Cannot remove
-rules from the built-in \link{rule_bank} — those are always present.
+rules from the built-in rule set — those are always present.
 }
 \examples{
 # Add and then remove a custom rule

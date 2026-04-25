@@ -15,6 +15,10 @@
 #' @param text_col Optional column to scan when `text` is a data frame. Supply
 #'   a column name or 1-based column index. When omitted, the first character
 #'   column is used.
+#' @param reviewer Optional reviewer callable used when `checks` is `"llm"`
+#'   or `"both"`. This can be an `ellmer` chat object with a `chat()`
+#'   method, or a plain function that returns one JSON string.
+#' @param checks Character. One of `"rules"`, `"llm"`, or `"both"`.
 #'
 #' @return A list of `scan_report` objects — one per element of `text`.
 #'
@@ -52,8 +56,26 @@
 #' reports <- scan_context(docs, policy)
 #' vapply(reports, `[[`, logical(1), "passed")
 #'
+#' \dontrun{
+#' library(ellmer)
+#'
+#' reviewer <- chat_ollama(model = "gemma3:4b")
+#' reports <- scan_context(
+#'   docs_tbl,
+#'   policy = policy_preset("enterprise_default"),
+#'   text_col = "narrative",
+#'   reviewer = reviewer,
+#'   checks = "both"
+#' )
+#' reports[[1]]
+#' }
+#'
 #' @export
-scan_context <- function(text, policy = NULL, text_col = NULL) {
+scan_context <- function(text,
+                         policy = NULL,
+                         text_col = NULL,
+                         reviewer = NULL,
+                         checks = c("rules", "llm", "both")) {
   if (is.data.frame(text)) {
     text <- .extract_context_column(text, text_col)
   }
@@ -67,7 +89,15 @@ scan_context <- function(text, policy = NULL, text_col = NULL) {
     )
   }
 
-  purrr::map(text, ~ scan_prompt(.x, policy = policy))
+  purrr::map(
+    text,
+    ~ scan_prompt(
+      .x,
+      policy = policy,
+      reviewer = reviewer,
+      checks = checks
+    )
+  )
 }
 
 

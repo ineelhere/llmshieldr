@@ -27,7 +27,7 @@ Print a Shield Audit Record
 input_rpt <- scan_prompt("Safe SDTM question.")
 output_rpt <- scan_output("AE domain captures events.")
 audit <- shield_audit(
-  policy = "pharma_gxp", model = "llama3.2",
+  policy = "pharma_gxp", model = "gemma3:4b",
   provider = "ollama", input_report = input_rpt,
   output_report = output_rpt, final_action = "allow"
 )

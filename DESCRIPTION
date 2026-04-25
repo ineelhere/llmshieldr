@@ -5,8 +5,10 @@ Description: Provides preflight scanning, redaction, policy-based action
     selection, postflight output checks, and audit logging for large language
     model (LLM) workflows in R. Includes rule-based detection of secrets,
     personally identifiable or protected health information, prompt injection
-    patterns, and domain-specific output risks. Designed for regulated
-    workflows and extensible to project-specific policies.
+    patterns, and domain-specific output risks. Can also use a local reviewer
+    model through Ollama-compatible chat clients for privacy-first semantic
+    checks. Designed for regulated workflows and extensible to
+    project-specific policies.
 Authors@R:
     person("Indraneel", "Chakraborty", , "hello.indraneel@gmail.com",
            role = c("aut", "cre", "cph"),

@@ -4,7 +4,13 @@
 \alias{scan_context}
 \title{Scan Context for Risky Content}
 \usage{
-scan_context(text, policy = NULL, text_col = NULL)
+scan_context(
+  text,
+  policy = NULL,
+  text_col = NULL,
+  reviewer = NULL,
+  checks = c("rules", "llm", "both")
+)
 }
 \arguments{
 \item{text}{A character vector, a single character string, or a data frame.
@@ -17,6 +23,12 @@ rules and thresholds are used.}
 \item{text_col}{Optional column to scan when \code{text} is a data frame. Supply
 a column name or 1-based column index. When omitted, the first character
 column is used.}
+
+\item{reviewer}{Optional reviewer callable used when \code{checks} is \code{"llm"}
+or \code{"both"}. This can be an \code{ellmer} chat object with a \code{chat()}
+method, or a plain function that returns one JSON string.}
+
+\item{checks}{Character. One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
 }
 \value{
 A list of \code{scan_report} objects — one per element of \code{text}.
@@ -61,6 +73,20 @@ reports[[2]]$action
 policy <- policy_preset("pharma_gxp")
 reports <- scan_context(docs, policy)
 vapply(reports, `[[`, logical(1), "passed")
+
+\dontrun{
+library(ellmer)
+
+reviewer <- chat_ollama(model = "gemma3:4b")
+reports <- scan_context(
+  docs_tbl,
+  policy = policy_preset("enterprise_default"),
+  text_col = "narrative",
+  reviewer = reviewer,
+  checks = "both"
+)
+reports[[1]]
+}
 
 }
 \seealso{

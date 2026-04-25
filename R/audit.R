@@ -26,7 +26,7 @@
 #'
 #' audit <- shield_audit(
 #'   policy       = "pharma_gxp",
-#'   model        = "llama3.2",
+#'   model        = "gemma3:4b",
 #'   provider     = "ollama",
 #'   input_report = input_report,
 #'   output_report = output_report,
@@ -84,7 +84,7 @@ shield_audit <- function(timestamp     = Sys.time(),
 #'
 #' audit <- shield_audit(
 #'   policy       = "pharma_gxp",
-#'   model        = "llama3.2",
+#'   model        = "gemma3:4b",
 #'   provider     = "ollama",
 #'   input_report = input_report,
 #'   output_report = output_report,
@@ -125,6 +125,9 @@ write_audit_log <- function(audit, path) {
     policy        = audit$policy,
     model         = audit$model,
     provider      = audit$provider,
+    reviewer_model = audit$reviewer_model %||% NA_character_,
+    reviewer_provider = audit$reviewer_provider %||% NA_character_,
+    checks        = audit$checks %||% NA_character_,
     input_score   = audit$input_report$score %||% NA_real_,
     input_band    = audit$input_report$band %||% NA_character_,
     input_passed  = audit$input_report$passed %||% NA,

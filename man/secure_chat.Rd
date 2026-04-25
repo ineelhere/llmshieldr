@@ -9,7 +9,9 @@ secure_chat(
   provider,
   policy,
   context = NULL,
-  action = c("auto", "redact", "warn", "block")
+  action = c("auto", "redact", "warn", "block"),
+  reviewer = NULL,
+  checks = c("rules", "llm", "both")
 )
 }
 \arguments{
@@ -29,6 +31,12 @@ to the prompt.}
 
 \item{action}{Character. Override the scanner's recommended action. One of
 \code{"auto"}, \code{"redact"}, \code{"warn"}, or \code{"block"}.}
+
+\item{reviewer}{Optional reviewer callable used when \code{checks} is \code{"llm"}
+or \code{"both"}. Use a separate reviewer object from \code{provider} so the
+review conversation does not mix with the user-facing chat state.}
+
+\item{checks}{Character. One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
 }
 \value{
 A \code{secure_result} S3 object with elements:
@@ -38,20 +46,21 @@ blocking or redaction has been applied.}
 \item{\code{audit}}{A \code{shield_audit} object with lifecycle metadata.}
 \item{\code{risk_summary}}{A one-row \code{\link[tibble:tibble]{tibble::tibble()}} with columns
 \code{input_score}, \code{input_band}, \code{output_score}, \code{output_band},
-\code{rules_triggered}, and \code{action_taken}.}
+\code{rules_triggered}, \code{action_taken}, and \code{checks_used}.}
 }
 }
 \description{
-The flagship function of \code{llmshieldr}. Wraps an LLM call with a full
-security lifecycle:
+Wraps an LLM call with a full safety lifecycle:
 \enumerate{
-\item \strong{Preflight} - Scan the prompt and optional context for secrets,
-PII/PHI, and injection attempts.
-\item \strong{Redaction} - Optionally sanitize the prompt before sending.
-\item \strong{Provider call} - Send the cleaned prompt to a provider callable.
-\item \strong{Postflight} - Scan the model response for unsafe content.
-\item \strong{Audit} - Return a structured \code{shield_audit} record.
+\item Preflight checks on the prompt and optional context.
+\item Optional redaction before the provider call.
+\item Provider execution.
+\item Postflight checks on the model response.
+\item A structured audit record you can inspect or persist.
 }
+
+You can keep the checks fully rule-based, ask a local reviewer model to
+inspect the text, or combine both approaches.
 }
 \examples{
 provider <- function(prompt) {
@@ -59,9 +68,9 @@ provider <- function(prompt) {
 }
 
 result <- secure_chat(
-  prompt   = "What are the core SDTM domains?",
+  prompt = "What are the core SDTM domains?",
   provider = provider,
-  policy   = policy_preset("pharma_gxp")
+  policy = policy_preset("pharma_gxp")
 )
 result$output
 result$risk_summary
@@ -71,21 +80,25 @@ unsafe_provider <- function(prompt) {
 }
 
 blocked <- secure_chat(
-  prompt   = "Summarize the visit.",
+  prompt = "Summarize the visit.",
   provider = unsafe_provider,
-  policy   = policy_preset("pharma_gxp")
+  policy = policy_preset("pharma_gxp")
 )
 blocked$output
 
 \dontrun{
 library(ellmer)
 
-chat <- chat_ollama(model = "llama3.2")
+assistant <- chat_ollama(model = "gemma3:4b")
+reviewer <- chat_ollama(model = "gemma3:4b")
+
 result <- secure_chat(
-  prompt   = "Summarize narrative for USUBJID: STUDY01-SITE03-042.",
-  provider = chat,
-  policy   = policy_preset("pharma_gxp"),
-  action   = "redact"
+  prompt = "Summarize narrative for USUBJID: STUDY01-SITE03-042.",
+  provider = assistant,
+  reviewer = reviewer,
+  policy = policy_preset("pharma_gxp"),
+  action = "redact",
+  checks = "both"
 )
 result$audit
 }
@@ -93,5 +106,5 @@ result$audit
 }
 \seealso{
 \code{\link[=preflight_check]{preflight_check()}}, \code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_output]{scan_output()}},
-\code{\link[=scan_context]{scan_context()}}, \code{\link[=policy_preset]{policy_preset()}}
+\code{\link[=scan_context]{scan_context()}}, \code{\link[=policy_preset]{policy_preset()}}, \code{\link[=shield_ollama]{shield_ollama()}}
 }

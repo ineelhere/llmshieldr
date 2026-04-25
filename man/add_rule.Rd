@@ -15,8 +15,8 @@ Invisibly returns the updated list of custom rules.
 }
 \description{
 Adds a user-defined rule to the active rule set. Custom rules persist
-for the duration of the R session and are appended after the default
-\link{rule_bank}.
+for the duration of the R session and are appended after the built-in
+rule set.
 }
 \examples{
 # Add a custom rule for internal project IDs
@@ -41,5 +41,5 @@ remove_rule("internal_project_id")
 
 }
 \seealso{
-\code{\link[=remove_rule]{remove_rule()}}, \code{\link[=list_rules]{list_rules()}}, \link{rule_bank}
+\code{\link[=remove_rule]{remove_rule()}}, \code{\link[=list_rules]{list_rules()}}, \code{\link[=policy_preset]{policy_preset()}}
 }

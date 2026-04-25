@@ -6,7 +6,7 @@
 #' Rule-level actions are also respected, so a single `"block"` finding can
 #' escalate the final decision even when thresholds alone would not.
 #'
-#' @param score A single numeric risk score (from [score_findings()]).
+#' @param score A single numeric risk score from the active findings.
 #' @param policy A policy list (from [policy_preset()]). May contain a
 #'   `thresholds` element with custom `block`, `redact`, and `warn` values.
 #'   If `NULL` or missing `thresholds`, built-in defaults are used:
@@ -16,7 +16,7 @@
 #'
 #' @return A character string: `"block"`, `"redact"`, `"warn"`, or `"allow"`.
 #'
-#' @seealso [score_findings()], [get_band()], [policy_preset()]
+#' @seealso [scan_prompt()], [scan_output()], [policy_preset()]
 #'
 #' @examples
 #' # Default thresholds
@@ -36,7 +36,8 @@
 #' findings <- list(list(action = "block"))
 #' decide_action(10, strict_policy, findings)
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 decide_action <- function(score, policy = NULL, findings = list()) {
   if (!is.numeric(score) || length(score) != 1L) {
     abort_input_validation(

@@ -2,7 +2,7 @@
 % Please edit documentation in R/example_prompts.R
 \name{example_prompts}
 \alias{example_prompts}
-\title{Example Prompts for Testing and Demos}
+\title{Example Scenarios for Testing and Demos}
 \usage{
 example_prompts()
 }
@@ -10,6 +10,10 @@ example_prompts()
 A \code{\link[tibble:tibble]{tibble::tibble()}} with columns:
 \describe{
 \item{\code{prompt}}{Character. The example prompt text.}
+\item{\code{feature}}{Character. The main \code{llmshieldr} entry point the
+scenario is designed to demonstrate.}
+\item{\code{policy}}{Character. The recommended preset to use when scanning
+the scenario.}
 \item{\code{type}}{Character. Category: \code{"safe"}, \code{"phi"}, \code{"secret"},
 or \code{"injection"}.}
 \item{\code{description}}{Character. Brief description of what the prompt
@@ -19,20 +23,30 @@ demonstrates.}
 }
 }
 \description{
-Returns a bundled \code{\link[tibble:tibble]{tibble::tibble()}} of example prompts covering safe,
-PHI-containing, secret-leaking, and injection-laden scenarios. Useful
-for demonstrations, unit testing, and quick evaluation of detection
-rules.
+Returns a bundled \code{\link[tibble:tibble]{tibble::tibble()}} of realistic prompt scenarios mapped
+to common \code{llmshieldr} workflows such as \code{scan_prompt()}, \code{scan_context()},
+\code{preflight_check()}, \code{secure_chat()}, and \code{shield_ollama()}. Useful for
+demos, docs, unit tests, and quick regression checks.
 }
 \examples{
 # Load the example prompts
 prompts <- example_prompts()
 prompts
 
-# Scan each example prompt
-reports <- lapply(prompts$prompt, scan_prompt)
+# Scan each example with its recommended policy
+reports <- lapply(seq_len(nrow(prompts)), function(i) {
+  scan_prompt(
+    prompts$prompt[[i]],
+    policy = policy_preset(prompts$policy[[i]])
+  )
+})
 actions <- vapply(reports, `[[`, character(1), "action")
-data.frame(type = prompts$type, action = actions)
+data.frame(
+  feature = prompts$feature,
+  type = prompts$type,
+  expected_action = prompts$expected_action,
+  observed_action = actions
+)
 
 }
 \seealso{

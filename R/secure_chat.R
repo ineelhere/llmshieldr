@@ -1,15 +1,16 @@
 #' Secure Chat
 #'
 #' @description
-#' The flagship function of `llmshieldr`. Wraps an LLM call with a full
-#' security lifecycle:
+#' Wraps an LLM call with a full safety lifecycle:
 #'
-#' 1. **Preflight** - Scan the prompt and optional context for secrets,
-#'    PII/PHI, and injection attempts.
-#' 2. **Redaction** - Optionally sanitize the prompt before sending.
-#' 3. **Provider call** - Send the cleaned prompt to a provider callable.
-#' 4. **Postflight** - Scan the model response for unsafe content.
-#' 5. **Audit** - Return a structured `shield_audit` record.
+#' 1. Preflight checks on the prompt and optional context.
+#' 2. Optional redaction before the provider call.
+#' 3. Provider execution.
+#' 4. Postflight checks on the model response.
+#' 5. A structured audit record you can inspect or persist.
+#'
+#' You can keep the checks fully rule-based, ask a local reviewer model to
+#' inspect the text, or combine both approaches.
 #'
 #' @param prompt A single character string containing the user prompt.
 #' @param provider A provider callable. This can be an `ellmer` chat object
@@ -23,6 +24,10 @@
 #'   to the prompt.
 #' @param action Character. Override the scanner's recommended action. One of
 #'   `"auto"`, `"redact"`, `"warn"`, or `"block"`.
+#' @param reviewer Optional reviewer callable used when `checks` is `"llm"`
+#'   or `"both"`. Use a separate reviewer object from `provider` so the
+#'   review conversation does not mix with the user-facing chat state.
+#' @param checks Character. One of `"rules"`, `"llm"`, or `"both"`.
 #'
 #' @return A `secure_result` S3 object with elements:
 #'   \describe{
@@ -31,11 +36,11 @@
 #'     \item{`audit`}{A `shield_audit` object with lifecycle metadata.}
 #'     \item{`risk_summary`}{A one-row [tibble::tibble()] with columns
 #'       `input_score`, `input_band`, `output_score`, `output_band`,
-#'       `rules_triggered`, and `action_taken`.}
+#'       `rules_triggered`, `action_taken`, and `checks_used`.}
 #'   }
 #'
 #' @seealso [preflight_check()], [scan_prompt()], [scan_output()],
-#'   [scan_context()], [policy_preset()]
+#'   [scan_context()], [policy_preset()], [shield_ollama()]
 #'
 #' @examples
 #' provider <- function(prompt) {
@@ -43,9 +48,9 @@
 #' }
 #'
 #' result <- secure_chat(
-#'   prompt   = "What are the core SDTM domains?",
+#'   prompt = "What are the core SDTM domains?",
 #'   provider = provider,
-#'   policy   = policy_preset("pharma_gxp")
+#'   policy = policy_preset("pharma_gxp")
 #' )
 #' result$output
 #' result$risk_summary
@@ -55,21 +60,25 @@
 #' }
 #'
 #' blocked <- secure_chat(
-#'   prompt   = "Summarize the visit.",
+#'   prompt = "Summarize the visit.",
 #'   provider = unsafe_provider,
-#'   policy   = policy_preset("pharma_gxp")
+#'   policy = policy_preset("pharma_gxp")
 #' )
 #' blocked$output
 #'
 #' \dontrun{
 #' library(ellmer)
 #'
-#' chat <- chat_ollama(model = "llama3.2")
+#' assistant <- chat_ollama(model = "gemma3:4b")
+#' reviewer <- chat_ollama(model = "gemma3:4b")
+#'
 #' result <- secure_chat(
-#'   prompt   = "Summarize narrative for USUBJID: STUDY01-SITE03-042.",
-#'   provider = chat,
-#'   policy   = policy_preset("pharma_gxp"),
-#'   action   = "redact"
+#'   prompt = "Summarize narrative for USUBJID: STUDY01-SITE03-042.",
+#'   provider = assistant,
+#'   reviewer = reviewer,
+#'   policy = policy_preset("pharma_gxp"),
+#'   action = "redact",
+#'   checks = "both"
 #' )
 #' result$audit
 #' }
@@ -79,19 +88,27 @@ secure_chat <- function(prompt,
                         provider,
                         policy,
                         context = NULL,
-                        action = c("auto", "redact", "warn", "block")) {
-
+                        action = c("auto", "redact", "warn", "block"),
+                        reviewer = NULL,
+                        checks = c("rules", "llm", "both")) {
   if (!rlang::is_string(prompt)) {
     abort_input_validation(
       arg = "prompt",
       expected = "a single character string",
-      got = paste0("{.obj_type_friendly {prompt}}"),
+      got = "{.obj_type_friendly {prompt}}",
       fn = "secure_chat"
     )
   }
-  action <- rlang::arg_match(action)
 
-  input_report <- scan_prompt(prompt, policy)
+  action <- rlang::arg_match(action)
+  checks <- rlang::arg_match(checks)
+
+  input_report <- scan_prompt(
+    text = prompt,
+    policy = policy,
+    reviewer = reviewer,
+    checks = checks
+  )
 
   context_reports <- NULL
   context_text <- context
@@ -99,7 +116,13 @@ secure_chat <- function(prompt,
     if (is.data.frame(context)) {
       context_text <- .extract_context_column(context, text_col = NULL)
     }
-    context_reports <- scan_context(context, policy)
+
+    context_reports <- scan_context(
+      text = context,
+      policy = policy,
+      reviewer = reviewer,
+      checks = checks
+    )
   }
 
   effective_action <- if (action == "auto") {
@@ -122,7 +145,12 @@ secure_chat <- function(prompt,
       )
       blocking_findings <- c(blocking_findings, context_findings)
     }
-    blocking_score <- score_findings(blocking_findings)
+
+    blocking_score <- if (length(blocking_findings) == 0L) {
+      input_report$score
+    } else {
+      score_findings(blocking_findings)
+    }
     blocking_band <- get_band(blocking_score)
 
     abort_policy_block(
@@ -168,7 +196,13 @@ secure_chat <- function(prompt,
     }
   )
 
-  output_report <- scan_output(model_output, policy)
+  output_report <- scan_output(
+    text = model_output,
+    policy = policy,
+    reviewer = reviewer,
+    checks = checks
+  )
+
   final_action <- .strongest_action(c(effective_action, output_report$action))
 
   returned_output <- if (output_report$action == "block") {
@@ -185,17 +219,32 @@ secure_chat <- function(prompt,
     )
   }
 
+  all_redactions <- c(
+    input_report$redaction_log,
+    output_report$redaction_log
+  )
+  if (!is.null(context_reports)) {
+    context_redactions <- unlist(
+      lapply(context_reports, `[[`, "redaction_log"),
+      recursive = FALSE
+    )
+    all_redactions <- c(all_redactions, context_redactions)
+  }
+
   audit <- structure(
     list(
       timestamp = Sys.time(),
       policy = policy$name %||% "default",
-      model = tryCatch(provider$model, error = function(e) "unknown"),
-      provider = tryCatch(class(provider)[[1]], error = function(e) "unknown"),
+      model = .provider_model(provider),
+      provider = .provider_name(provider),
+      reviewer_model = .provider_model(reviewer),
+      reviewer_provider = .provider_name(reviewer),
+      checks = checks,
       input_report = input_report,
       output_report = output_report,
       context_reports = context_reports,
       final_action = final_action,
-      redactions = input_report$redaction_log,
+      redactions = all_redactions,
       prompt_sent = full_prompt
     ),
     class = "shield_audit"
@@ -207,7 +256,8 @@ secure_chat <- function(prompt,
     output_score = output_report$score,
     output_band = output_report$band,
     rules_triggered = length(input_report$findings) + length(output_report$findings),
-    action_taken = final_action
+    action_taken = final_action,
+    checks_used = checks
   )
 
   structure(
@@ -237,7 +287,7 @@ secure_chat <- function(prompt,
     abort_input_validation(
       arg = "provider",
       expected = "a function or object with a `chat()` method",
-      got = paste0("{.obj_type_friendly {provider}}"),
+      got = "{.obj_type_friendly {provider}}",
       fn = "secure_chat"
     )
   }
@@ -249,4 +299,26 @@ secure_chat <- function(prompt,
   }
 
   response
+}
+
+
+#' @noRd
+#' @keywords internal
+.provider_model <- function(provider) {
+  if (is.null(provider)) {
+    return(NA_character_)
+  }
+
+  tryCatch(provider$model %||% "unknown", error = function(e) "unknown")
+}
+
+
+#' @noRd
+#' @keywords internal
+.provider_name <- function(provider) {
+  if (is.null(provider)) {
+    return(NA_character_)
+  }
+
+  tryCatch(class(provider)[[1]] %||% "unknown", error = function(e) "unknown")
 }

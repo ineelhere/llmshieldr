@@ -3,7 +3,7 @@ test_that("shield_audit creates valid object", {
   output_rpt <- scan_output("Safe answer.")
   audit <- shield_audit(
     policy = "pharma_gxp",
-    model = "llama3.2",
+    model = "gemma3:4b",
     provider = "ollama",
     input_report = input_rpt,
     output_report = output_rpt,
@@ -11,7 +11,7 @@ test_that("shield_audit creates valid object", {
   )
   expect_s3_class(audit, "shield_audit")
   expect_equal(audit$policy, "pharma_gxp")
-  expect_equal(audit$model, "llama3.2")
+  expect_equal(audit$model, "gemma3:4b")
 })
 
 test_that("write_audit_log creates JSONL file", {

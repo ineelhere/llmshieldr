@@ -28,34 +28,28 @@ navbar:
 reference:
   - title: Core workflow
     contents:
+      - shield_ollama
       - secure_chat
-      - preflight_check
       - scan_prompt
-      - scan_output
+      - preflight_check
       - scan_context
-      - shield_audit
-      - write_audit_log
-  - title: Rules and policies
+      - scan_output
+  - title: Policies and review
     contents:
-      - rule_bank
       - policy_preset
       - add_rule
       - remove_rule
       - list_rules
       - explain_findings
-  - title: Detection and scoring
-    contents:
-      - detect_secrets
-      - detect_pii_phi
-      - detect_injection
-      - score_findings
-      - get_band
-      - decide_action
-      - redact_text
   - title: Examples and printing
     contents:
       - example_prompts
       - matches("print\\.")
+  - title: Advanced
+    contents:
+      - llm_review
+      - shield_audit
+      - write_audit_log
 
 articles:
   - title: Articles

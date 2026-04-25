@@ -130,6 +130,7 @@ abort_policy_block <- function(policy_name, findings, score, band,
     message = c(header, bullets),
     class   = c("llmshieldr_policy_block", "llmshieldr_error"),
     call    = call,
+    .envir  = call,
     policy  = policy_name,
     score   = score,
     band    = band,
@@ -176,6 +177,7 @@ abort_input_validation <- function(arg, expected, got = NULL,
     message = c(header, bullets),
     class   = c("llmshieldr_input_error", "llmshieldr_error"),
     call    = call,
+    .envir  = call,
     arg     = arg
   )
 }
@@ -204,8 +206,9 @@ abort_missing_dependency <- function(pkg, fn, call = rlang::caller_env()) {
       "i" = "See {.url https://github.com/ineelhere/llmshieldr#readme} for setup guidance."
     ),
     class = c("llmshieldr_dependency_error", "llmshieldr_error"),
-    call  = call,
-    pkg   = pkg
+    call   = call,
+    .envir = call,
+    pkg    = pkg
   )
 }
 
@@ -233,7 +236,8 @@ abort_provider_failure <- function(provider_msg, call = rlang::caller_env()) {
       "i" = "The prompt passed all preflight checks before this failure."
     ),
     class = c("llmshieldr_provider_error", "llmshieldr_error"),
-    call  = call
+    call   = call,
+    .envir = call
   )
 }
 
@@ -255,7 +259,8 @@ abort_rule_error <- function(message, ..., call = rlang::caller_env()) {
   cli::cli_abort(
     message = c(header, ...),
     class   = c("llmshieldr_rule_error", "llmshieldr_error"),
-    call    = call
+    call    = call,
+    .envir  = call
   )
 }
 
@@ -277,7 +282,8 @@ abort_policy_error <- function(message, ..., call = rlang::caller_env()) {
   cli::cli_abort(
     message = c(header, ...),
     class   = c("llmshieldr_policy_error", "llmshieldr_error"),
-    call    = call
+    call    = call,
+    .envir  = call
   )
 }
 
@@ -299,6 +305,7 @@ abort_not_found <- function(message, ..., call = rlang::caller_env()) {
   cli::cli_abort(
     message = c(header, ...),
     class   = c("llmshieldr_not_found_error", "llmshieldr_error"),
-    call    = call
+    call    = call,
+    .envir  = call
   )
 }

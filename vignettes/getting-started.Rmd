@@ -14,104 +14,113 @@ knitr::opts_chunk$set(
 )
 ```
 
-`llmshieldr` adds a rule-based security layer around LLM workflows in R. It is especially useful when prompts, retrieved context, or model responses may contain sensitive information or risky instructions.
+`llmshieldr` is easiest to understand if you think about it as a layer that
+sits between your R code and your model:
 
-This is not only about high-risk production systems. It also applies to the normal coding day most R users already have:
+1. check the prompt
+2. check any retrieved context
+3. call the model
+4. check the output
+5. keep an audit record
 
-- pasting an error message into a chat window
-- asking a model to refactor a function
-- sending a few rows from a data dictionary or issue tracker as context
-- sharing configuration snippets that might still contain tokens or passwords
-- running automated summarization jobs over internal text
+The package can still do this with fast rule-based checks, but it can now also
+use a local reviewer model. That makes the package much more realistic for
+privacy-sensitive workflows where you want semantic review without sending
+anything to a hosted API.
 
-The package helps you keep those workflows useful without treating every prompt like a security incident.
+## The privacy-first setup
 
-## Core idea
+The examples in this vignette use:
 
-The package wraps a typical LLM interaction in five steps:
+- Ollama running locally
+- `gemma3:4b` as the assistant model
+- `ellmer` for the chat client
+- `llmshieldr` for the guardrails
 
-1. Scan the prompt and context.
-2. Decide whether to allow, warn, redact, or block.
-3. Send the cleaned prompt to the provider.
-4. Scan the output.
-5. Return an audit record.
+In a shell first:
 
-## A simple local provider for examples
+```sh
+ollama pull gemma3:4b
+```
 
-Throughout this vignette, we will use plain R functions as providers so the examples stay runnable without API keys or external services.
+The quickest end-to-end entry point is `shield_ollama()`.
 
-```{r}
+## Start with one realistic local call
+
+```{r eval = FALSE}
 library(llmshieldr)
 
-provider <- function(prompt) {
-  paste("Mock model reply for:", prompt)
-}
-```
-
-## Day-to-day example 1: checking a prompt before asking for help
-
-One of the most common workflows is asking a model to help explain a dataset, review a function, or summarize a narrative. If that prompt includes subject identifiers, credentials, or copied context from a ticket, a quick preflight check is useful.
-
-```{r}
-report <- preflight_check(
-  "Summarize narrative for patient USUBJID: STUDY01-SITE03-042.",
-  policy = policy_preset("pharma_gxp")
-)
-
-report$action
-report$text_clean
-```
-
-If you want a more human-readable explanation of what was flagged, use `explain_findings()`.
-
-```{r}
-explain_findings(report$findings)
-```
-
-## Day-to-day example 2: pasting code or config into a chat tool
-
-Developers often paste a small snippet into an LLM to ask, "Why is this failing?" The problem is that snippets can carry secrets along with the code.
-
-```{r}
-snippet_prompt <- paste(
-  "Please explain why this script fails in production:",
-  "con <- DBI::dbConnect(odbc::odbc(), uid = 'analyst', password = SuperSecret123!)",
-  sep = "\n"
-)
-
-snippet_report <- scan_prompt(
-  snippet_prompt,
-  policy = policy_preset("enterprise_default")
-)
-
-snippet_report$action
-snippet_report$text_clean
-```
-
-This pattern is useful for reviewing prompts before they ever leave your local session, especially when debugging scripts, ETL code, or deployment settings.
-
-## Day-to-day example 3: using `secure_chat()` as a safer wrapper
-
-Once you are happy with the scanning step, `secure_chat()` gives you the full workflow in one call.
-
-```{r}
-result <- secure_chat(
-  prompt = "What are the core SDTM domains?",
-  provider = provider,
-  policy = policy_preset("pharma_gxp")
+result <- shield_ollama(
+  prompt = "Explain this dplyr error and suggest a fix.",
+  policy = policy_preset("enterprise_default"),
+  checks = "both",
+  model = "gemma3:4b"
 )
 
 result$output
 result$risk_summary
 ```
 
-In practice, this is the function you would wrap around the coding assistant or chat provider you already use.
+That single call creates:
 
-## Day-to-day example 4: sending retrieved context from tables or tickets
+- one local Ollama chat for the answer
+- one local Ollama chat for the safety review
 
-Many teams build prompts from data frames: issue tracker exports, validation notes, protocol comments, code review notes, or retrieved text chunks. `scan_context()` works directly on those structures.
+Using separate chats matters because the review prompts should not pollute the
+assistant's normal conversation state.
+
+## The three modes you will actually use
+
+Every scan entry point accepts `checks`:
+
+- `"rules"` for deterministic regex-based checks
+- `"llm"` for local model review only
+- `"both"` for rule checks plus local model review
+
+In practice:
+
+- start with `"rules"` if you want speed and reproducibility
+- use `"both"` if you want stronger checks on realistic prompts and outputs
+- use `"llm"` when semantic review matters more than strict pattern matching
+
+## Check a prompt before sending it
+
+This is the most common workflow: you are about to paste a prompt into a chat
+tool and want a private local review first.
+
+```{r eval = FALSE}
+library(llmshieldr)
+library(ellmer)
+
+reviewer <- chat_ollama(model = "gemma3:4b")
+
+report <- scan_prompt(
+  text = "Please review password = hunter2 before I paste this into chat.",
+  policy = policy_preset("enterprise_default"),
+  reviewer = reviewer,
+  checks = "both"
+)
+
+report$action
+report$text_clean
+explain_findings(report$findings)
+```
+
+This is a good fit for:
+
+- debugging code that might still contain credentials
+- pasting error traces or logs into a chat window
+- sharing small data samples that may still contain identifiers
+- reviewing prompts assembled from several internal notes
+
+## Check retrieved context from a data frame
+
+Many LLM workflows build prompts from tickets, notes, or retrieved chunks.
+`scan_context()` works directly on those structures.
 
 ```{r}
+library(llmshieldr)
+
 docs <- data.frame(
   source = c("ticket-101", "ticket-102", "ticket-103"),
   narrative = c(
@@ -121,82 +130,55 @@ docs <- data.frame(
   )
 )
 
-reports <- scan_context(docs)
-vapply(reports, `[[`, character(1), "action")
-```
-
-That maps well to day-to-day retrieval workflows:
-
-- rows from a bug tracker
-- pulled documentation chunks in a local RAG prototype
-- columns of reviewer notes
-- free-text records from data curation or clinical operations
-
-If the text is not in the first character column, select it explicitly.
-
-```{r}
-scan_context(docs, text_col = "narrative")[[2]]$band
-```
-
-## Day-to-day example 5: adding rules for your own shop
-
-Most teams have internal identifiers that are not part of the default rule bank. For example, you may want to redact project IDs, internal study codes, Jira-like ticket names, or company-specific subject keys.
-
-```{r}
-add_rule(list(
-  id = "internal_project_id",
-  type = "phi",
-  pattern = "PROJ-[A-Z]{3}-\\d{4}",
-  severity = 35,
-  action = "redact",
-  mask = "[REDACTED_PROJECT_ID]",
-  description = "Internal project identifier detected",
-  owasp = "LLM02",
-  policy_tags = c("enterprise_default")
-))
-
-custom_report <- scan_prompt(
-  "Please draft release notes for project PROJ-ABC-2048.",
-  policy = policy_preset("enterprise_default")
-)
-
-custom_report$action
-custom_report$text_clean
-
-remove_rule("internal_project_id")
-```
-
-This is a good fit for real internal workflows where the risky token is not a password, but still should not be copied into a third-party system.
-
-## Day-to-day example 6: triaging lots of prompts before a batch job
-
-You may not want to call an LLM at all until you know a batch of prompts looks safe enough. This is useful in CI, nightly jobs, or review pipelines.
-
-```{r}
-prompts <- example_prompts()
-
-batch_reports <- lapply(
-  prompts$prompt,
-  scan_prompt,
+reports <- scan_context(
+  docs,
+  text_col = "narrative",
   policy = policy_preset("pharma_gxp")
 )
 
-data.frame(
-  type = prompts$type,
-  expected_action = prompts$expected_action,
-  observed_action = vapply(batch_reports, `[[`, character(1), "action")
-)
+vapply(reports, `[[`, character(1), "action")
 ```
 
-A practical pattern is:
+That maps nicely to day-to-day workflows such as:
 
-1. run `scan_prompt()` or `preflight_check()` over a batch
-2. inspect anything marked `warn`, `redact`, or `block`
-3. only send the prompts that pass your policy
+- bug tracker exports
+- free-text reviewer comments
+- local RAG prototypes
+- operational notes copied into prompt context
 
-## Day-to-day example 7: output scanning matters too
+## Use your own Ollama chats with `secure_chat()`
 
-Users often think only the input side matters. In normal coding work, though, the model response can also create trouble: unsupported claims, unsafe instructions, or overconfident language that should not flow into downstream reports.
+If you already create `ellmer` chat objects yourself, use `secure_chat()`.
+
+```{r eval = FALSE}
+library(llmshieldr)
+library(ellmer)
+
+assistant <- chat_ollama(model = "gemma3:4b")
+reviewer <- chat_ollama(model = "gemma3:4b")
+
+result <- secure_chat(
+  prompt = "Summarize this issue and suggest the next debugging step.",
+  provider = assistant,
+  reviewer = reviewer,
+  policy = policy_preset("enterprise_default"),
+  checks = "both"
+)
+
+result$output
+result$audit
+```
+
+This is the most flexible path when:
+
+- you want to keep an ongoing assistant chat alive
+- you want a different review model from the answer model
+- you are composing `llmshieldr` into an existing package or app
+
+## Output checks matter too
+
+Input-side review is only half the story. Sometimes the response is the risky
+part.
 
 ```{r}
 unsafe_provider <- function(prompt) {
@@ -213,16 +195,49 @@ unsafe_result$output
 unsafe_result$audit$output_report$action
 ```
 
-That is particularly relevant when you ask a model to:
+That matters when you ask a model to:
 
-- draft language for a report
-- summarize findings for a stakeholder
-- suggest code that might be copied into a regulated workflow
-- write end-user text that sounds more authoritative than it should
+- draft report text
+- summarize findings for stakeholders
+- generate code that may be copied into a workflow
+- produce authoritative-sounding end-user content
 
-## Day-to-day example 8: audit logging for automated workflows
+## Batch triage before a job runs
 
-If you wrap LLM usage in a function or scheduled job, writing the audit trail is straightforward.
+If you want to review a batch of prompts before any model call happens, use
+`scan_prompt()` or `preflight_check()` over the batch first.
+
+```{r eval = FALSE}
+prompts <- example_prompts()
+
+batch_reports <- lapply(
+  seq_len(nrow(prompts)),
+  function(i) {
+    scan_prompt(
+      prompts$prompt[[i]],
+      policy = policy_preset(prompts$policy[[i]])
+    )
+  }
+)
+
+data.frame(
+  feature = prompts$feature,
+  type = prompts$type,
+  policy = prompts$policy,
+  expected_action = prompts$expected_action,
+  observed_action = vapply(batch_reports, `[[`, character(1), "action")
+)
+```
+
+That pattern is useful in:
+
+- CI checks for prompt templates
+- nightly jobs that build prompts from internal data
+- review pipelines where a human inspects flagged items before dispatch
+
+## Audit logging
+
+Audit logging is straightforward once you wrap the model call.
 
 ```{r}
 path <- tempfile(fileext = ".jsonl")
@@ -230,21 +245,15 @@ write_audit_log(unsafe_result$audit, path)
 readLines(path)
 ```
 
-That gives you a concrete record of what policy was applied, how the prompt scored, what the output did, and what action was taken.
-
 ## A practical mental model
 
-In everyday R work, it helps to think of `llmshieldr` as sitting between your code and your provider:
+Use:
 
-- use `scan_prompt()` when you want a lightweight local check
-- use `scan_context()` when prompts are built from tables or retrieved text
-- use `secure_chat()` when you want the whole workflow in one wrapper
-- use `write_audit_log()` when the workflow is part of a script, job, or report pipeline
-- use `add_rule()` when your team has internal identifiers or policies the defaults do not cover
+- `scan_prompt()` when you want a local prompt review
+- `scan_context()` when prompts are built from tables or retrieved text
+- `scan_output()` when you want to inspect a model reply
+- `secure_chat()` when you already manage your own provider object
+- `shield_ollama()` when you want the easiest local Ollama path
 
-## Next steps
-
-- Use `policy_preset()` to choose a default governance profile.
-- Use `example_prompts()` to explore the built-in fixtures.
-- Start with `preflight_check()` if you want a low-friction way to review prompts before sending them.
-- Move to `secure_chat()` once you want a reusable wrapper around your normal LLM calls.
+If you want the package to feel simple, start with `shield_ollama()` and only
+drop down to `secure_chat()` when you need more control.

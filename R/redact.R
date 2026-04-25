@@ -15,7 +15,7 @@
 #'       `original_match`, and `mask` for every replacement made.}
 #'   }
 #'
-#' @seealso [scan_prompt()], [secure_chat()]
+#' @seealso [scan_prompt()], [scan_output()], [secure_chat()]
 #'
 #' @examples
 #' # Redact an email address
@@ -33,7 +33,8 @@
 #' result <- redact_text("Safe prompt about SDTM.", list())
 #' result$text
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 redact_text <- function(text, findings) {
   if (!rlang::is_string(text)) {
     abort_input_validation(

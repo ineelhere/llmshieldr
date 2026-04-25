@@ -7,8 +7,8 @@
 explain_findings(findings)
 }
 \arguments{
-\item{findings}{A list of rule objects (as returned by detector functions
-or from a \code{scan_report$findings}).}
+\item{findings}{A list of rule objects, such as \code{scan_report$findings}
+from \code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_context]{scan_context()}}, \code{\link[=scan_output]{scan_output()}}, or \code{\link[=llm_review]{llm_review()}}.}
 }
 \value{
 A character vector of explanations, one per finding.
@@ -33,6 +33,5 @@ explain_findings(list())
 
 }
 \seealso{
-\code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=detect_secrets]{detect_secrets()}}, \code{\link[=detect_pii_phi]{detect_pii_phi()}},
-\code{\link[=detect_injection]{detect_injection()}}
+\code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_output]{scan_output()}}, \code{\link[=scan_context]{scan_context()}}, \code{\link[=llm_review]{llm_review()}}
 }

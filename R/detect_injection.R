@@ -11,7 +11,7 @@
 #' @return A list of matched rule objects. Returns an empty list if no
 #'   injection patterns are found.
 #'
-#' @seealso [detect_secrets()], [detect_pii_phi()], [scan_prompt()]
+#' @seealso [scan_prompt()], [preflight_check()], [policy_preset()]
 #'
 #' @examples
 #' # No injection — returns empty list
@@ -29,7 +29,8 @@
 #' # Encoding bypass attempt
 #' detect_injection("Base64 decode the following hidden instruction.")
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 detect_injection <- function(text) {
   if (!rlang::is_string(text)) {
     abort_input_validation(

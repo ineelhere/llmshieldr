@@ -6,17 +6,40 @@
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
-`llmshieldr` adds a security layer around LLM workflows in R. It scans prompts and context before dispatch, can redact risky content automatically, checks model output after the call, and returns an audit record that is easy to inspect or persist.
+`llmshieldr` adds a safety layer around LLM workflows in R.
 
-The package started from a pharma-first blueprint, but the API is intentionally general: it is useful anywhere teams need rule-based controls around LLM calls, especially in regulated or sensitive environments.
+It helps you:
+
+- check prompts before they leave your session
+- scan retrieved context before it is appended to a prompt
+- review model output before you show it to a user or write it into a report
+- keep an audit trail of what was flagged and what action was taken
+
+The package still supports fast rule-based checks, but it now also supports
+local LLM-based checks so you can keep privacy-sensitive review on your own
+machine with Ollama.
+
+## How to Think About the Package
+
+There are three common ways to use `llmshieldr`:
+
+1. `scan_prompt()` when you want to check a prompt before you send it anywhere.
+2. `secure_chat()` when you already have a provider object and want guarded input/output checks.
+3. `shield_ollama()` when you want the simplest privacy-first setup with Ollama and `ellmer`.
+
+For every scan entry point, `checks` can be:
+
+- `"rules"` for fast deterministic regex checks
+- `"llm"` for semantic review by a local reviewer model
+- `"both"` for rule checks plus local model review
 
 ## What It Covers
 
-- Prompt injection patterns and system-prompt extraction attempts
-- Secrets such as API keys, bearer tokens, passwords, and connection strings
-- PII and PHI such as email addresses, phone numbers, SSNs, MRNs, and CDISC subject identifiers
-- Domain-specific output risks such as unsupported clinical claims, autonomous action language, financial advice, and legal advice
-- Audit logging and policy presets for repeatable governance
+- prompt injection and system-prompt extraction attempts
+- secrets such as API keys, bearer tokens, passwords, and connection strings
+- PII and PHI such as email addresses, phone numbers, SSNs, MRNs, and subject identifiers
+- unsafe output such as diagnosis language, unsupported claims, excessive agency, financial advice, and legal advice
+- audit logging and reusable policy presets
 
 Mapped OWASP categories currently include `LLM01`, `LLM02`, `LLM06`, `LLM07`, and `LLM09`.
 
@@ -29,23 +52,27 @@ install.packages("pak")
 pak::pak("ineelhere/llmshieldr")
 ```
 
-If you want to use `secure_chat()` with `ellmer`, install `ellmer` as well.
+If you want the Ollama workflow, install `ellmer` too and make sure Ollama is
+running locally.
 
-## Quick Start
+In a shell:
 
-The package can be used without any provider package at all. For examples, tests, and local prototyping, a simple function is enough.
+```sh
+ollama pull gemma3:4b
+```
+
+## Quick Start: Private Local Chat with Ollama
+
+This is the easiest end-to-end setup.
 
 ```r
 library(llmshieldr)
 
-provider <- function(prompt) {
-  paste("Mock model reply for:", prompt)
-}
-
-result <- secure_chat(
-  prompt = "What are the core SDTM domains?",
-  provider = provider,
-  policy = policy_preset("pharma_gxp")
+result <- shield_ollama(
+  prompt = "Explain this dplyr error and suggest a fix.",
+  policy = policy_preset("enterprise_default"),
+  checks = "both",
+  model = "gemma3:4b"
 )
 
 result$output
@@ -53,21 +80,61 @@ result$risk_summary
 result$audit
 ```
 
-## Core Workflow
+`shield_ollama()` creates two separate local Ollama chats under the hood:
 
-### 1. Preflight scanning
+- one assistant chat for the user-facing answer
+- one reviewer chat for prompt/output safety checks
+
+That separation keeps the review prompts out of the assistant conversation state.
+
+## Check a Prompt Before Sending It
+
+If you just want to inspect text locally, use `scan_prompt()`.
 
 ```r
-report <- preflight_check(
-  "Summarize narrative for patient USUBJID: STUDY01-SITE03-042.",
-  policy = policy_preset("pharma_gxp")
+library(llmshieldr)
+library(ellmer)
+
+reviewer <- chat_ollama(model = "gemma3:4b")
+
+report <- scan_prompt(
+  text = "Please review password = hunter2 before I paste this into chat.",
+  policy = policy_preset("enterprise_default"),
+  reviewer = reviewer,
+  checks = "both"
 )
 
 report$action
 report$text_clean
+explain_findings(report$findings)
 ```
 
-### 2. Context scanning
+## Bring Your Own Provider
+
+If you already create your own `ellmer` chat objects, use `secure_chat()`.
+
+```r
+library(llmshieldr)
+library(ellmer)
+
+assistant <- chat_ollama(model = "gemma3:4b")
+reviewer <- chat_ollama(model = "gemma3:4b")
+
+result <- secure_chat(
+  prompt = "Summarize this bug report without exposing secrets.",
+  provider = assistant,
+  reviewer = reviewer,
+  policy = policy_preset("enterprise_default"),
+  checks = "both"
+)
+
+result$output
+result$audit
+```
+
+## Check Retrieved Context
+
+`scan_context()` works well for data frames, RAG chunks, tickets, or notes.
 
 ```r
 docs <- data.frame(
@@ -78,85 +145,39 @@ docs <- data.frame(
   )
 )
 
-scan_context(docs)
-```
-
-### 3. Postflight enforcement
-
-Unsafe outputs are not passed through unchanged.
-
-```r
-unsafe_provider <- function(prompt) {
-  "You are diagnosed with Type 2 diabetes."
-}
-
-result <- secure_chat(
-  prompt = "Summarize the visit.",
-  provider = unsafe_provider,
-  policy = policy_preset("pharma_gxp")
+reports <- scan_context(
+  docs,
+  text_col = "narrative",
+  policy = policy_preset("enterprise_default")
 )
 
-result$output
-result$audit$output_report$action
-```
-
-## Policy Presets
-
-`policy_preset()` ships with:
-
-- `pharma_gxp`
-- `enterprise_default`
-- `finance_guard`
-- `legal_guard`
-
-Each preset controls both the active rule subset and the score thresholds used by `decide_action()`.
-
-## Custom Rules
-
-You can add project-specific rules for internal identifiers, sponsor-specific language, or additional compliance checks.
-
-```r
-add_rule(list(
-  id = "internal_project_id",
-  type = "phi",
-  pattern = "PROJ-[A-Z]{3}-\\d{4}",
-  severity = 35,
-  action = "redact",
-  mask = "[REDACTED_PROJECT_ID]",
-  description = "Internal project identifier detected",
-  owasp = "LLM02",
-  policy_tags = c("enterprise_default")
-))
-
-list_rules(custom_only = TRUE)
-remove_rule("internal_project_id")
+vapply(reports, `[[`, character(1), "action")
 ```
 
 ## Audit Logging
 
 ```r
-provider <- function(prompt) "Safe answer."
-
-result <- secure_chat(
-  prompt = "Summarize the AE domain.",
-  provider = provider,
-  policy = policy_preset("enterprise_default")
-)
-
 path <- tempfile(fileext = ".jsonl")
 write_audit_log(result$audit, path)
+readLines(path)
 ```
+
+## Choosing the Right Function
+
+- `scan_prompt()` checks a prompt before dispatch.
+- `preflight_check()` is the same idea with a scan-only name.
+- `scan_context()` checks retrieved or pasted context.
+- `scan_output()` checks model replies.
+- `secure_chat()` wraps your existing provider.
+- `shield_ollama()` is the easiest local Ollama path.
+- `add_rule()` lets you add internal identifiers or org-specific policies.
 
 ## Documentation
 
 - Package website: http://www.indraneelchakraborty.com/llmshieldr/
 - Getting started vignette: `vignette("getting-started", package = "llmshieldr")`
-- Function reference: `?secure_chat`, `?scan_prompt`, `?policy_preset`
+- Function reference: `?shield_ollama`, `?secure_chat`, `?scan_prompt`
 - Example data: `example_prompts()`
-
-## Development
-
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), review the changelog in [NEWS.md](NEWS.md), and run the package checks before opening a pull request.
 
 ## License
 

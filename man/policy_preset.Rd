@@ -53,5 +53,5 @@ report$action
 
 }
 \seealso{
-\code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=secure_chat]{secure_chat()}}, \code{\link[=decide_action]{decide_action()}}
+\code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_output]{scan_output()}}, \code{\link[=secure_chat]{secure_chat()}}
 }

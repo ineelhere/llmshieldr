@@ -28,7 +28,7 @@ output_report <- scan_output("The AE domain stores adverse events.")
 
 audit <- shield_audit(
   policy       = "pharma_gxp",
-  model        = "llama3.2",
+  model        = "gemma3:4b",
   provider     = "ollama",
   input_report = input_report,
   output_report = output_report,

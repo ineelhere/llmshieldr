@@ -50,7 +50,8 @@
 #' injection_rules <- Filter(function(r) r$owasp == "LLM01", rule_bank)
 #' vapply(injection_rules, `[[`, character(1), "id")
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 rule_bank <- list(
 
 # ── Secret detector rules ────────────────────────────────────────────────────

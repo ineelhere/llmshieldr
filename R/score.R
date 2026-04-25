@@ -9,7 +9,7 @@
 #' @return A single numeric value representing the total risk score. Returns
 #'   `0` for an empty findings list.
 #'
-#' @seealso [get_band()], [decide_action()]
+#' @seealso [scan_prompt()], [scan_output()]
 #'
 #' @examples
 #' # Score from an empty findings list
@@ -23,7 +23,8 @@
 #' findings <- detect_pii_phi("Patient USUBJID: STUDY01, email: test@example.com")
 #' score_findings(findings)
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 score_findings <- function(findings) {
   if (length(findings) == 0L) return(0)
   sum(purrr::map_dbl(findings, "severity"))
@@ -39,7 +40,7 @@ score_findings <- function(findings) {
 #' @return A character string: `"critical"` (\eqn{\geq 100}), `"high"`
 #'   (\eqn{\geq 50}), `"moderate"` (\eqn{\geq 20}), or `"low"` (< 20).
 #'
-#' @seealso [score_findings()], [decide_action()]
+#' @seealso [scan_prompt()], [scan_output()]
 #'
 #' @examples
 #' get_band(0)
@@ -48,7 +49,8 @@ score_findings <- function(findings) {
 #' get_band(75)
 #' get_band(150)
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 get_band <- function(score) {
   if (!is.numeric(score) || length(score) != 1L) {
     abort_input_validation(

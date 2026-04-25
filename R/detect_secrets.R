@@ -10,7 +10,7 @@
 #'   `id`, `type`, `pattern`, `severity`, `action`, `mask`, `description`,
 #'   `owasp`, and `policy_tags`. Returns an empty list if no secrets are found.
 #'
-#' @seealso [detect_pii_phi()], [detect_injection()], [scan_prompt()]
+#' @seealso [scan_prompt()], [preflight_check()], [policy_preset()]
 #'
 #' @examples
 #' # No secrets — returns empty list
@@ -28,7 +28,8 @@
 #' # GitHub PAT detected
 #' detect_secrets("Set GITHUB_PAT=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789")
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 detect_secrets <- function(text) {
   if (!rlang::is_string(text)) {
     abort_input_validation(

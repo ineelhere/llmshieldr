@@ -29,5 +29,5 @@ list_rules(custom_only = TRUE)
 
 }
 \seealso{
-\code{\link[=add_rule]{add_rule()}}, \code{\link[=remove_rule]{remove_rule()}}, \link{rule_bank}
+\code{\link[=add_rule]{add_rule()}}, \code{\link[=remove_rule]{remove_rule()}}, \code{\link[=policy_preset]{policy_preset()}}
 }

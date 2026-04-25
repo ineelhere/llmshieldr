@@ -22,7 +22,7 @@
 #'       score thresholds.}
 #'   }
 #'
-#' @seealso [scan_prompt()], [secure_chat()], [decide_action()]
+#' @seealso [scan_prompt()], [scan_output()], [secure_chat()]
 #'
 #' @examples
 #' # Load the pharma GxP policy
@@ -48,7 +48,7 @@ policy_preset <- function(name) {
     abort_input_validation(
       arg      = "name",
       expected = "a single character string",
-      got      = paste0("{.obj_type_friendly {name}}"),
+      got      = paste0("{.obj_type_friendly ", typeof(name), "}"),
       fn       = "policy_preset"
     )
   }
@@ -74,10 +74,11 @@ policy_preset <- function(name) {
     )
   )
 
-  if (!name %in% names(presets)) {
+  available <- names(presets)
+  if (!name %in% available) {
     abort_policy_error(
-      "Unknown policy preset: {.val {name}}.",
-      "i" = "Available presets: {.val {names(presets)}}.",
+      message = paste0("Unknown policy preset: ", shQuote(name)),
+      "i" = paste0("Available presets: ", paste(available, collapse = ", ")),
       "i" = "See {.code ?policy_preset} for preset descriptions and use cases."
     )
   }

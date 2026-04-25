@@ -6,9 +6,10 @@
 \alias{llmshieldr-package}
 \title{llmshieldr: Security Scanning and Policy Enforcement for LLM Workflows}
 \description{
-\code{llmshieldr} provides rule-based safety controls for LLM workflows in R.
-The package combines prompt and context scanning, optional redaction,
-policy-based action selection, postflight output checks, and audit logging.
+\code{llmshieldr} provides safety controls for LLM workflows in R. The package
+combines prompt and context scanning, optional redaction, policy-based
+action selection, postflight output checks, audit logging, and optional
+local reviewer-model checks through Ollama-compatible chat clients.
 }
 \details{
 It was designed with regulated workflows in mind, especially pharma and
@@ -16,10 +17,11 @@ clinical settings, but the package API is general enough for broader
 enterprise use cases.
 \subsection{Main entry points}{
 \itemize{
-\item \code{\link[=secure_chat]{secure_chat()}} for an end-to-end wrapped LLM interaction
-\item \code{\link[=preflight_check]{preflight_check()}} and \code{\link[=scan_prompt]{scan_prompt()}} for scan-only use
-\item \code{\link[=scan_output]{scan_output()}} for postflight output checks
-\item \code{\link[=policy_preset]{policy_preset()}} for built-in governance presets
+\item \code{\link[=scan_prompt]{scan_prompt()}} and \code{\link[=preflight_check]{preflight_check()}} to check prompts before sending
+\item \code{\link[=scan_context]{scan_context()}} to check retrieved or pasted context
+\item \code{\link[=scan_output]{scan_output()}} to review model replies
+\item \code{\link[=secure_chat]{secure_chat()}} for a bring-your-own-provider guarded workflow
+\item \code{\link[=shield_ollama]{shield_ollama()}} for the easiest local Ollama setup
 \item \code{\link[=write_audit_log]{write_audit_log()}} for JSON Lines audit export
 }
 }
