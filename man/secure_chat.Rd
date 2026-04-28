@@ -2,109 +2,38 @@
 % Please edit documentation in R/secure_chat.R
 \name{secure_chat}
 \alias{secure_chat}
-\title{Secure Chat}
+\title{Run a guarded chat call}
 \usage{
 secure_chat(
   prompt,
   provider,
   policy,
-  context = NULL,
-  action = c("auto", "redact", "warn", "block"),
   reviewer = NULL,
-  checks = c("rules", "llm", "both")
+  checks = "rules",
+  context = NULL
 )
 }
 \arguments{
-\item{prompt}{A single character string containing the user prompt.}
+\item{prompt}{User prompt.}
 
-\item{provider}{A provider callable. This can be an \code{ellmer} chat object
-with a \code{chat()} method, or a plain function that accepts one prompt
-string and returns one character response.}
+\item{provider}{A provider function or object with \verb{$chat()}.}
 
-\item{policy}{A policy list from \code{\link[=policy_preset]{policy_preset()}}. Controls the active
-rules and the action thresholds.}
+\item{policy}{A \code{shieldr_policy}.}
 
-\item{context}{An optional character vector or data frame of context
-documents. Data frames are scanned via their first character column.
-Context is scanned separately with \code{\link[=scan_context]{scan_context()}} before being appended
-to the prompt.}
+\item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{action}{Character. Override the scanner's recommended action. One of
-\code{"auto"}, \code{"redact"}, \code{"warn"}, or \code{"block"}.}
+\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
 
-\item{reviewer}{Optional reviewer callable used when \code{checks} is \code{"llm"}
-or \code{"both"}. Use a separate reviewer object from \code{provider} so the
-review conversation does not mix with the user-facing chat state.}
-
-\item{checks}{Character. One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{context}{Optional data frame of retrieved context.}
 }
 \value{
-A \code{secure_result} S3 object with elements:
-\describe{
-\item{\code{output}}{Character. The provider response after any postflight
-blocking or redaction has been applied.}
-\item{\code{audit}}{A \code{shield_audit} object with lifecycle metadata.}
-\item{\code{risk_summary}}{A one-row \code{\link[tibble:tibble]{tibble::tibble()}} with columns
-\code{input_score}, \code{input_band}, \code{output_score}, \code{output_band},
-\code{rules_triggered}, \code{action_taken}, and \code{checks_used}.}
-}
+A \code{shieldr_result}.
 }
 \description{
-Wraps an LLM call with a full safety lifecycle:
-\enumerate{
-\item Preflight checks on the prompt and optional context.
-\item Optional redaction before the provider call.
-\item Provider execution.
-\item Postflight checks on the model response.
-\item A structured audit record you can inspect or persist.
-}
-
-You can keep the checks fully rule-based, ask a local reviewer model to
-inspect the text, or combine both approaches.
+Orchestrates prompt scanning, optional context scanning, provider execution,
+output scanning, rate guarding, and audit creation.
 }
 \examples{
-provider <- function(prompt) {
-  paste("Model received:", prompt)
-}
-
-result <- secure_chat(
-  prompt = "What are the core SDTM domains?",
-  provider = provider,
-  policy = policy_preset("pharma_gxp")
-)
-result$output
-result$risk_summary
-
-unsafe_provider <- function(prompt) {
-  "You are diagnosed with Type 2 diabetes."
-}
-
-blocked <- secure_chat(
-  prompt = "Summarize the visit.",
-  provider = unsafe_provider,
-  policy = policy_preset("pharma_gxp")
-)
-blocked$output
-
-\dontrun{
-library(ellmer)
-
-assistant <- chat_ollama(model = "gemma3:4b")
-reviewer <- chat_ollama(model = "gemma3:4b")
-
-result <- secure_chat(
-  prompt = "Summarize narrative for USUBJID: STUDY01-SITE03-042.",
-  provider = assistant,
-  reviewer = reviewer,
-  policy = policy_preset("pharma_gxp"),
-  action = "redact",
-  checks = "both"
-)
-result$audit
-}
-
-}
-\seealso{
-\code{\link[=preflight_check]{preflight_check()}}, \code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_output]{scan_output()}},
-\code{\link[=scan_context]{scan_context()}}, \code{\link[=policy_preset]{policy_preset()}}, \code{\link[=shield_ollama]{shield_ollama()}}
+provider <- function(prompt) "safe answer"
+secure_chat("hello", provider, policy_preset("enterprise_default"))
 }

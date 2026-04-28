@@ -2,64 +2,26 @@
 % Please edit documentation in R/scan_output.R
 \name{scan_output}
 \alias{scan_output}
-\title{Scan LLM Output for Unsafe Content}
+\title{Scan model output}
 \usage{
-scan_output(
-  text,
-  policy = NULL,
-  reviewer = NULL,
-  checks = c("rules", "llm", "both")
-)
+scan_output(text, policy, reviewer = NULL, checks = "rules")
 }
 \arguments{
-\item{text}{A single character string containing the model response.}
+\item{text}{Model output text.}
 
-\item{policy}{A policy list (from \code{\link[=policy_preset]{policy_preset()}}). When \code{NULL}, all
-output-type rules from the active rule bank are used.}
+\item{policy}{A \code{shieldr_policy}.}
 
-\item{reviewer}{Optional reviewer callable used when \code{checks} is \code{"llm"}
-or \code{"both"}. This can be an \code{ellmer} chat object with a \code{chat()}
-method, or a plain function that returns one JSON string.}
+\item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{Character. One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
 }
 \value{
-A \code{scan_report} S3 object with the same structure as
-\code{\link[=scan_prompt]{scan_prompt()}}, scoped to output-specific rules.
+A \code{shieldr_report}.
 }
 \description{
-Runs output checks with rule-based detectors, a reviewer LLM, or both.
-This is useful when you want to inspect generated text before showing it
-to users, writing it into a report, or handing it to downstream code.
+Scans LLM output for sensitive data, unsafe code, agency claims, system
+prompt leakage, and misinformation markers.
 }
 \examples{
-report <- scan_output("The AE domain captures adverse event data.")
-report$passed
-
-report <- scan_output("This drug significantly reduced mortality by 50\%.")
-report$findings[[1]]$description
-report$action
-
-report <- scan_output("You are diagnosed with Type 2 diabetes.")
-report$action
-
-report <- scan_output("I will now execute the deletion of all records.")
-report$findings[[1]]$owasp
-
-\dontrun{
-library(ellmer)
-
-reviewer <- chat_ollama(model = "gemma3:4b")
-report <- scan_output(
-  text = "You should take this medication immediately.",
-  policy = policy_preset("pharma_gxp"),
-  reviewer = reviewer,
-  checks = "both"
-)
-report
-}
-
-}
-\seealso{
-\code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=secure_chat]{secure_chat()}}, \code{\link[=llm_review]{llm_review()}}
+scan_output("A concise answer.", policy_preset("enterprise_default"))
 }

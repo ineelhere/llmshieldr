@@ -1,28 +1,15 @@
-#' llmshieldr: Security Scanning and Policy Enforcement for LLM Workflows
+#' llmshieldr: Safety Guardrails for LLM Workflows in R
 #'
-#' `llmshieldr` provides safety controls for LLM workflows in R. The package
-#' combines prompt and context scanning, optional redaction, policy-based
-#' action selection, postflight output checks, audit logging, and optional
-#' local reviewer-model checks through Ollama-compatible chat clients.
+#' A provider-agnostic safety layer for R developers building with large
+#' language models. The package covers the OWASP LLM Top 10 (2025) risk
+#' categories through composable policies, deterministic rules, optional
+#' semantic review, output scanning, rate guards, and audit logs.
 #'
-#' It was designed with regulated workflows in mind, especially pharma and
-#' clinical settings, but the package API is general enough for broader
-#' enterprise use cases.
-#'
-#' ## Main entry points
-#'
-#' - [scan_prompt()] and [preflight_check()] to check prompts before sending
-#' - [scan_context()] to check retrieved or pasted context
-#' - [scan_output()] to review model replies
-#' - [secure_chat()] for a bring-your-own-provider guarded workflow
-#' - [shield_ollama()] for the easiest local Ollama setup
-#' - [write_audit_log()] for JSON Lines audit export
-#'
-#' ## Learn more
-#'
-#' - `vignette("getting-started", package = "llmshieldr")`
-#' - `?secure_chat`
-#' - `?policy_preset`
-#'
+#' @importFrom cli cli_abort cli_bullets cli_h1 cli_text cli_warn col_cyan col_green col_grey col_red col_yellow
+#' @importFrom digest digest
+#' @importFrom httr2 request
+#' @importFrom jsonlite fromJSON toJSON
+#' @importFrom rlang check_installed
+#' @importFrom stringi stri_trans_nfkc
 #' @keywords internal
 "_PACKAGE"

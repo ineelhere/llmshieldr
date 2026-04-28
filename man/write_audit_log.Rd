@@ -2,49 +2,26 @@
 % Please edit documentation in R/audit.R
 \name{write_audit_log}
 \alias{write_audit_log}
-\title{Write Audit Log to JSONL File}
+\title{Write an audit log}
 \usage{
-write_audit_log(audit, path)
+write_audit_log(audit, path, format = "jsonl")
 }
 \arguments{
-\item{audit}{A \code{shield_audit} object (from \code{\link[=shield_audit]{shield_audit()}} or
-\code{\link[=secure_chat]{secure_chat()}}).}
+\item{audit}{A \code{shieldr_audit} object.}
 
-\item{path}{Character. File path for JSONL output. The file is created
-if it does not exist; otherwise, the record is appended.}
+\item{path}{Output file path.}
+
+\item{format}{One of \code{"jsonl"}, \code{"csv"}, or \code{"rds"}.}
 }
 \value{
-Invisibly returns \code{path}.
+The path, invisibly.
 }
 \description{
-Appends a \code{shield_audit} record as a single JSON line to a JSONL
-(JSON Lines) file. Each call appends one line, making the file
-suitable for streaming audit ingestion and SIEM integration.
+Persists a \code{shieldr_audit} object as JSON Lines, CSV, or RDS for operational
+auditability across LLM workflows.
 }
 \examples{
-# Create and write an audit record
-input_report <- scan_prompt("Safe SDTM question.")
-output_report <- scan_output("The AE domain stores adverse events.")
-
-audit <- shield_audit(
-  policy       = "pharma_gxp",
-  model        = "gemma3:4b",
-  provider     = "ollama",
-  input_report = input_report,
-  output_report = output_report,
-  final_action = "allow"
-)
-
-# Write to a temporary JSONL file
-tmp <- tempfile(fileext = ".jsonl")
-write_audit_log(audit, tmp)
-readLines(tmp)
-
-# Append a second record
-write_audit_log(audit, tmp)
-length(readLines(tmp))  # 2 lines
-
-}
-\seealso{
-\code{\link[=shield_audit]{shield_audit()}}, \code{\link[=secure_chat]{secure_chat()}}
+audit <- shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")
+path <- tempfile(fileext = ".jsonl")
+write_audit_log(audit, path)
 }

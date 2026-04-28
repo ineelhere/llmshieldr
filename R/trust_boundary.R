@@ -1,0 +1,153 @@
+#' Wrap a provider in a trust boundary
+#'
+#' Validates provider identity before calls cross into an LLM provider. This
+#' covers supply-chain and model-integrity concerns related to OWASP LLM03; see
+#' <https://genai.owasp.org/llm-top-10/>.
+#'
+#' @param provider A provider function or an object with a `$chat()` method.
+#' @param allowed_models Optional character vector of allowed model names.
+#' @param allowed_hosts Optional character vector of allowed hosts or base URLs.
+#' @param require_hash Optional expected SHA-256 hash for an Ollama modelfile
+#'   manifest.
+#'
+#' @return A callable provider wrapper.
+#' @examples
+#' provider <- function(prompt) paste("ok:", prompt)
+#' safe_provider <- trust_boundary(provider)
+#' safe_provider("hello")
+#' @export
+trust_boundary <- function(provider,
+                           allowed_models = NULL,
+                           allowed_hosts = NULL,
+                           require_hash = NULL) {
+  if (!is.function(provider) && !.has_chat_method(provider)) {
+    cli::cli_abort("{.arg provider} must be a function or expose a {.code $chat()} method.")
+  }
+  if (!is.null(allowed_models) && !is.character(allowed_models)) {
+    cli::cli_abort("{.arg allowed_models} must be a character vector or {.code NULL}.")
+  }
+  if (!is.null(allowed_hosts) && !is.character(allowed_hosts)) {
+    cli::cli_abort("{.arg allowed_hosts} must be a character vector or {.code NULL}.")
+  }
+  if (!is.null(require_hash)) {
+    .check_string(require_hash, "require_hash")
+  }
+
+  validated <- FALSE
+  validate <- function() {
+    plain_function <- is.function(provider) && !.has_chat_method(provider)
+    model <- .provider_model(provider)
+    host <- .provider_host(provider)
+
+    if (!plain_function && !is.null(allowed_models)) {
+      if (is.null(model) || !model %in% allowed_models) {
+        cli::cli_abort(
+          "OWASP LLM03 trust boundary failed: model {.val {model %||% '<unknown>'}} is not in the allowed model list."
+        )
+      }
+    }
+
+    if (!plain_function && !is.null(allowed_hosts)) {
+      if (is.null(host) || !.host_allowed(host, allowed_hosts)) {
+        cli::cli_abort(
+          "OWASP LLM03 trust boundary failed: host {.val {host %||% '<unknown>'}} is not in the allowed host list."
+        )
+      }
+    }
+
+    if (!is.null(require_hash)) {
+      actual_hash <- .ollama_modelfile_hash(model)
+      if (!identical(tolower(actual_hash), tolower(require_hash))) {
+        cli::cli_abort("OWASP LLM03 trust boundary failed: Ollama model hash did not match {.arg require_hash}.")
+      }
+    }
+
+    validated <<- TRUE
+    TRUE
+  }
+
+  validate()
+
+  function(...) {
+    if (!validated || !is.null(require_hash)) {
+      validate()
+    }
+    args <- list(...)
+    if (length(args) == 0L) {
+      return(provider)
+    }
+    if (is.function(provider)) {
+      return(provider(...))
+    }
+    provider$chat(...)
+  }
+}
+
+.has_chat_method <- function(provider) {
+  chat <- tryCatch(provider$chat, error = function(e) NULL)
+  !is.null(chat) && is.function(chat)
+}
+
+.provider_model <- function(provider) {
+  candidates <- list(
+    attr(provider, "model", exact = TRUE),
+    .pluck_provider(provider, "model"),
+    .pluck_provider(provider, c(".__enclos_env__", "private", "model")),
+    .pluck_provider(provider, c(".__enclos_env__", "private", ".model")),
+    .pluck_provider(provider, c("private", "model"))
+  )
+  out <- .compact_chr(unlist(candidates, use.names = FALSE))
+  if (length(out) == 0L) NULL else out[[1]]
+}
+
+.provider_host <- function(provider) {
+  candidates <- list(
+    attr(provider, "base_url", exact = TRUE),
+    attr(provider, "host", exact = TRUE),
+    .pluck_provider(provider, "base_url"),
+    .pluck_provider(provider, "host"),
+    .pluck_provider(provider, "url"),
+    .pluck_provider(provider, c(".__enclos_env__", "private", "base_url")),
+    .pluck_provider(provider, c(".__enclos_env__", "private", "host")),
+    .pluck_provider(provider, c(".__enclos_env__", "private", "url")),
+    .pluck_provider(provider, c("private", "base_url")),
+    .pluck_provider(provider, c("private", "host"))
+  )
+  out <- .compact_chr(unlist(candidates, use.names = FALSE))
+  if (length(out) == 0L) NULL else out[[1]]
+}
+
+.pluck_provider <- function(x, path) {
+  current <- x
+  for (key in path) {
+    current <- tryCatch(current[[key]], error = function(e) NULL)
+    if (is.null(current)) {
+      return(NULL)
+    }
+  }
+  current
+}
+
+.host_allowed <- function(host, allowed_hosts) {
+  parsed <- tryCatch(utils::URLdecode(host), error = function(e) host)
+  host_only <- sub("^https?://", "", parsed, ignore.case = TRUE)
+  host_only <- sub("/.*$", "", host_only)
+  host %in% allowed_hosts || parsed %in% allowed_hosts || host_only %in% allowed_hosts
+}
+
+.ollama_modelfile_hash <- function(model) {
+  if (is.null(model)) {
+    cli::cli_abort("OWASP LLM03 trust boundary failed: cannot verify a hash without a model name.")
+  }
+  manifest <- tryCatch(
+    system2("ollama", c("show", "--modelfile", model), stdout = TRUE, stderr = TRUE),
+    error = function(e) {
+      cli::cli_abort("OWASP LLM03 trust boundary failed: could not call {.code ollama show --modelfile}.")
+    }
+  )
+  status <- attr(manifest, "status")
+  if (!is.null(status) && !identical(status, 0L)) {
+    cli::cli_abort("OWASP LLM03 trust boundary failed: Ollama returned a non-zero status.")
+  }
+  digest::digest(paste(manifest, collapse = "\n"), algo = "sha256", serialize = FALSE)
+}

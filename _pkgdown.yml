@@ -10,11 +10,11 @@ development:
 
 home:
   title: llmshieldr
-  description: Security scanning, redaction, and audit logging for LLM workflows in R.
+  description: Safety guardrails for LLM workflows in R.
 
 navbar:
   structure:
-    left: [intro, reference, articles, news]
+    left: [intro, reference, articles]
     right: [search, github, lightswitch]
   components:
     intro:
@@ -26,36 +26,49 @@ navbar:
       aria-label: GitHub
 
 reference:
-  - title: Core workflow
+  - title: Policies and Rules
     contents:
-      - shield_ollama
-      - secure_chat
-      - scan_prompt
-      - preflight_check
-      - scan_context
-      - scan_output
-  - title: Policies and review
-    contents:
+      - build_policy
       - policy_preset
       - add_rule
       - remove_rule
       - list_rules
-      - explain_findings
-  - title: Examples and printing
+      - starts_with("rule_")
+  - title: Scanners
     contents:
-      - example_prompts
-      - matches("print\\.")
-  - title: Advanced
+      - scan_prompt
+      - preflight_check
+      - scan_context
+      - scan_output
+  - title: Orchestration
     contents:
-      - llm_review
-      - shield_audit
+      - secure_chat
+      - shield_ollama
+      - trust_boundary
+      - rate_guard
+  - title: Audit and Explanation
+    contents:
       - write_audit_log
+      - explain_findings
+      - example_prompts
+  - title: Constructors
+    contents:
+      - shieldr_rule
+      - shieldr_policy
+      - shieldr_report
+      - shieldr_audit
+      - shieldr_result
+      - print.shieldr_policy
+      - print.shieldr_report
 
 articles:
   - title: Articles
     navbar: ~
     contents:
       - getting-started
+      - custom-rules
+      - rag-pipeline
+      - owasp-coverage
 
 search:
   enabled: true

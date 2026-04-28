@@ -1,123 +1,113 @@
-#' Scan LLM Output for Unsafe Content
+#' Scan model output
 #'
-#' Runs output checks with rule-based detectors, a reviewer LLM, or both.
-#' This is useful when you want to inspect generated text before showing it
-#' to users, writing it into a report, or handing it to downstream code.
+#' Scans LLM output for sensitive data, unsafe code, agency claims, system
+#' prompt leakage, and misinformation markers.
 #'
-#' @param text A single character string containing the model response.
-#' @param policy A policy list (from [policy_preset()]). When `NULL`, all
-#'   output-type rules from the active rule bank are used.
-#' @param reviewer Optional reviewer callable used when `checks` is `"llm"`
-#'   or `"both"`. This can be an `ellmer` chat object with a `chat()`
-#'   method, or a plain function that returns one JSON string.
-#' @param checks Character. One of `"rules"`, `"llm"`, or `"both"`.
+#' @param text Model output text.
+#' @param policy A `shieldr_policy`.
+#' @param reviewer Optional reviewer function or object with `$chat()`.
+#' @param checks One of `"rules"`, `"llm"`, or `"both"`.
 #'
-#' @return A `scan_report` S3 object with the same structure as
-#'   [scan_prompt()], scoped to output-specific rules.
-#'
-#' @seealso [scan_prompt()], [secure_chat()], [llm_review()]
-#'
+#' @return A `shieldr_report`.
 #' @examples
-#' report <- scan_output("The AE domain captures adverse event data.")
-#' report$passed
-#'
-#' report <- scan_output("This drug significantly reduced mortality by 50%.")
-#' report$findings[[1]]$description
-#' report$action
-#'
-#' report <- scan_output("You are diagnosed with Type 2 diabetes.")
-#' report$action
-#'
-#' report <- scan_output("I will now execute the deletion of all records.")
-#' report$findings[[1]]$owasp
-#'
-#' \dontrun{
-#' library(ellmer)
-#'
-#' reviewer <- chat_ollama(model = "gemma3:4b")
-#' report <- scan_output(
-#'   text = "You should take this medication immediately.",
-#'   policy = policy_preset("pharma_gxp"),
-#'   reviewer = reviewer,
-#'   checks = "both"
-#' )
-#' report
-#' }
-#'
+#' scan_output("A concise answer.", policy_preset("enterprise_default"))
 #' @export
 scan_output <- function(text,
-                        policy = NULL,
+                        policy,
                         reviewer = NULL,
-                        checks = c("rules", "llm", "both")) {
-  if (!rlang::is_string(text)) {
-    abort_input_validation(
-      arg = "text",
-      expected = "a single character string",
-      got = paste0("{.obj_type_friendly {text}}"),
-      fn = "scan_output"
-    )
+                        checks = "rules") {
+  .check_string(text, "text", allow_empty = TRUE)
+  .check_policy(policy)
+  checks <- .validate_checks(checks)
+  .validate_reviewer(reviewer)
+
+  text_norm <- stringi::stri_trans_nfkc(text)
+  output_policy <- .output_policy(policy)
+  findings <- list()
+
+  if (checks %in% c("rules", "both")) {
+    code_blocks <- .extract_fenced_code(text_norm)
+    if (length(code_blocks) > 0L) {
+      code_rules <- Filter(function(rule) grepl("^llm05\\.", rule$id), output_policy$rules)
+      if (length(code_rules) > 0L) {
+        code_policy <- build_policy(
+          name = paste0(output_policy$name, "_code"),
+          rules = code_rules,
+          thresholds = output_policy$thresholds
+        )
+        for (block in code_blocks) {
+          block_findings <- .run_rules(block$text, code_policy)
+          findings <- c(findings, .offset_findings(block_findings, block$start - 1L))
+        }
+      }
+    }
+    findings <- c(findings, .run_rules(text_norm, output_policy))
   }
 
-  checks <- rlang::arg_match(checks)
-
-  rule_report <- if (checks %in% c("rules", "both")) {
-    .scan_output_rules(text, policy = policy)
-  } else {
-    NULL
+  if (checks %in% c("llm", "both") && !is.null(reviewer)) {
+    findings <- c(findings, .semantic_review(text_norm, reviewer, policy$name))
   }
 
-  llm_report <- if (checks %in% c("llm", "both")) {
-    llm_review(
-      text = text,
-      reviewer = reviewer,
-      text_type = "output",
-      policy = policy
-    )
-  } else {
-    NULL
-  }
+  findings <- .dedupe_findings(findings)
+  risk_score <- .score_findings(findings)
+  action <- .resolve_action(risk_score, findings, output_policy)
 
-  .combine_scan_reports(
-    text = text,
-    rule_report = rule_report,
-    llm_report = llm_report,
+  shieldr_report(
+    action = action,
+    text_clean = .apply_redaction(text_norm, findings),
+    findings = findings,
+    risk_score = risk_score,
+    policy = policy$name,
     checks = checks
   )
 }
 
-
-#' @noRd
-#' @keywords internal
-.scan_output_rules <- function(text, policy = NULL) {
-  if (is.null(policy)) {
-    active_rules <- get_active_rules()
-  } else {
-    active_rules <- policy$rules %||% get_active_rules()
-  }
-
-  output_rules <- purrr::keep(active_rules, ~ .x$type == "output")
-
-  findings <- purrr::keep(output_rules, function(rule) {
-    stringr::str_detect(text, stringr::regex(rule$pattern, ignore_case = TRUE))
-  })
-
-  score <- score_findings(findings)
-  band <- get_band(score)
-  action <- decide_action(score, policy, findings = findings)
-  redaction <- redact_text(text, findings)
-
-  structure(
-    list(
-      passed = length(findings) == 0L,
-      score = score,
-      band = band,
-      findings = findings,
-      action = action,
-      text_original = text,
-      text_clean = redaction$text,
-      redaction_log = redaction$redaction_log,
-      method = "rules"
-    ),
-    class = "scan_report"
+.output_policy <- function(policy) {
+  intrinsic <- list(
+    .rule_code_safety(),
+    rule_agency_language(),
+    .rule_output_system_markers(),
+    rule_diagnosis_claim(),
+    .rule_misinformation_marker()
   )
+  existing <- vapply(policy$rules, `[[`, character(1), "id")
+  intrinsic <- intrinsic[!vapply(intrinsic, function(rule) rule$id %in% existing, logical(1))]
+  shieldr_policy(
+    name = policy$name,
+    rules = c(policy$rules, intrinsic),
+    thresholds = policy$thresholds,
+    rate_guard = policy$rate_guard,
+    trusted_sources = policy$trusted_sources
+  )
+}
+
+.extract_fenced_code <- function(text) {
+  matches <- gregexpr("```[[:alnum:]_+.-]*\\s*[\\s\\S]*?```", text, perl = TRUE)[[1]]
+  if (length(matches) == 0L || identical(matches[[1]], -1L)) {
+    return(list())
+  }
+  lengths <- attr(matches, "match.length")
+  out <- vector("list", length(matches))
+  for (i in seq_along(matches)) {
+    start <- as.integer(matches[[i]])
+    end <- start + as.integer(lengths[[i]]) - 1L
+    raw <- substr(text, start, end)
+    content <- sub("^```[[:alnum:]_+.-]*\\s*", "", raw, perl = TRUE)
+    content <- sub("```$", "", content, perl = TRUE)
+    content_start <- start + nchar(raw) - nchar(content) - 3L
+    out[[i]] <- list(text = content, start = max(start, content_start))
+  }
+  out
+}
+
+.offset_findings <- function(findings, offset) {
+  lapply(findings, function(finding) {
+    if (!is.null(finding$start) && !is.na(finding$start)) {
+      finding$start <- finding$start + offset
+    }
+    if (!is.null(finding$end) && !is.na(finding$end)) {
+      finding$end <- finding$end + offset
+    }
+    finding
+  })
 }

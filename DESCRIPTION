@@ -1,44 +1,36 @@
 Package: llmshieldr
-Title: Security Scanning and Policy Enforcement for LLM Workflows
-Version: 0.1.1
-Description: Provides preflight scanning, redaction, policy-based action
-    selection, postflight output checks, and audit logging for large language
-    model (LLM) workflows in R. Includes rule-based detection of secrets,
-    personally identifiable or protected health information, prompt injection
-    patterns, and domain-specific output risks. Can also use a local reviewer
-    model through Ollama-compatible chat clients for privacy-first semantic
-    checks. Designed for regulated workflows and extensible to
-    project-specific policies.
+Title: Safety Guardrails for LLM Workflows in R
+Version: 0.2.0
+Description: A provider-agnostic safety layer for R developers building with
+    large language models. Covers all ten OWASP LLM Top 10 (2025) risk
+    categories via a composable rule engine. Supports rule-based and semantic
+    (LLM-reviewer) checks on prompts, retrieved context, and model outputs.
+    Works with any R-callable LLM provider. Suitable for all industries.
 Authors@R:
     person("Indraneel", "Chakraborty", , "hello.indraneel@gmail.com",
            role = c("aut", "cre", "cph"),
            comment = c(ORCID = "0000-0001-6958-8269"))
+License: Apache License (>= 2)
+Encoding: UTF-8
 Depends:
     R (>= 4.1.0)
 Imports:
-    cli (>= 3.6.0),
-    dplyr,
-    glue,
     jsonlite,
-    purrr,
-    rlang (>= 1.1.0),
-    stringr,
-    tibble
+    httr2,
+    cli,
+    rlang,
+    digest,
+    stringi
 Suggests:
     ellmer,
+    testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0),
-    withr
-License: Apache License 2.0
-Encoding: UTF-8
-LazyData: true
-ByteCompile: true
-Language: en-US
+    withr,
+    dplyr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-Config/Needs/website: pkgdown, knitr, rmarkdown
-URL: https://github.com/ineelhere/llmshieldr, http://www.indraneelchakraborty.com/llmshieldr/
+URL: https://github.com/ineelhere/llmshieldr, https://genai.owasp.org/llm-top-10/
 BugReports: https://github.com/ineelhere/llmshieldr/issues

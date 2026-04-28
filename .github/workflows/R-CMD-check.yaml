@@ -2,9 +2,9 @@ name: R-CMD-check
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   R-CMD-check:
@@ -15,9 +15,12 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-latest, r: 'release'}
-          - {os: macos-latest, r: 'release'}
-          - {os: ubuntu-latest, r: 'release'}
+          - {os: ubuntu-latest, r: "release"}
+          - {os: ubuntu-latest, r: "devel"}
+          - {os: macos-latest, r: "release"}
+          - {os: macos-latest, r: "devel"}
+          - {os: windows-latest, r: "release"}
+          - {os: windows-latest, r: "devel"}
 
     steps:
       - uses: actions/checkout@v4

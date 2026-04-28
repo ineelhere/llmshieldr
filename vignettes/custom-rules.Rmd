@@ -1,0 +1,74 @@
+---
+title: "Custom Rules"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Custom Rules}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r}
+library(llmshieldr)
+```
+
+Custom rules can use regular expressions or R functions.
+
+## Healthcare
+
+```{r, eval = FALSE}
+healthcare <- policy_preset("pharma_gxp")
+healthcare <- llmshieldr::add_rule(
+  healthcare,
+  id = "llm02.trial.site_id",
+  pattern = "\\bSITE-[0-9]{3}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Clinical trial site identifier."
+)
+
+scan_prompt("Review SITE-104 enrollment notes.", healthcare)
+```
+
+## Finance
+
+```{r, eval = FALSE}
+finance <- policy_preset("finance_strict")
+finance <- llmshieldr::add_rule(
+  finance,
+  id = "llm09.promissory_return",
+  pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
+  owasp = "llm09",
+  severity = "critical",
+  action = "block",
+  description = "Promissory investment performance claim."
+)
+
+scan_output("This strategy has guaranteed alpha.", finance)
+```
+
+## Education
+
+```{r, eval = FALSE}
+education <- policy_preset("education_safe")
+flag_minors <- function(text) {
+  grepl("\\bstudent\\b", text, ignore.case = TRUE) &&
+    grepl("\\bhome address\\b", text, ignore.case = TRUE)
+}
+
+education <- llmshieldr::add_rule(
+  education,
+  id = "llm02.student.address.fn",
+  fn = flag_minors,
+  owasp = "llm02",
+  severity = "high",
+  action = "redact",
+  description = "Student home address reference."
+)
+
+scan_prompt("The student home address appears in the form.", education)
+```

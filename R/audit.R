@@ -1,149 +1,121 @@
-#' Create a Shield Audit Object
+#' Write an audit log
 #'
-#' Constructs a `shield_audit` S3 object that captures the full lifecycle
-#' record of one shielded LLM interaction. Used internally by
-#' [secure_chat()] and can also be constructed manually for custom
-#' integrations.
+#' Persists a `shieldr_audit` object as JSON Lines, CSV, or RDS for operational
+#' auditability across LLM workflows.
 #'
-#' @param timestamp A `POSIXct` timestamp. Defaults to [Sys.time()].
-#' @param policy Character. The policy name that was applied.
-#' @param model Character. The LLM model identifier.
-#' @param provider Character. The provider class name.
-#' @param input_report A `scan_report` from [scan_prompt()].
-#' @param output_report A `scan_report` from [scan_output()].
-#' @param final_action Character. The action that was taken.
-#' @param redactions A list of redaction log entries.
-#' @param ... Additional named fields to include in the audit record.
+#' @param audit A `shieldr_audit` object.
+#' @param path Output file path.
+#' @param format One of `"jsonl"`, `"csv"`, or `"rds"`.
 #'
-#' @return A `shield_audit` S3 object.
-#'
-#' @seealso [write_audit_log()], [secure_chat()]
-#'
+#' @return The path, invisibly.
 #' @examples
-#' # Create a manual audit record
-#' input_report <- scan_prompt("Safe SDTM question.")
-#' output_report <- scan_output("The AE domain stores adverse events.")
-#'
-#' audit <- shield_audit(
-#'   policy       = "pharma_gxp",
-#'   model        = "gemma3:4b",
-#'   provider     = "ollama",
-#'   input_report = input_report,
-#'   output_report = output_report,
-#'   final_action = "allow",
-#'   redactions   = list()
-#' )
-#' audit
-#'
+#' audit <- shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")
+#' path <- tempfile(fileext = ".jsonl")
+#' write_audit_log(audit, path)
 #' @export
-shield_audit <- function(timestamp     = Sys.time(),
-                         policy        = "default",
-                         model         = "unknown",
-                         provider      = "unknown",
-                         input_report  = NULL,
-                         output_report = NULL,
-                         final_action  = "allow",
-                         redactions    = list(),
-                         ...) {
-  structure(
-    list(
-      timestamp     = timestamp,
-      policy        = policy,
-      model         = model,
-      provider      = provider,
-      input_report  = input_report,
-      output_report = output_report,
-      final_action  = final_action,
-      redactions    = redactions,
-      ...
-    ),
-    class = "shield_audit"
-  )
-}
-
-
-#' Write Audit Log to JSONL File
-#'
-#' Appends a `shield_audit` record as a single JSON line to a JSONL
-#' (JSON Lines) file. Each call appends one line, making the file
-#' suitable for streaming audit ingestion and SIEM integration.
-#'
-#' @param audit A `shield_audit` object (from [shield_audit()] or
-#'   [secure_chat()]).
-#' @param path Character. File path for JSONL output. The file is created
-#'   if it does not exist; otherwise, the record is appended.
-#'
-#' @return Invisibly returns `path`.
-#'
-#' @seealso [shield_audit()], [secure_chat()]
-#'
-#' @examples
-#' # Create and write an audit record
-#' input_report <- scan_prompt("Safe SDTM question.")
-#' output_report <- scan_output("The AE domain stores adverse events.")
-#'
-#' audit <- shield_audit(
-#'   policy       = "pharma_gxp",
-#'   model        = "gemma3:4b",
-#'   provider     = "ollama",
-#'   input_report = input_report,
-#'   output_report = output_report,
-#'   final_action = "allow"
-#' )
-#'
-#' # Write to a temporary JSONL file
-#' tmp <- tempfile(fileext = ".jsonl")
-#' write_audit_log(audit, tmp)
-#' readLines(tmp)
-#'
-#' # Append a second record
-#' write_audit_log(audit, tmp)
-#' length(readLines(tmp))  # 2 lines
-#'
-#' @export
-write_audit_log <- function(audit, path) {
-  if (!inherits(audit, "shield_audit")) {
-    abort_input_validation(
-      arg      = "audit",
-      expected = "a {.cls shield_audit} object",
-      got      = paste0("{.obj_type_friendly {audit}}"),
-      fn       = "write_audit_log"
-    )
+write_audit_log <- function(audit, path, format = "jsonl") {
+  if (!inherits(audit, "shieldr_audit")) {
+    cli::cli_abort("{.arg audit} must be a {.cls shieldr_audit}.")
   }
-  if (!rlang::is_string(path)) {
-    abort_input_validation(
-      arg      = "path",
-      expected = "a single file path string",
-      got      = paste0("{.obj_type_friendly {path}}"),
-      fn       = "write_audit_log"
-    )
+  .check_string(path, "path")
+  .check_choice(format, "format", c("jsonl", "csv", "rds"))
+
+  dir <- dirname(path)
+  if (!dir.exists(dir)) {
+    dir.create(dir, recursive = TRUE, showWarnings = FALSE)
   }
 
-  # Convert to a flat JSON-serialisable list
-  audit_flat <- list(
-    timestamp     = format(audit$timestamp, "%Y-%m-%dT%H:%M:%S%z"),
-    policy        = audit$policy,
-    model         = audit$model,
-    provider      = audit$provider,
-    reviewer_model = audit$reviewer_model %||% NA_character_,
-    reviewer_provider = audit$reviewer_provider %||% NA_character_,
-    checks        = audit$checks %||% NA_character_,
-    input_score   = audit$input_report$score %||% NA_real_,
-    input_band    = audit$input_report$band %||% NA_character_,
-    input_passed  = audit$input_report$passed %||% NA,
-    output_score  = audit$output_report$score %||% NA_real_,
-    output_band   = audit$output_report$band %||% NA_character_,
-    output_passed = audit$output_report$passed %||% NA,
-    final_action  = audit$final_action,
-    rules_triggered = vapply(
-      c(audit$input_report$findings, audit$output_report$findings),
-      `[[`, character(1), "id"
-    ),
-    redaction_count = length(audit$redactions)
+  switch(
+    format,
+    jsonl = {
+      json <- jsonlite::toJSON(.strip_classes(audit), auto_unbox = TRUE, null = "null")
+      con <- file(path, open = "a", encoding = "UTF-8")
+      on.exit(close(con), add = TRUE)
+      writeLines(json, con = con, sep = "\n", useBytes = TRUE)
+    },
+    csv = {
+      rows <- .flatten_audit_findings(audit)
+      exists <- file.exists(path)
+      utils::write.table(
+        rows,
+        file = path,
+        sep = ",",
+        row.names = FALSE,
+        col.names = !exists,
+        append = exists,
+        qmethod = "double"
+      )
+    },
+    rds = {
+      if (file.exists(path)) {
+        cli::cli_warn("Overwriting existing RDS audit log at {.path {path}}.")
+      }
+      saveRDS(audit, path)
+    }
   )
-
-  json_line <- jsonlite::toJSON(audit_flat, auto_unbox = TRUE)
-  write(json_line, file = path, append = TRUE)
 
   invisible(path)
+}
+
+.flatten_audit_findings <- function(audit) {
+  reports <- .collect_reports(list(
+    input = audit$input_report,
+    output = audit$output_report,
+    context = audit$context_reports
+  ))
+  rows <- list()
+  for (stage in c("input", "output", "context")) {
+    stage_reports <- switch(
+      stage,
+      input = if (inherits(audit$input_report, "shieldr_report")) list(audit$input_report) else list(),
+      output = if (inherits(audit$output_report, "shieldr_report")) list(audit$output_report) else list(),
+      context = audit$context_reports %||% list()
+    )
+    for (report_index in seq_along(stage_reports)) {
+      report <- stage_reports[[report_index]]
+      if (!inherits(report, "shieldr_report")) {
+        next
+      }
+      for (finding in report$findings) {
+        rows[[length(rows) + 1L]] <- data.frame(
+          stage = stage,
+          report_index = report_index,
+          action = report$action,
+          risk_score = report$risk_score,
+          rule_id = finding$rule_id %||% NA_character_,
+          owasp = finding$owasp %||% NA_character_,
+          severity = finding$severity %||% NA_character_,
+          description = finding$description %||% NA_character_,
+          source = finding$source %||% NA_character_,
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+  if (length(rows) == 0L) {
+    return(data.frame(
+      stage = character(),
+      report_index = integer(),
+      action = character(),
+      risk_score = numeric(),
+      rule_id = character(),
+      owasp = character(),
+      severity = character(),
+      description = character(),
+      source = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  do.call(rbind, rows)
+}
+
+.strip_classes <- function(x) {
+  if (is.environment(x)) {
+    return("<environment>")
+  }
+  if (is.list(x)) {
+    x <- lapply(unclass(x), .strip_classes)
+    return(x)
+  }
+  x
 }
