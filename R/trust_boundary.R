@@ -4,6 +4,23 @@
 #' covers supply-chain and model-integrity concerns related to OWASP LLM03; see
 #' <https://genai.owasp.org/llm-top-10/>.
 #'
+#' @details
+#' `trust_boundary()` returns a provider wrapper. The wrapper validates the
+#' provider on creation and again on each call when `require_hash` is supplied.
+#' Function providers are passed through without model or host checks because a
+#' plain function has no standard model metadata. Provider objects with a
+#' `$chat()` method may expose model and host fields through common ellmer-style
+#' internals or attributes.
+#'
+#' `allowed_models` and `allowed_hosts` are allowlists. If the provider exposes
+#' a model or host and it is outside the allowlist, the wrapper raises an OWASP
+#' LLM03 error. `require_hash` is intended for local Ollama workflows where the
+#' model manifest can be checked with `ollama show --modelfile`.
+#'
+#' This function is not a network firewall. It is an application-level
+#' assertion that the provider object being called is the provider object you
+#' intended to allow.
+#'
 #' @param provider A provider function or an object with a `$chat()` method.
 #' @param allowed_models Optional character vector of allowed model names.
 #' @param allowed_hosts Optional character vector of allowed hosts or base URLs.

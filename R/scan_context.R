@@ -3,6 +3,25 @@
 #' Scans data-frame context chunks and adds OWASP LLM08-style anomaly and
 #' source-trust findings before returning row-aligned reports.
 #'
+#' @details
+#' Retrieved context is a separate trust boundary in RAG systems. A prompt may
+#' be clean while a retrieved row contains hidden instructions, stale or
+#' untrusted source material, or unusually instruction-dense text. This function
+#' treats each row as text to be scanned and returns one [shieldr_report()] per
+#' row.
+#'
+#' In addition to normal policy rules, `scan_context()` computes two population
+#' anomaly signals:
+#'
+#' - character length robust z-score
+#' - instruction-word density robust z-score
+#'
+#' Instruction density counts `ignore`, `forget`, `override`, `instead`, and
+#' `disregard` per 100 tokens. Rows above `anomaly_threshold` receive synthetic
+#' OWASP LLM08 findings. If `source_col` is supplied and
+#' `policy$trusted_sources` is a character vector, untrusted source values also
+#' receive a synthetic OWASP LLM08 finding.
+#'
 #' @param data A data frame.
 #' @param text_col Column containing context text. Supply a string or bare name.
 #' @param policy A `shieldr_policy`.

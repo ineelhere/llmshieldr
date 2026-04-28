@@ -4,6 +4,21 @@
 #' Findings retain OWASP LLM Top 10 categories when known; see
 #' <https://genai.owasp.org/llm-top-10/>.
 #'
+#' @details
+#' `scan_prompt()` is usually the first guardrail in a workflow. It normalizes
+#' text with Unicode NFKC normalization, collapses whitespace, applies policy
+#' rules, optionally asks a semantic reviewer for JSON findings, calculates a
+#' `risk_score`, resolves an action, and returns a [shieldr_report()].
+#'
+#' `checks = "rules"` uses deterministic policy rules only. `checks = "llm"`
+#' uses only the semantic reviewer when one is supplied. `checks = "both"`
+#' combines both sets of findings. If `checks` includes LLM review and the
+#' reviewer returns malformed JSON, the function warns and continues with the
+#' findings it already has.
+#'
+#' Redaction replaces matched spans with `[REDACTED]`. Function-based findings
+#' can influence score and action even when they do not provide exact spans.
+#'
 #' @param text Prompt text.
 #' @param policy A `shieldr_policy`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
@@ -79,6 +94,14 @@ preflight_check <- function(text,
 
 #' Run policy rules on text
 #'
+#' Applies every rule in a policy and returns raw finding lists.
+#'
+#' @details
+#' Regex rules are matched with `gregexpr(..., perl = TRUE)`. Function rules
+#' receive the full text and are coerced into finding objects. The helper
+#' attaches a `risk_score` attribute to the finding list, but callers typically
+#' recompute the score after adding semantic or synthetic findings.
+#'
 #' @param text Normalised text.
 #' @param policy A `shieldr_policy`.
 #'
@@ -125,6 +148,14 @@ preflight_check <- function(text,
 
 #' Resolve final action from risk and findings
 #'
+#' Converts a report score and findings into `allow`, `redact`, or `block`.
+#'
+#' @details
+#' Resolution is conservative. A critical finding, explicit block action, or
+#' score at or above `policy$thresholds$block_at` returns `block`. Otherwise, a
+#' redaction finding or score at or above `policy$thresholds$redact_at` returns
+#' `redact`. All other cases return `allow`.
+#'
 #' @param risk_score Numeric risk score.
 #' @param findings Finding list.
 #' @param policy A `shieldr_policy`.
@@ -147,6 +178,13 @@ preflight_check <- function(text,
 }
 
 #' Apply span redaction
+#'
+#' Replaces matched finding spans with `[REDACTED]`.
+#'
+#' @details
+#' Findings can overlap, especially when one rule catches a broad credential
+#' phrase and another catches a narrower token. This helper sorts and merges
+#' spans before replacement so offsets remain stable while the string changes.
 #'
 #' @param text Text to redact.
 #' @param findings Finding list.
@@ -202,6 +240,14 @@ preflight_check <- function(text,
 }
 
 #' Run semantic reviewer checks
+#'
+#' Asks a reviewer model or function for JSON findings.
+#'
+#' @details
+#' The reviewer prompt asks for an array of objects containing `rule_id`,
+#' `owasp`, `severity`, and `description`. The reviewer can be a function or an
+#' object with `$chat()`. Malformed JSON is treated as a soft failure because
+#' deterministic rule findings should still be usable.
 #'
 #' @param text Text to review.
 #' @param reviewer Function or chat object.

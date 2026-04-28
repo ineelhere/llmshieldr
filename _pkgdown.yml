@@ -66,6 +66,7 @@ articles:
     navbar: ~
     contents:
       - getting-started
+      - policy-design
       - custom-rules
       - rag-pipeline
       - owasp-coverage

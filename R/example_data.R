@@ -4,6 +4,13 @@
 #' misinformation cases, with at least one example touching each OWASP LLM Top
 #' 10 category.
 #'
+#' @details
+#' The example data is a small teaching and testing corpus. It is not a
+#' benchmark. `expected_action` records the action the built-in policies are
+#' intended to produce for that example under normal rule-based scanning. The
+#' rows are useful for package demos, unit tests, and explaining the difference
+#' between clean text, redaction candidates, and block candidates.
+#'
 #' @return A data frame with columns `feature`, `type`, `policy`, `prompt`, and
 #'   `expected_action`.
 #' @examples

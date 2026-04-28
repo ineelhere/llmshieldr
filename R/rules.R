@@ -3,6 +3,23 @@
 #' Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
 #' LLM Top 10 categories where possible; see <https://genai.owasp.org/llm-top-10/>.
 #'
+#' @details
+#' A rule is the atomic unit of a policy. Each rule either supplies a regular
+#' expression pattern or an R function. Regex rules are applied with
+#' `gregexpr(..., perl = TRUE)` and can produce character spans for redaction.
+#' Function rules receive the full text and can return `TRUE`, `FALSE`, a
+#' finding list, a list of finding lists, or a data frame of findings.
+#'
+#' `severity` is converted to a numeric score by the scanner:
+#'
+#' - `low`: `0.1`
+#' - `medium`: `0.3`
+#' - `high`: `0.6`
+#' - `critical`: `1.0`
+#'
+#' The scanner caps the summed report score at `1.0`. Critical findings and
+#' rules with `action = "block"` force the resolved report action to `block`.
+#'
 #' @param id A unique rule identifier.
 #' @param pattern A regular expression pattern, or `NULL`.
 #' @param fn A predicate function, or `NULL`.
@@ -62,6 +79,17 @@ shieldr_rule <- function(id,
 #'
 #' Creates a validated policy from a list of `shieldr_rule` objects.
 #'
+#' @details
+#' This is the low-level constructor. Most users should start with
+#' [build_policy()] or [policy_preset()], which merge default thresholds and
+#' assemble built-in rule lists. `shieldr_policy()` is exported so advanced
+#' users and tests can construct exact policy objects.
+#'
+#' `trusted_sources` is used by [scan_context()] only. If it is `NULL`, all
+#' sources are treated as trusted. If it is a character vector and `source_col`
+#' is supplied to [scan_context()], rows with source values outside the allowlist
+#' receive an OWASP LLM08 finding.
+#'
 #' @param name Policy name.
 #' @param rules A list of `shieldr_rule` objects.
 #' @param thresholds A list containing numeric `redact_at` and `block_at`
@@ -119,6 +147,16 @@ print.shieldr_policy <- function(x, ...) {
 }
 
 #' Construct a `shieldr_report`
+#'
+#' A `shieldr_report` is the scanner result returned by [scan_prompt()],
+#' [scan_context()], and [scan_output()].
+#'
+#' @details
+#' Reports separate the cleaned text from the findings that explain why the
+#' text was allowed, redacted, or blocked. `risk_score` is a deterministic
+#' severity index from `0` to `1`; it is not a probability. The `checks` field
+#' records whether the report came from deterministic rules, an LLM reviewer,
+#' or both.
 #'
 #' @param action Resolved action: `"allow"`, `"redact"`, or `"block"`.
 #' @param text_clean Cleaned or redacted text.
@@ -187,6 +225,16 @@ print.shieldr_report <- function(x, ...) {
 
 #' Construct a `shieldr_audit`
 #'
+#' Audits collect the scanner reports and operational metadata from a guarded
+#' run.
+#'
+#' @details
+#' [secure_chat()] builds this object automatically. `elapsed_ms` captures
+#' wall-clock elapsed time for the guarded workflow. `token_estimate` is a
+#' lightweight heuristic based on character count, currently
+#' `ceiling(nchar(text) / 4)` over prompt and output text. It is intended for
+#' guardrails and trend monitoring, not provider billing reconciliation.
+#'
 #' @param input_report A `shieldr_report`, or `NULL`.
 #' @param output_report A `shieldr_report`, or `NULL`.
 #' @param context_reports A list of `shieldr_report` objects, or `NULL`.
@@ -240,6 +288,16 @@ shieldr_audit <- function(input_report = NULL,
 
 #' Construct a `shieldr_result`
 #'
+#' A `shieldr_result` is the high-level return value from [secure_chat()] and
+#' [shield_ollama()].
+#'
+#' @details
+#' `output` is `NULL` when the final action is `block`; otherwise it contains
+#' the cleaned model output. `risk_summary` aggregates finding severity scores
+#' by OWASP category across prompt, context, and output reports, capping each
+#' category at `1.0`. This gives dashboards and audit logs a compact view of
+#' which OWASP categories were triggered.
+#'
 #' @param output Cleaned provider output, or `NULL`.
 #' @param audit A `shieldr_audit` object.
 #' @param risk_summary Named numeric vector keyed by OWASP category.
@@ -280,6 +338,16 @@ shieldr_result <- function(output = NULL,
 #'
 #' Helpers create common OWASP LLM Top 10 guardrail rules for prompts, retrieved
 #' context, and model outputs.
+#'
+#' @details
+#' The helpers are intentionally small wrappers around [shieldr_rule()]. They
+#' form the source rule bank used by [policy_preset()]. Each helper encodes one
+#' common class of risk, such as prompt injection, PII, secrets, excessive
+#' agency, system-prompt extraction, diagnosis claims, or financial advice.
+#'
+#' The rules are conservative defaults, not exhaustive detectors. They are
+#' designed to be readable, testable, and easy to replace with organization-
+#' specific rules when needed.
 #'
 #' @return A `shieldr_rule`.
 #' @examples

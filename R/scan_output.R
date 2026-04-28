@@ -3,6 +3,19 @@
 #' Scans LLM output for sensitive data, unsafe code, agency claims, system
 #' prompt leakage, and misinformation markers.
 #'
+#' @details
+#' Output scanning is the last guardrail before model text is displayed, stored,
+#' or passed to another tool. It runs the policy rule set over the full output
+#' and adds output-specific checks for common failure modes:
+#'
+#' - fenced code blocks are scanned for unsafe code and command patterns
+#' - excessive-agency language such as "I will now" or "I have deleted"
+#' - system-prompt structural markers such as "# System" or role declarations
+#' - high-confidence medical or financial claim markers
+#'
+#' The return value is a [shieldr_report()] with the same scoring and action
+#' semantics as [scan_prompt()].
+#'
 #' @param text Model output text.
 #' @param policy A `shieldr_policy`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.

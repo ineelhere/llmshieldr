@@ -4,11 +4,29 @@
 #' settings for the scanner layer. OWASP LLM Top 10 references are preserved on
 #' each rule; see <https://genai.owasp.org/llm-top-10/>.
 #'
+#' @details
+#' A policy is intentionally small and inspectable. It contains a policy name,
+#' a list of deterministic rules, threshold values, and an optional rate guard.
+#' The scanners do not mutate a policy; they read the rule list, create
+#' findings, calculate a risk score from finding severities, and then compare
+#' that score with the policy thresholds.
+#'
+#' Thresholds are merged over the package defaults:
+#'
+#' - `redact_at = 0.4`
+#' - `block_at = 0.75`
+#'
+#' Lower thresholds make a policy stricter. Higher thresholds make accumulated
+#' findings less likely to escalate. Critical findings and explicit `block`
+#' rules still block regardless of threshold.
+#'
 #' @param name Policy name.
 #' @param rules A list of `shieldr_rule` objects.
 #' @param thresholds Threshold overrides. Missing values are filled from
 #'   `redact_at = 0.4` and `block_at = 0.75`.
-#' @param rate_guard Optional `shieldr_rate_guard`.
+#' @param rate_guard Optional `shieldr_rate_guard`. When present, [secure_chat()]
+#'   checks the guard before provider calls and updates it after successful
+#'   provider calls.
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -35,6 +53,31 @@ build_policy <- function(name = "custom",
 #'
 #' Creates a hard-coded policy preset covering common industry profiles and
 #' OWASP LLM Top 10 categories.
+#'
+#' @details
+#' Presets are assembled from the built-in rule helpers in `R/rules.R`. They
+#' use OWASP GenAI / LLM Top 10 categories as the organizing taxonomy, then add
+#' common operational controls such as PII patterns, secret patterns,
+#' system-prompt extraction checks, excessive-agency language, domain-specific
+#' claims, and optional rate guards.
+#'
+#' Preset source model:
+#'
+#' - `enterprise_default`: broad production baseline for injection, PII,
+#'   secrets, system prompt extraction, and agency language.
+#' - `pharma_gxp`: `enterprise_default` plus clinical identifiers, diagnosis
+#'   and treatment language, unsafe code checks, and stricter thresholds.
+#' - `finance_strict`: `enterprise_default` plus account numbers, investment
+#'   advice language, autonomous trading language, and a cost/token rate guard.
+#' - `education_safe`: `enterprise_default` plus minor-related PII and
+#'   academic-integrity bypass language.
+#' - `open_research`: a smaller open-workflow profile focused on injection and
+#'   secrets, with higher thresholds.
+#' - `custom`: no rules, default thresholds.
+#' - `baseline`: backward-compatible alias for `enterprise_default`.
+#'
+#' The presets are starting points. They are transparent, testable, and meant
+#' to be extended with [add_rule()] for application-specific requirements.
 #'
 #' @param name One of `"enterprise_default"`, `"pharma_gxp"`,
 #'   `"finance_strict"`, `"education_safe"`, `"open_research"`, `"custom"`,
@@ -171,6 +214,27 @@ policy_preset <- function(name, overrides = list()) {
 
 #' Add a rule to a policy
 #'
+#' `add_rule()` appends one validated rule to an existing policy. The function
+#' returns the modified policy invisibly so it can be used in assignment or
+#' pipes.
+#'
+#' @details
+#' A rule can be regex-based or function-based, but not both. Regex rules are
+#' best when you need span-level redaction. Function rules are useful when the
+#' condition is easier to express in R, such as "this text contains both a
+#' student reference and a home-address phrase".
+#'
+#' Severity determines the numeric contribution to the report score:
+#'
+#' - `low`: `0.1`
+#' - `medium`: `0.3`
+#' - `high`: `0.6`
+#' - `critical`: `1.0`
+#'
+#' The rule `action` is the rule author's preferred outcome when the rule
+#' fires. The final report action also considers total score and policy
+#' thresholds.
+#'
 #' @param policy A `shieldr_policy`.
 #' @param id Rule identifier.
 #' @param pattern Regular expression pattern, or `NULL`.
@@ -239,6 +303,15 @@ remove_rule <- function(policy, id) {
 }
 
 #' List policy rules
+#'
+#' `list_rules()` returns a compact inventory of a policy's rule set. It is
+#' intended for audits, examples, tests, and pre-deployment reviews.
+#'
+#' @details
+#' The `has_pattern` and `has_fn` columns identify whether each rule is regex
+#' based or function based. Regex rules can produce redaction spans directly.
+#' Function rules may produce findings without spans unless the function
+#' returns span metadata.
 #'
 #' @param policy A `shieldr_policy`.
 #'

@@ -3,6 +3,26 @@
 #' Orchestrates prompt scanning, optional context scanning, provider execution,
 #' output scanning, rate guarding, and audit creation.
 #'
+#' @details
+#' `secure_chat()` is the main end-to-end workflow for users who already have a
+#' provider. The provider can be a plain R function or an object with a
+#' `$chat()` method. The function executes these steps:
+#'
+#' 1. Scan the prompt with [scan_prompt()].
+#' 2. If the prompt is blocked, return a [shieldr_result()] without calling the
+#'    provider.
+#' 3. If context is supplied, scan it with [scan_context()] and append only
+#'    non-blocked context rows to the cleaned prompt.
+#' 4. Check the policy rate guard, if present.
+#' 5. Call the provider.
+#' 6. Scan provider output with [scan_output()].
+#' 7. Resolve the final action, update the rate guard, and build an audit.
+#'
+#' The returned `risk_summary` aggregates finding severity scores by OWASP
+#' category across prompt, context, and output reports. The final action is the
+#' most conservative action across input and output: `block` beats `redact`,
+#' and `redact` beats `allow`.
+#'
 #' @param prompt User prompt.
 #' @param provider A provider function or object with `$chat()`.
 #' @param policy A `shieldr_policy`.

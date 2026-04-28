@@ -8,62 +8,88 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
+
+Policies are lists of `shieldr_rule` objects plus thresholds. You can start
+with a preset and append domain-specific rules.
 
 ```{r}
 library(llmshieldr)
 ```
 
-Custom rules can use regular expressions or R functions.
+For the source model behind the built-in presets, see
+`vignette("policy-design", package = "llmshieldr")`.
 
-## Healthcare
+## Rule Fields
 
-```{r, eval = FALSE}
-healthcare <- policy_preset("pharma_gxp")
-healthcare <- llmshieldr::add_rule(
-  healthcare,
-  id = "llm02.trial.site_id",
-  pattern = "\\bSITE-[0-9]{3}\\b",
+Every rule has the same shape:
+
+- `id`: unique rule identifier
+- `pattern`: regex pattern, or `NULL`
+- `fn`: R predicate function, or `NULL`
+- `owasp`: OWASP LLM category such as `llm02`
+- `severity`: `low`, `medium`, `high`, or `critical`
+- `action`: `allow`, `redact`, or `block`
+- `description`: human-readable explanation
+
+Exactly one of `pattern` or `fn` must be supplied. Regex rules produce match
+spans that can be redacted. Function rules are useful when the condition is
+easier to express in R.
+
+## Numbers and Thresholds
+
+Severity maps to risk score contributions:
+
+| Severity | Contribution |
+| --- | ---: |
+| `low` | 0.1 |
+| `medium` | 0.3 |
+| `high` | 0.6 |
+| `critical` | 1.0 |
+
+Findings are summed and capped at `1.0`. A policy's thresholds then decide the
+final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
+
+```{r}
+policy <- policy_preset("enterprise_default")
+policy$thresholds
+```
+
+## Regex Rules
+
+Regex rules are the simplest way to redact or block recognizable text.
+
+```{r}
+policy <- add_rule(
+  policy,
+  id = "llm02.ticket_id",
+  pattern = "\\bTICKET-[0-9]{6}\\b",
   owasp = "llm02",
   severity = "medium",
   action = "redact",
-  description = "Clinical trial site identifier."
+  description = "Internal support ticket identifier."
 )
 
-scan_prompt("Review SITE-104 enrollment notes.", healthcare)
+scan_prompt("Summarize TICKET-123456 for the support team.", policy)
 ```
 
-## Finance
+## Function Rules
 
-```{r, eval = FALSE}
-finance <- policy_preset("finance_strict")
-finance <- llmshieldr::add_rule(
-  finance,
-  id = "llm09.promissory_return",
-  pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
-  owasp = "llm09",
-  severity = "critical",
-  action = "block",
-  description = "Promissory investment performance claim."
-)
+Function rules let you express checks that are easier to write in R than in a
+single regular expression.
 
-scan_output("This strategy has guaranteed alpha.", finance)
-```
-
-## Education
-
-```{r, eval = FALSE}
-education <- policy_preset("education_safe")
-flag_minors <- function(text) {
+```{r}
+contains_student_address <- function(text) {
   grepl("\\bstudent\\b", text, ignore.case = TRUE) &&
     grepl("\\bhome address\\b", text, ignore.case = TRUE)
 }
 
-education <- llmshieldr::add_rule(
+education <- policy_preset("education_safe")
+education <- add_rule(
   education,
-  id = "llm02.student.address.fn",
-  fn = flag_minors,
+  id = "llm02.student.address",
+  fn = contains_student_address,
   owasp = "llm02",
   severity = "high",
   action = "redact",
@@ -72,3 +98,46 @@ education <- llmshieldr::add_rule(
 
 scan_prompt("The student home address appears in the form.", education)
 ```
+
+## Industry Examples
+
+Healthcare and life sciences often add identifiers beyond generic PII.
+
+```{r}
+pharma <- policy_preset("pharma_gxp")
+pharma <- add_rule(
+  pharma,
+  id = "llm02.site_id",
+  pattern = "\\bSITE-[0-9]{3}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Clinical trial site identifier."
+)
+```
+
+Finance workflows often tighten language around recommendations and promises.
+
+```{r}
+finance <- policy_preset("finance_strict")
+finance <- add_rule(
+  finance,
+  id = "llm09.promissory_return",
+  pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
+  owasp = "llm09",
+  severity = "critical",
+  action = "block",
+  description = "Promissory investment performance claim."
+)
+```
+
+## Rule Inventory
+
+Use `list_rules()` to inspect a policy before deployment.
+
+```{r}
+list_rules(policy)
+```
+
+The resulting table includes `has_pattern` and `has_fn`, which make it easy to
+audit whether a policy is mostly regex-based, function-based, or mixed.

@@ -3,6 +3,15 @@
 #' Convenience wrapper that creates separate `ellmer` Ollama sessions for the
 #' assistant and semantic reviewer, then delegates to [secure_chat()].
 #'
+#' @details
+#' This is an optional local-model path. It requires the suggested `ellmer`
+#' package and a running Ollama installation. Two chat sessions are created:
+#' one for the assistant response and one for reviewer checks. Keeping them
+#' separate avoids mixing safety-review instructions into the assistant's
+#' conversation state.
+#'
+#' For hosted or custom providers, use [secure_chat()] directly.
+#'
 #' @param prompt User prompt.
 #' @param policy A `shieldr_policy`.
 #' @param checks One of `"rules"`, `"llm"`, or `"both"`.
