@@ -21,3 +21,4 @@
 ^Meta$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
+^app\.R$
