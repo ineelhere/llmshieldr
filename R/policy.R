@@ -73,6 +73,8 @@ build_policy <- function(name = "custom",
 #'   academic-integrity bypass language.
 #' - `open_research`: a smaller open-workflow profile focused on injection and
 #'   secrets, with higher thresholds.
+#' - `comprehensive`: a maximum-coverage profile combining the enterprise,
+#'   pharma, finance, education, code-safety, and rate-guard controls.
 #' - `custom`: no rules, default thresholds.
 #' - `baseline`: backward-compatible alias for `enterprise_default`.
 #'
@@ -80,9 +82,9 @@ build_policy <- function(name = "custom",
 #' to be extended with [add_rule()] for application-specific requirements.
 #'
 #' @param name One of `"enterprise_default"`, `"pharma_gxp"`,
-#'   `"finance_strict"`, `"education_safe"`, `"open_research"`, `"custom"`,
-#'   or `"baseline"`. `"baseline"` is a backward-compatible alias for
-#'   `"enterprise_default"`.
+#'   `"finance_strict"`, `"education_safe"`, `"open_research"`,
+#'   `"comprehensive"`, `"custom"`, or `"baseline"`. `"baseline"` is a
+#'   backward-compatible alias for `"enterprise_default"`.
 #' @param overrides Optional list with `rules`, `thresholds`, `rate_guard`, or
 #'   `trusted_sources` entries.
 #'
@@ -104,6 +106,7 @@ policy_preset <- function(name, overrides = list()) {
       "finance_strict",
       "education_safe",
       "open_research",
+      "comprehensive",
       "custom"
     )
   )
@@ -142,14 +145,7 @@ policy_preset <- function(name, overrides = list()) {
       list(
         .rule_account_number(),
         rule_financial_advice(),
-        shieldr_rule(
-          id = "llm06.investment_advice.action",
-          pattern = "(?i)\\bI\\s+will\\s+(buy|sell|trade|invest)\\b|\\bplacing\\s+the\\s+order\\b",
-          owasp = "llm06",
-          severity = "critical",
-          action = "block",
-          description = "Autonomous investment-action language."
-        )
+        .rule_investment_action()
       )
     ),
     education_safe = c(
@@ -167,6 +163,20 @@ policy_preset <- function(name, overrides = list()) {
       rule_secrets_aws(),
       .rule_secrets_connection_string()
     ),
+    comprehensive = c(
+      enterprise_rules,
+      list(
+        .rule_pii_mrn(),
+        .rule_pii_usubjid(),
+        rule_diagnosis_claim(),
+        .rule_code_safety(),
+        .rule_account_number(),
+        rule_financial_advice(),
+        .rule_investment_action(),
+        .rule_coppa_minor_pii(),
+        .rule_academic_integrity()
+      )
+    ),
     custom = list()
   )
 
@@ -174,10 +184,11 @@ policy_preset <- function(name, overrides = list()) {
     preset_name,
     pharma_gxp = list(redact_at = 0.3, block_at = 0.6),
     open_research = list(redact_at = 0.8, block_at = 0.95),
+    comprehensive = list(redact_at = 0.3, block_at = 0.6),
     list()
   )
 
-  guard <- if (identical(preset_name, "finance_strict")) {
+  guard <- if (preset_name %in% c("finance_strict", "comprehensive")) {
     rate_guard(max_tokens = 100000, cost_limit_usd = 5.00)
   } else {
     NULL

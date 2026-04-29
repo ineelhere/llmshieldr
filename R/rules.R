@@ -615,6 +615,17 @@ rule_financial_advice <- function() {
   )
 }
 
+.rule_investment_action <- function() {
+  shieldr_rule(
+    id = "llm06.investment_advice.action",
+    pattern = "(?i)\\bI\\s+will\\s+(buy|sell|trade|invest)\\b|\\bplacing\\s+the\\s+order\\b",
+    owasp = "llm06",
+    severity = "critical",
+    action = "block",
+    description = "Autonomous investment-action language."
+  )
+}
+
 .rule_coppa_minor_pii <- function() {
   shieldr_rule(
     id = "llm02.pii.coppa.minor",
