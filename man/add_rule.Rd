@@ -36,7 +36,27 @@ add_rule(
 The modified \code{shieldr_policy}, invisibly.
 }
 \description{
-Add a rule to a policy
+\code{add_rule()} appends one validated rule to an existing policy. The function
+returns the modified policy invisibly so it can be used in assignment or
+pipes.
+}
+\details{
+A rule can be regex-based or function-based, but not both. Regex rules are
+best when you need span-level redaction. Function rules are useful when the
+condition is easier to express in R, such as "this text contains both a
+student reference and a home-address phrase".
+
+Severity determines the numeric contribution to the report score:
+\itemize{
+\item \code{low}: \code{0.1}
+\item \code{medium}: \code{0.3}
+\item \code{high}: \code{0.6}
+\item \code{critical}: \code{1.0}
+}
+
+The rule \code{action} is the rule author's preferred outcome when the rule
+fires. The final report action also considers total score and policy
+thresholds.
 }
 \examples{
 policy <- build_policy()

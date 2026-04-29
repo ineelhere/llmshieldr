@@ -15,6 +15,11 @@
 Redacted text.
 }
 \description{
-Apply span redaction
+Replaces matched finding spans with \verb{[REDACTED]}.
+}
+\details{
+Findings can overlap, especially when one rule catches a broad credential
+phrase and another catches a narrower token. This helper sorts and merges
+spans before replacement so offsets remain stable while the string changes.
 }
 \keyword{internal}

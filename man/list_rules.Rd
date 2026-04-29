@@ -14,7 +14,14 @@ A data frame with columns \code{id}, \code{owasp}, \code{severity}, \code{action
 \code{has_pattern}, and \code{has_fn}.
 }
 \description{
-List policy rules
+\code{list_rules()} returns a compact inventory of a policy's rule set. It is
+intended for audits, examples, tests, and pre-deployment reviews.
+}
+\details{
+The \code{has_pattern} and \code{has_fn} columns identify whether each rule is regex
+based or function based. Regex rules can produce redaction spans directly.
+Function rules may produce findings without spans unless the function
+returns span metadata.
 }
 \examples{
 list_rules(policy_preset("custom"))

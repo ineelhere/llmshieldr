@@ -36,6 +36,24 @@ A \code{shieldr_rule} S3 object.
 Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
 LLM Top 10 categories where possible; see \url{https://genai.owasp.org/llm-top-10/}.
 }
+\details{
+A rule is the atomic unit of a policy. Each rule either supplies a regular
+expression pattern or an R function. Regex rules are applied with
+\code{gregexpr(..., perl = TRUE)} and can produce character spans for redaction.
+Function rules receive the full text and can return \code{TRUE}, \code{FALSE}, a
+finding list, a list of finding lists, or a data frame of findings.
+
+\code{severity} is converted to a numeric score by the scanner:
+\itemize{
+\item \code{low}: \code{0.1}
+\item \code{medium}: \code{0.3}
+\item \code{high}: \code{0.6}
+\item \code{critical}: \code{1.0}
+}
+
+The scanner caps the summed report score at \code{1.0}. Critical findings and
+rules with \code{action = "block"} force the resolved report action to \code{block}.
+}
 \examples{
 shieldr_rule(
   id = "demo.email",

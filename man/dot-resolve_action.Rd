@@ -17,6 +17,12 @@
 A string action.
 }
 \description{
-Resolve final action from risk and findings
+Converts a report score and findings into \code{allow}, \code{redact}, or \code{block}.
+}
+\details{
+Resolution is conservative. A critical finding, explicit block action, or
+score at or above \code{policy$thresholds$block_at} returns \code{block}. Otherwise, a
+redaction finding or score at or above \code{policy$thresholds$redact_at} returns
+\code{redact}. All other cases return \code{allow}.
 }
 \keyword{internal}

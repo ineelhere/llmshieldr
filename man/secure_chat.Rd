@@ -33,6 +33,27 @@ A \code{shieldr_result}.
 Orchestrates prompt scanning, optional context scanning, provider execution,
 output scanning, rate guarding, and audit creation.
 }
+\details{
+\code{secure_chat()} is the main end-to-end workflow for users who already have a
+provider. The provider can be a plain R function or an object with a
+\verb{$chat()} method. The function executes these steps:
+\enumerate{
+\item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
+\item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the
+provider.
+\item If context is supplied, scan it with \code{\link[=scan_context]{scan_context()}} and append only
+non-blocked context rows to the cleaned prompt.
+\item Check the policy rate guard, if present.
+\item Call the provider.
+\item Scan provider output with \code{\link[=scan_output]{scan_output()}}.
+\item Resolve the final action, update the rate guard, and build an audit.
+}
+
+The returned \code{risk_summary} aggregates finding severity scores by OWASP
+category across prompt, context, and output reports. The final action is the
+most conservative action across input and output: \code{block} beats \code{redact},
+and \code{redact} beats \code{allow}.
+}
 \examples{
 provider <- function(prompt) "safe answer"
 secure_chat("hello", provider, policy_preset("enterprise_default"))

@@ -29,6 +29,23 @@ Validates provider identity before calls cross into an LLM provider. This
 covers supply-chain and model-integrity concerns related to OWASP LLM03; see
 \url{https://genai.owasp.org/llm-top-10/}.
 }
+\details{
+\code{trust_boundary()} returns a provider wrapper. The wrapper validates the
+provider on creation and again on each call when \code{require_hash} is supplied.
+Function providers are passed through without model or host checks because a
+plain function has no standard model metadata. Provider objects with a
+\verb{$chat()} method may expose model and host fields through common ellmer-style
+internals or attributes.
+
+\code{allowed_models} and \code{allowed_hosts} are allowlists. If the provider exposes
+a model or host and it is outside the allowlist, the wrapper raises an OWASP
+LLM03 error. \code{require_hash} is intended for local Ollama workflows where the
+model manifest can be checked with \verb{ollama show --modelfile}.
+
+This function is not a network firewall. It is an application-level
+assertion that the provider object being called is the provider object you
+intended to allow.
+}
 \examples{
 provider <- function(prompt) paste("ok:", prompt)
 safe_provider <- trust_boundary(provider)

@@ -36,7 +36,15 @@ shieldr_audit(
 A \code{shieldr_audit} S3 object.
 }
 \description{
-Construct a \code{shieldr_audit}
+Audits collect the scanner reports and operational metadata from a guarded
+run.
+}
+\details{
+\code{\link[=secure_chat]{secure_chat()}} builds this object automatically. \code{elapsed_ms} captures
+wall-clock elapsed time for the guarded workflow. \code{token_estimate} is a
+lightweight heuristic based on character count, currently
+\code{ceiling(nchar(text) / 4)} over prompt and output text. It is intended for
+guardrails and trend monitoring, not provider billing reconciliation.
 }
 \examples{
 shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")

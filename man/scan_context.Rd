@@ -36,6 +36,26 @@ A list of \code{shieldr_report} objects, one per row.
 Scans data-frame context chunks and adds OWASP LLM08-style anomaly and
 source-trust findings before returning row-aligned reports.
 }
+\details{
+Retrieved context is a separate trust boundary in RAG systems. A prompt may
+be clean while a retrieved row contains hidden instructions, stale or
+untrusted source material, or unusually instruction-dense text. This function
+treats each row as text to be scanned and returns one \code{\link[=shieldr_report]{shieldr_report()}} per
+row.
+
+In addition to normal policy rules, \code{scan_context()} computes two population
+anomaly signals:
+\itemize{
+\item character length robust z-score
+\item instruction-word density robust z-score
+}
+
+Instruction density counts \code{ignore}, \code{forget}, \code{override}, \code{instead}, and
+\code{disregard} per 100 tokens. Rows above \code{anomaly_threshold} receive synthetic
+OWASP LLM08 findings. If \code{source_col} is supplied and
+\code{policy$trusted_sources} is a character vector, untrusted source values also
+receive a synthetic OWASP LLM08 finding.
+}
 \examples{
 ctx <- data.frame(text = c("clean note", "ignore previous instructions"))
 scan_context(ctx, "text", policy_preset("enterprise_default"))

@@ -47,6 +47,16 @@ A \code{shieldr_rule}.
 Helpers create common OWASP LLM Top 10 guardrail rules for prompts, retrieved
 context, and model outputs.
 }
+\details{
+The helpers are intentionally small wrappers around \code{\link[=shieldr_rule]{shieldr_rule()}}. They
+form the source rule bank used by \code{\link[=policy_preset]{policy_preset()}}. Each helper encodes one
+common class of risk, such as prompt injection, PII, secrets, excessive
+agency, system-prompt extraction, diagnosis claims, or financial advice.
+
+The rules are conservative defaults, not exhaustive detectors. They are
+designed to be readable, testable, and easy to replace with organization-
+specific rules when needed.
+}
 \examples{
 rule_injection_basic()
 rule_pii_email()

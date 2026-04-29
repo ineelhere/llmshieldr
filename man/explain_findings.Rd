@@ -17,6 +17,13 @@ A character vector of formatted finding explanations.
 \description{
 Formats scanner findings for console, Markdown, or HTML presentation.
 }
+\details{
+\code{explain_findings()} is a presentation helper. It does not rescore or
+reclassify findings; it formats the finding metadata already present in a
+\code{\link[=shieldr_report]{shieldr_report()}}. Console output uses severity-colored bullets. Markdown
+and HTML outputs return character vectors suitable for reports, notebooks,
+or lightweight dashboards.
+}
 \examples{
 report <- scan_prompt("email me at jane@example.com", policy_preset("enterprise_default"))
 explain_findings(report$findings)

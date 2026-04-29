@@ -20,6 +20,17 @@ The path, invisibly.
 Persists a \code{shieldr_audit} object as JSON Lines, CSV, or RDS for operational
 auditability across LLM workflows.
 }
+\details{
+JSON Lines is the preferred append-only format for production logs because
+each call writes one complete audit object as one line. CSV flattens findings
+into one row per finding, which is convenient for spreadsheets and simple
+dashboards but loses some nested structure. RDS preserves the R object
+exactly and overwrites the target path.
+
+Audit logs may contain sensitive source text, raw model output, or redacted
+findings depending on the workflow. Treat audit paths as sensitive storage in
+regulated or internal environments.
+}
 \examples{
 audit <- shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")
 path <- tempfile(fileext = ".jsonl")

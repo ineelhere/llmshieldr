@@ -20,7 +20,8 @@ test_that("all policy presets are available", {
     "education_safe",
     "open_research",
     "custom",
-    "baseline"
+    "baseline",
+    "comprehensive"
   )
 
   policies <- lapply(presets, policy_preset)
@@ -29,6 +30,8 @@ test_that("all policy presets are available", {
   expect_equal(policy_preset("baseline")$name, "baseline")
   expect_equal(length(policy_preset("baseline")$rules), length(policy_preset("enterprise_default")$rules))
   expect_s3_class(policy_preset("finance_strict")$rate_guard, "shieldr_rate_guard")
+  expect_gt(length(policy_preset("comprehensive")$rules), length(policy_preset("enterprise_default")$rules))
+  expect_s3_class(policy_preset("comprehensive")$rate_guard, "shieldr_rate_guard")
 })
 
 test_that("add_rule, remove_rule, and list_rules work", {

@@ -33,6 +33,24 @@ Rate guards are explicit stateful environments used to cap token, request,
 and cost budgets for LLM workflows. Resource exhaustion is covered by OWASP
 LLM10; see \url{https://genai.owasp.org/llm-top-10/}.
 }
+\details{
+Calling \code{rate_guard()} with limits and \code{session = NULL} creates a new
+\code{shieldr_rate_guard} environment. The environment stores counters for the
+current window and exposes two methods:
+\itemize{
+\item \verb{$usage()}: returns current counters and configured limits
+\item \verb{$update(tokens, cost_usd)}: increments tokens, request count, and cost
+}
+
+Calling \code{rate_guard(session)} checks the existing environment and returns
+\code{TRUE} if all counters are within limits. If a limit has been exceeded, it
+raises an OWASP LLM10 error with \code{\link[cli:cli_abort]{cli::cli_abort()}}. Limits set to \code{NULL}
+are disabled for that dimension.
+
+Windows reset automatically when \code{window_seconds} has elapsed. This object
+is intentionally stateful; it is the one place where llmshieldr expects
+mutable state, because rate limiting is inherently session-based.
+}
 \examples{
 guard <- rate_guard(max_tokens = 100)
 guard$update(tokens = 10, cost_usd = 0)

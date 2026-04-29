@@ -15,6 +15,12 @@
 A list of finding lists.
 }
 \description{
-Run policy rules on text
+Applies every rule in a policy and returns raw finding lists.
+}
+\details{
+Regex rules are matched with \code{gregexpr(..., perl = TRUE)}. Function rules
+receive the full text and are coerced into finding objects. The helper
+attaches a \code{risk_score} attribute to the finding list, but callers typically
+recompute the score after adding semantic or synthetic findings.
 }
 \keyword{internal}

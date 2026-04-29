@@ -112,6 +112,15 @@ open_research
     secret rules
     higher thresholds: redact_at = 0.8, block_at = 0.95
 
+comprehensive
+    enterprise_default
+    pharma_gxp additions
+    finance_strict additions
+    education_safe additions
+    code-safety checks
+    rate_guard(max_tokens = 100000, cost_limit_usd = 5.00)
+    stricter thresholds: redact_at = 0.3, block_at = 0.6
+
 custom
     no rules
     default thresholds

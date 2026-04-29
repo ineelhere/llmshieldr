@@ -100,6 +100,7 @@ list(
   finance_strict = policy_preset("finance_strict"),
   education_safe = policy_preset("education_safe"),
   open_research = policy_preset("open_research"),
+  comprehensive = policy_preset("comprehensive"),
   custom = policy_preset("custom")
 )
 ```
@@ -123,10 +124,11 @@ thresholds <- data.frame(
     "finance_strict",
     "education_safe",
     "open_research",
+    "comprehensive",
     "custom"
   ),
-  redact_at = c(0.4, 0.4, 0.3, 0.4, 0.4, 0.8, 0.4),
-  block_at = c(0.75, 0.75, 0.6, 0.75, 0.75, 0.95, 0.75),
+  redact_at = c(0.4, 0.4, 0.3, 0.4, 0.4, 0.8, 0.3, 0.4),
+  block_at = c(0.75, 0.75, 0.6, 0.75, 0.75, 0.95, 0.6, 0.75),
   stringsAsFactors = FALSE
 )
 

@@ -33,7 +33,15 @@ shieldr_report(
 A \code{shieldr_report} S3 object.
 }
 \description{
-Construct a \code{shieldr_report}
+A \code{shieldr_report} is the scanner result returned by \code{\link[=scan_prompt]{scan_prompt()}},
+\code{\link[=scan_context]{scan_context()}}, and \code{\link[=scan_output]{scan_output()}}.
+}
+\details{
+Reports separate the cleaned text from the findings that explain why the
+text was allowed, redacted, or blocked. \code{risk_score} is a deterministic
+severity index from \code{0} to \code{1}; it is not a probability. The \code{checks} field
+records whether the report came from deterministic rules, an LLM reviewer,
+or both.
 }
 \examples{
 shieldr_report("allow", "hello", list(), 0, "custom", "rules")

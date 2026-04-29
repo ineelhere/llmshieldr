@@ -19,7 +19,15 @@ shieldr_result(output = NULL, audit, risk_summary, action)
 A \code{shieldr_result} S3 object.
 }
 \description{
-Construct a \code{shieldr_result}
+A \code{shieldr_result} is the high-level return value from \code{\link[=secure_chat]{secure_chat()}} and
+\code{\link[=shield_ollama]{shield_ollama()}}.
+}
+\details{
+\code{output} is \code{NULL} when the final action is \code{block}; otherwise it contains
+the cleaned model output. \code{risk_summary} aggregates finding severity scores
+by OWASP category across prompt, context, and output reports, capping each
+category at \code{1.0}. This gives dashboards and audit logs a compact view of
+which OWASP categories were triggered.
 }
 \examples{
 aud <- shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")

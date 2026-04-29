@@ -19,7 +19,9 @@ build_policy(
 \item{thresholds}{Threshold overrides. Missing values are filled from
 \code{redact_at = 0.4} and \code{block_at = 0.75}.}
 
-\item{rate_guard}{Optional \code{shieldr_rate_guard}.}
+\item{rate_guard}{Optional \code{shieldr_rate_guard}. When present, \code{\link[=secure_chat]{secure_chat()}}
+checks the guard before provider calls and updates it after successful
+provider calls.}
 }
 \value{
 A \code{shieldr_policy}.
@@ -28,6 +30,23 @@ A \code{shieldr_policy}.
 \code{build_policy()} combines validated \code{shieldr_rule} objects with threshold
 settings for the scanner layer. OWASP LLM Top 10 references are preserved on
 each rule; see \url{https://genai.owasp.org/llm-top-10/}.
+}
+\details{
+A policy is intentionally small and inspectable. It contains a policy name,
+a list of deterministic rules, threshold values, and an optional rate guard.
+The scanners do not mutate a policy; they read the rule list, create
+findings, calculate a risk score from finding severities, and then compare
+that score with the policy thresholds.
+
+Thresholds are merged over the package defaults:
+\itemize{
+\item \code{redact_at = 0.4}
+\item \code{block_at = 0.75}
+}
+
+Lower thresholds make a policy stricter. Higher thresholds make accumulated
+findings less likely to escalate. Critical findings and explicit \code{block}
+rules still block regardless of threshold.
 }
 \examples{
 policy <- build_policy(rules = list(rule_pii_email()))

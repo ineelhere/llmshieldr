@@ -17,6 +17,12 @@
 A list of finding lists.
 }
 \description{
-Run semantic reviewer checks
+Asks a reviewer model or function for JSON findings.
+}
+\details{
+The reviewer prompt asks for an array of objects containing \code{rule_id},
+\code{owasp}, \code{severity}, and \code{description}. The reviewer can be a function or an
+object with \verb{$chat()}. Malformed JSON is treated as a soft failure because
+deterministic rule findings should still be usable.
 }
 \keyword{internal}

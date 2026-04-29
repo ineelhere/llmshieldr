@@ -30,6 +30,17 @@ A \code{shieldr_policy} S3 object.
 \description{
 Creates a validated policy from a list of \code{shieldr_rule} objects.
 }
+\details{
+This is the low-level constructor. Most users should start with
+\code{\link[=build_policy]{build_policy()}} or \code{\link[=policy_preset]{policy_preset()}}, which merge default thresholds and
+assemble built-in rule lists. \code{shieldr_policy()} is exported so advanced
+users and tests can construct exact policy objects.
+
+\code{trusted_sources} is used by \code{\link[=scan_context]{scan_context()}} only. If it is \code{NULL}, all
+sources are treated as trusted. If it is a character vector and \code{source_col}
+is supplied to \code{\link[=scan_context]{scan_context()}}, rows with source values outside the allowlist
+receive an OWASP LLM08 finding.
+}
 \examples{
 shieldr_policy("empty", list(), list(redact_at = 0.4, block_at = 0.75))
 }

@@ -119,6 +119,7 @@ policy_preset("pharma_gxp")
 policy_preset("finance_strict")
 policy_preset("education_safe")
 policy_preset("open_research")
+policy_preset("comprehensive")
 policy_preset("custom")
 policy_preset("baseline")
 ```
@@ -178,6 +179,8 @@ Preset intent:
   integrity checks
 - `open_research`: smaller rule set focused on injection and secrets, with a
   higher block threshold
+- `comprehensive`: combines enterprise, pharma, finance, education,
+  code-safety, and rate-guard controls for maximum built-in coverage
 - `custom`: empty policy for building your own rules
 
 Policy design tradeoffs:
@@ -251,8 +254,9 @@ Action resolution is intentionally conservative:
 - otherwise `redact` if `risk_score >= redact_at`
 - otherwise `allow`
 
-`pharma_gxp` lowers thresholds to `redact_at = 0.3` and `block_at = 0.6`.
-`open_research` raises them to `redact_at = 0.8` and `block_at = 0.95`.
+`pharma_gxp` and `comprehensive` lower thresholds to `redact_at = 0.3` and
+`block_at = 0.6`. `open_research` raises them to `redact_at = 0.8` and
+`block_at = 0.95`.
 
 ## Scan a Prompt
 
