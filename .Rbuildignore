@@ -16,6 +16,8 @@
 ^\.github$
 ^_pkgdown\.yml$
 ^CONTRIBUTING\.md$
+^LICENSE$
+^TECHNICAL_DESIGN\.md$
 ^llmshieldr-mvp-blueprint\.md$
 ^\.vscode$
 ^Meta$
