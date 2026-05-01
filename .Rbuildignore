@@ -18,7 +18,6 @@
 ^CONTRIBUTING\.md$
 ^llmshieldr-mvp-blueprint\.md$
 ^\.vscode$
-^inst/doc$
 ^Meta$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$

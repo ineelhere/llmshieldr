@@ -116,11 +116,11 @@ Use it thoughtfully: test in your own environment, verify behavior for your use 
 
 ## 🤝 Contributing
 
-This is a living document. Suggestions, corrections, and improvements are always welcome. Feel free to [open an issue](https://github.com/ineelhere/llmshieldr/issues) or submit a pull request.
+This is a living project. Suggestions, corrections, and improvements are always welcome. Feel free to [open an issue](https://github.com/ineelhere/llmshieldr/issues) or submit a pull request.
 
 
 ## 📄 License
 
 Apache License 2.0.
 
-![llmshieldr animation](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZG94cmRiZDNtemR3aWk0c2RkOWE3N2d2MGdvdmh1YXZ4bjY1a2FlMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Uo0CJ8l5kVh2E/giphy.gif)
+![](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZG94cmRiZDNtemR3aWk0c2RkOWE3N2d2MGdvdmh1YXZ4bjY1a2FlMiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Uo0CJ8l5kVh2E/giphy.gif)
