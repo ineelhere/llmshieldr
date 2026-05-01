@@ -1,7 +1,7 @@
 #' Scan model output
 #'
 #' Scans LLM output for sensitive data, unsafe code, agency claims, system
-#' prompt leakage, and misinformation markers.
+#' prompt leakage, misinformation markers, and optional NLP intent signals.
 #'
 #' @details
 #' Output scanning is the last guardrail before model text is displayed, stored,
@@ -13,25 +13,30 @@
 #' - system-prompt structural markers such as "# System" or role declarations
 #' - high-confidence medical or financial claim markers
 #'
-#' The return value is a [shieldr_report()] with the same scoring and action
-#' semantics as [scan_prompt()].
+#' Use `checks = "nlp"` when you want a lightweight local NLP-only pass over
+#' model output. The return value is a [shieldr_report()] with the same scoring
+#' and action semantics as [scan_prompt()].
 #'
 #' @param text Model output text.
-#' @param policy A `shieldr_policy`.
+#' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
-#' @param checks One of `"rules"`, `"llm"`, or `"both"`.
+#' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
+#' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_report`.
 #' @examples
-#' scan_output("A concise answer.", policy_preset("enterprise_default"))
+#' scan_output("A concise answer.")
+#' scan_output("A concise answer.", show_tokens = TRUE)
 #' @export
 scan_output <- function(text,
-                        policy,
+                        policy = "enterprise_default",
                         reviewer = NULL,
-                        checks = "rules") {
+                        checks = "rules",
+                        show_tokens = FALSE) {
   .check_string(text, "text", allow_empty = TRUE)
-  .check_policy(policy)
+  policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer(reviewer)
 
   text_norm <- stringi::stri_trans_nfkc(text)
@@ -55,6 +60,8 @@ scan_output <- function(text,
       }
     }
     findings <- c(findings, .run_rules(text_norm, output_policy))
+  } else if (identical(checks, "nlp")) {
+    findings <- c(findings, .run_nlp(text_norm, output_policy))
   }
 
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
@@ -71,7 +78,8 @@ scan_output <- function(text,
     findings = findings,
     risk_score = risk_score,
     policy = policy$name,
-    checks = checks
+    checks = checks,
+    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL
   )
 }
 

@@ -4,12 +4,15 @@
 \alias{builtin_rules}
 \alias{rule_injection_basic}
 \alias{rule_injection_indirect}
+\alias{rule_nlp_intent}
 \alias{rule_pii_email}
 \alias{rule_pii_phone}
 \alias{rule_pii_ssn}
 \alias{rule_secrets_api_key}
 \alias{rule_secrets_bearer}
 \alias{rule_secrets_aws}
+\alias{rule_secrets_password}
+\alias{rule_phi_condition}
 \alias{rule_agency_language}
 \alias{rule_system_prompt_leak}
 \alias{rule_diagnosis_claim}
@@ -19,6 +22,8 @@
 rule_injection_basic()
 
 rule_injection_indirect()
+
+rule_nlp_intent()
 
 rule_pii_email()
 
@@ -31,6 +36,10 @@ rule_secrets_api_key()
 rule_secrets_bearer()
 
 rule_secrets_aws()
+
+rule_secrets_password()
+
+rule_phi_condition()
 
 rule_agency_language()
 
@@ -49,9 +58,10 @@ context, and model outputs.
 }
 \details{
 The helpers are intentionally small wrappers around \code{\link[=shieldr_rule]{shieldr_rule()}}. They
-form the source rule bank used by \code{\link[=policy_preset]{policy_preset()}}. Each helper encodes one
-common class of risk, such as prompt injection, PII, secrets, excessive
-agency, system-prompt extraction, diagnosis claims, or financial advice.
+form the source rule bank used by \code{\link[=policy]{policy()}}. Each helper encodes one
+common class of risk, such as prompt injection, NLP intent, PII, secrets,
+excessive agency, system-prompt extraction, diagnosis claims, or financial
+advice.
 
 The rules are conservative defaults, not exhaustive detectors. They are
 designed to be readable, testable, and easy to replace with organization-

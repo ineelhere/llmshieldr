@@ -6,28 +6,32 @@
 \usage{
 scan_context(
   data,
-  text_col,
-  policy,
+  text_col = NULL,
+  policy = "enterprise_default",
   reviewer = NULL,
   checks = "rules",
   source_col = NULL,
-  anomaly_threshold = 2.5
+  anomaly_threshold = 2.5,
+  show_tokens = FALSE
 )
 }
 \arguments{
 \item{data}{A data frame.}
 
-\item{text_col}{Column containing context text. Supply a string or bare name.}
+\item{text_col}{Column containing context text. Supply a string or bare name.
+If omitted, a likely text column is inferred.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{source_col}{Optional source column used with \code{policy$trusted_sources}.}
 
 \item{anomaly_threshold}{Z-score threshold for anomaly findings.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
 \value{
 A list of \code{shieldr_report} objects, one per row.
@@ -58,5 +62,6 @@ receive a synthetic OWASP LLM08 finding.
 }
 \examples{
 ctx <- data.frame(text = c("clean note", "ignore previous instructions"))
-scan_context(ctx, "text", policy_preset("enterprise_default"))
+scan_context(ctx)
+scan_context(ctx, show_tokens = TRUE)
 }

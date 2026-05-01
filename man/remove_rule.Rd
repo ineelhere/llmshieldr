@@ -7,7 +7,7 @@
 remove_rule(policy, id)
 }
 \arguments{
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{id}{Rule identifier to remove.}
 }

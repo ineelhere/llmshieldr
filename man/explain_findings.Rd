@@ -25,6 +25,6 @@ and HTML outputs return character vectors suitable for reports, notebooks,
 or lightweight dashboards.
 }
 \examples{
-report <- scan_prompt("email me at jane@example.com", policy_preset("enterprise_default"))
+report <- scan_prompt("email me at jane@example.com", policy("enterprise_default"))
 explain_findings(report$findings)
 }

@@ -8,7 +8,6 @@ rate_guard(
   session = NULL,
   max_tokens = NULL,
   max_requests = NULL,
-  cost_limit_usd = NULL,
   window_seconds = 3600L
 )
 }
@@ -20,8 +19,6 @@ to create a new guard.}
 
 \item{max_requests}{Maximum requests per window, or \code{NULL}.}
 
-\item{cost_limit_usd}{Maximum cost per window, or \code{NULL}.}
-
 \item{window_seconds}{Window length in seconds.}
 }
 \value{
@@ -29,8 +26,8 @@ When creating a guard, a \code{shieldr_rate_guard} environment. When
 checking a guard, \code{TRUE} if usage is within limits.
 }
 \description{
-Rate guards are explicit stateful environments used to cap token, request,
-and cost budgets for LLM workflows. Resource exhaustion is covered by OWASP
+Rate guards are explicit stateful environments used to cap token and request
+budgets for LLM workflows. Resource exhaustion is covered by OWASP
 LLM10; see \url{https://genai.owasp.org/llm-top-10/}.
 }
 \details{
@@ -39,7 +36,7 @@ Calling \code{rate_guard()} with limits and \code{session = NULL} creates a new
 current window and exposes two methods:
 \itemize{
 \item \verb{$usage()}: returns current counters and configured limits
-\item \verb{$update(tokens, cost_usd)}: increments tokens, request count, and cost
+\item \verb{$update(tokens)}: increments tokens and request count
 }
 
 Calling \code{rate_guard(session)} checks the existing environment and returns
@@ -53,6 +50,6 @@ mutable state, because rate limiting is inherently session-based.
 }
 \examples{
 guard <- rate_guard(max_tokens = 100)
-guard$update(tokens = 10, cost_usd = 0)
+guard$update(tokens = 10)
 rate_guard(guard)
 }

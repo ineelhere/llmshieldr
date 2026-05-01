@@ -4,43 +4,56 @@
 \alias{scan_prompt}
 \title{Scan a prompt}
 \usage{
-scan_prompt(text, policy, reviewer = NULL, checks = "rules", redact = TRUE)
+scan_prompt(
+  text,
+  policy = "enterprise_default",
+  reviewer = NULL,
+  checks = "rules",
+  redact = TRUE,
+  show_tokens = FALSE
+)
 }
 \arguments{
 \item{text}{Prompt text.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{redact}{Whether to redact matched spans in \code{text_clean}.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
 \value{
 A \code{shieldr_report}.
 }
 \description{
-Scans user prompt text with rule-based and optional semantic reviewer checks.
+Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
 Findings retain OWASP LLM Top 10 categories when known; see
 \url{https://genai.owasp.org/llm-top-10/}.
 }
 \details{
 \code{scan_prompt()} is usually the first guardrail in a workflow. It normalizes
 text with Unicode NFKC normalization, collapses whitespace, applies policy
-rules, optionally asks a semantic reviewer for JSON findings, calculates a
-\code{risk_score}, resolves an action, and returns a \code{\link[=shieldr_report]{shieldr_report()}}.
+rules, optionally applies the NLP intent rule, optionally asks a semantic
+reviewer for JSON findings, calculates a \code{risk_score}, resolves an action,
+and returns a \code{\link[=shieldr_report]{shieldr_report()}}.
 
-\code{checks = "rules"} uses deterministic policy rules only. \code{checks = "llm"}
-uses only the semantic reviewer when one is supplied. \code{checks = "both"}
-combines both sets of findings. If \code{checks} includes LLM review and the
-reviewer returns malformed JSON, the function warns and continues with the
-findings it already has.
+\code{checks = "rules"} uses deterministic policy rules. Built-in policies include
+regular expressions and an NLP intent rule. \code{checks = "nlp"} runs only NLP
+intent checks, using \code{tokenizers} for word tokenization and \code{SnowballC} for
+stemming when those optional packages are installed. \code{checks = "llm"} uses
+only the semantic reviewer when one is supplied. \code{checks = "both"} combines
+policy rules with semantic review. If LLM review returns malformed JSON, the
+function warns and continues with the findings it already has.
 
 Redaction replaces matched spans with \verb{[REDACTED]}. Function-based findings
 can influence score and action even when they do not provide exact spans.
 }
 \examples{
-policy <- policy_preset("enterprise_default")
-scan_prompt("hello", policy)
+scan_prompt("hello")
+scan_prompt("patient has cancer password ak$1234567890", policy = "comprehensive")
+scan_prompt("hello", show_tokens = TRUE)
 }

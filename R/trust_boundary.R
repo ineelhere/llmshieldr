@@ -1,45 +1,46 @@
-#' Wrap a provider in a trust boundary
+#' Wrap a chat object in a trust boundary
 #'
-#' Validates provider identity before calls cross into an LLM provider. This
+#' Validates chat identity before calls cross into an LLM service. This
 #' covers supply-chain and model-integrity concerns related to OWASP LLM03; see
 #' <https://genai.owasp.org/llm-top-10/>.
 #'
 #' @details
-#' `trust_boundary()` returns a provider wrapper. The wrapper validates the
-#' provider on creation and again on each call when `require_hash` is supplied.
-#' Function providers are passed through without model or host checks because a
-#' plain function has no standard model metadata. Provider objects with a
-#' `$chat()` method may expose model and host fields through common ellmer-style
-#' internals or attributes.
+#' `trust_boundary()` returns a chat wrapper. The wrapper validates the chat on
+#' creation and again on each call when `require_hash` is supplied. Plain
+#' functions are passed through without model or host checks because a function
+#' has no standard model metadata. Chat objects with a `$chat()` method may
+#' expose model and host fields through common ellmer-style internals or
+#' attributes.
 #'
-#' `allowed_models` and `allowed_hosts` are allowlists. If the provider exposes
-#' a model or host and it is outside the allowlist, the wrapper raises an OWASP
+#' `allowed_models` and `allowed_hosts` are allowlists. If the chat exposes a
+#' model or host and it is outside the allowlist, the wrapper raises an OWASP
 #' LLM03 error. `require_hash` is intended for local Ollama workflows where the
 #' model manifest can be checked with `ollama show --modelfile`.
 #'
 #' This function is not a network firewall. It is an application-level
-#' assertion that the provider object being called is the provider object you
-#' intended to allow.
+#' assertion that the chat object being called is the chat object you intended
+#' to allow.
 #'
-#' @param provider A provider function or an object with a `$chat()` method.
+#' @param chat An `ellmer` chat object, an object with `$chat()`, or a function.
 #' @param allowed_models Optional character vector of allowed model names.
 #' @param allowed_hosts Optional character vector of allowed hosts or base URLs.
 #' @param require_hash Optional expected SHA-256 hash for an Ollama modelfile
 #'   manifest.
+#' @param ... Reserved for backwards-compatible aliases.
 #'
-#' @return A callable provider wrapper.
+#' @return A callable chat wrapper.
 #' @examples
-#' provider <- function(prompt) paste("ok:", prompt)
-#' safe_provider <- trust_boundary(provider)
-#' safe_provider("hello")
+#' chat <- function(prompt) paste("ok:", prompt)
+#' safe_chat <- trust_boundary(chat)
+#' safe_chat("hello")
 #' @export
-trust_boundary <- function(provider,
+trust_boundary <- function(chat = NULL,
                            allowed_models = NULL,
                            allowed_hosts = NULL,
-                           require_hash = NULL) {
-  if (!is.function(provider) && !.has_chat_method(provider)) {
-    cli::cli_abort("{.arg provider} must be a function or expose a {.code $chat()} method.")
-  }
+                           require_hash = NULL,
+                           ...) {
+  chat <- .resolve_chat_arg(chat, list(...))
+  .validate_chat(chat)
   if (!is.null(allowed_models) && !is.character(allowed_models)) {
     cli::cli_abort("{.arg allowed_models} must be a character vector or {.code NULL}.")
   }
@@ -52,9 +53,9 @@ trust_boundary <- function(provider,
 
   validated <- FALSE
   validate <- function() {
-    plain_function <- is.function(provider) && !.has_chat_method(provider)
-    model <- .provider_model(provider)
-    host <- .provider_host(provider)
+    plain_function <- is.function(chat) && !.has_chat_method(chat)
+    model <- .chat_model(chat)
+    host <- .chat_host(chat)
 
     if (!plain_function && !is.null(allowed_models)) {
       if (is.null(model) || !model %in% allowed_models) {
@@ -91,50 +92,50 @@ trust_boundary <- function(provider,
     }
     args <- list(...)
     if (length(args) == 0L) {
-      return(provider)
+      return(chat)
     }
-    if (is.function(provider)) {
-      return(provider(...))
+    if (is.function(chat)) {
+      return(chat(...))
     }
-    provider$chat(...)
+    chat$chat(...)
   }
 }
 
-.has_chat_method <- function(provider) {
-  chat <- tryCatch(provider$chat, error = function(e) NULL)
-  !is.null(chat) && is.function(chat)
+.has_chat_method <- function(chat) {
+  method <- tryCatch(chat$chat, error = function(e) NULL)
+  !is.null(method) && is.function(method)
 }
 
-.provider_model <- function(provider) {
+.chat_model <- function(chat) {
   candidates <- list(
-    attr(provider, "model", exact = TRUE),
-    .pluck_provider(provider, "model"),
-    .pluck_provider(provider, c(".__enclos_env__", "private", "model")),
-    .pluck_provider(provider, c(".__enclos_env__", "private", ".model")),
-    .pluck_provider(provider, c("private", "model"))
+    attr(chat, "model", exact = TRUE),
+    .pluck_chat(chat, "model"),
+    .pluck_chat(chat, c(".__enclos_env__", "private", "model")),
+    .pluck_chat(chat, c(".__enclos_env__", "private", ".model")),
+    .pluck_chat(chat, c("private", "model"))
   )
   out <- .compact_chr(unlist(candidates, use.names = FALSE))
   if (length(out) == 0L) NULL else out[[1]]
 }
 
-.provider_host <- function(provider) {
+.chat_host <- function(chat) {
   candidates <- list(
-    attr(provider, "base_url", exact = TRUE),
-    attr(provider, "host", exact = TRUE),
-    .pluck_provider(provider, "base_url"),
-    .pluck_provider(provider, "host"),
-    .pluck_provider(provider, "url"),
-    .pluck_provider(provider, c(".__enclos_env__", "private", "base_url")),
-    .pluck_provider(provider, c(".__enclos_env__", "private", "host")),
-    .pluck_provider(provider, c(".__enclos_env__", "private", "url")),
-    .pluck_provider(provider, c("private", "base_url")),
-    .pluck_provider(provider, c("private", "host"))
+    attr(chat, "base_url", exact = TRUE),
+    attr(chat, "host", exact = TRUE),
+    .pluck_chat(chat, "base_url"),
+    .pluck_chat(chat, "host"),
+    .pluck_chat(chat, "url"),
+    .pluck_chat(chat, c(".__enclos_env__", "private", "base_url")),
+    .pluck_chat(chat, c(".__enclos_env__", "private", "host")),
+    .pluck_chat(chat, c(".__enclos_env__", "private", "url")),
+    .pluck_chat(chat, c("private", "base_url")),
+    .pluck_chat(chat, c("private", "host"))
   )
   out <- .compact_chr(unlist(candidates, use.names = FALSE))
   if (length(out) == 0L) NULL else out[[1]]
 }
 
-.pluck_provider <- function(x, path) {
+.pluck_chat <- function(x, path) {
   current <- x
   for (key in path) {
     current <- tryCatch(current[[key]], error = function(e) NULL)

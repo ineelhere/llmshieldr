@@ -1,46 +1,53 @@
 #' Scan a prompt
 #'
-#' Scans user prompt text with rule-based and optional semantic reviewer checks.
+#' Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
 #' Findings retain OWASP LLM Top 10 categories when known; see
 #' <https://genai.owasp.org/llm-top-10/>.
 #'
 #' @details
 #' `scan_prompt()` is usually the first guardrail in a workflow. It normalizes
 #' text with Unicode NFKC normalization, collapses whitespace, applies policy
-#' rules, optionally asks a semantic reviewer for JSON findings, calculates a
-#' `risk_score`, resolves an action, and returns a [shieldr_report()].
+#' rules, optionally applies the NLP intent rule, optionally asks a semantic
+#' reviewer for JSON findings, calculates a `risk_score`, resolves an action,
+#' and returns a [shieldr_report()].
 #'
-#' `checks = "rules"` uses deterministic policy rules only. `checks = "llm"`
-#' uses only the semantic reviewer when one is supplied. `checks = "both"`
-#' combines both sets of findings. If `checks` includes LLM review and the
-#' reviewer returns malformed JSON, the function warns and continues with the
-#' findings it already has.
+#' `checks = "rules"` uses deterministic policy rules. Built-in policies include
+#' regular expressions and an NLP intent rule. `checks = "nlp"` runs only NLP
+#' intent checks, using `tokenizers` for word tokenization and `SnowballC` for
+#' stemming when those optional packages are installed. `checks = "llm"` uses
+#' only the semantic reviewer when one is supplied. `checks = "both"` combines
+#' policy rules with semantic review. If LLM review returns malformed JSON, the
+#' function warns and continues with the findings it already has.
 #'
 #' Redaction replaces matched spans with `[REDACTED]`. Function-based findings
 #' can influence score and action even when they do not provide exact spans.
 #'
 #' @param text Prompt text.
-#' @param policy A `shieldr_policy`.
+#' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
-#' @param checks One of `"rules"`, `"llm"`, or `"both"`.
+#' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param redact Whether to redact matched spans in `text_clean`.
+#' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_report`.
 #' @examples
-#' policy <- policy_preset("enterprise_default")
-#' scan_prompt("hello", policy)
+#' scan_prompt("hello")
+#' scan_prompt("patient has cancer password ak$1234567890", policy = "comprehensive")
+#' scan_prompt("hello", show_tokens = TRUE)
 #' @export
 scan_prompt <- function(text,
-                        policy,
+                        policy = "enterprise_default",
                         reviewer = NULL,
                         checks = "rules",
-                        redact = TRUE) {
+                        redact = TRUE,
+                        show_tokens = FALSE) {
   .check_string(text, "text", allow_empty = TRUE)
-  .check_policy(policy)
+  policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
   if (!(is.logical(redact) && length(redact) == 1L && !is.na(redact))) {
     cli::cli_abort("{.arg redact} must be {.code TRUE} or {.code FALSE}.")
   }
+  show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer(reviewer)
 
   text_norm <- .normalise_text(text)
@@ -48,6 +55,8 @@ scan_prompt <- function(text,
 
   if (checks %in% c("rules", "both")) {
     findings <- c(findings, .run_rules(text_norm, policy))
+  } else if (identical(checks, "nlp")) {
+    findings <- c(findings, .run_nlp(text_norm, policy))
   }
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
     findings <- c(findings, .semantic_review(text_norm, reviewer, policy$name))
@@ -64,7 +73,8 @@ scan_prompt <- function(text,
     findings = findings,
     risk_score = risk_score,
     policy = policy$name,
-    checks = checks
+    checks = checks,
+    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL
   )
 }
 
@@ -73,22 +83,26 @@ scan_prompt <- function(text,
 #' Backward-compatible alias for [scan_prompt()].
 #'
 #' @inheritParams scan_prompt
+#' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_report`.
 #' @examples
-#' preflight_check("hello", policy_preset("custom"))
+#' preflight_check("hello")
+#' preflight_check("hello", show_tokens = TRUE)
 #' @export
 preflight_check <- function(text,
-                            policy,
+                            policy = "enterprise_default",
                             reviewer = NULL,
                             checks = "rules",
-                            redact = TRUE) {
+                            redact = TRUE,
+                            show_tokens = FALSE) {
   scan_prompt(
     text = text,
     policy = policy,
     reviewer = reviewer,
     checks = checks,
-    redact = redact
+    redact = redact,
+    show_tokens = show_tokens
   )
 }
 
@@ -103,7 +117,7 @@ preflight_check <- function(text,
 #' recompute the score after adding semantic or synthetic findings.
 #'
 #' @param text Normalised text.
-#' @param policy A `shieldr_policy`.
+#' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #'
 #' @return A list of finding lists.
 #' @keywords internal
@@ -144,6 +158,29 @@ preflight_check <- function(text,
 
   attr(findings, "risk_score") <- .score_findings(findings)
   findings
+}
+
+.run_nlp <- function(text, policy) {
+  .check_string(text, "text", allow_empty = TRUE)
+  .check_policy(policy)
+
+  rules <- Filter(.is_nlp_rule, policy$rules)
+  ids <- vapply(rules, `[[`, character(1), "id")
+  if (!"llm01.nlp.intent" %in% ids) {
+    rules <- c(rules, list(rule_nlp_intent()))
+  }
+
+  nlp_policy <- shieldr_policy(
+    name = policy$name,
+    rules = rules,
+    thresholds = policy$thresholds,
+    trusted_sources = policy$trusted_sources
+  )
+  .run_rules(text, nlp_policy)
+}
+
+.is_nlp_rule <- function(rule) {
+  inherits(rule, "shieldr_rule") && grepl("\\.nlp\\.", rule$id)
 }
 
 #' Resolve final action from risk and findings
@@ -329,8 +366,15 @@ preflight_check <- function(text,
 }
 
 .validate_checks <- function(checks) {
-  .check_choice(checks, "checks", c("rules", "llm", "both"))
+  .check_choice(checks, "checks", c("rules", "nlp", "llm", "both"))
   checks
+}
+
+.validate_show_tokens <- function(show_tokens) {
+  if (!(is.logical(show_tokens) && length(show_tokens) == 1L && !is.na(show_tokens))) {
+    cli::cli_abort("{.arg show_tokens} must be {.code TRUE} or {.code FALSE}.")
+  }
+  isTRUE(show_tokens)
 }
 
 .validate_reviewer <- function(reviewer) {

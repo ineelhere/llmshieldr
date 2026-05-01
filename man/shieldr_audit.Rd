@@ -24,7 +24,7 @@ shieldr_audit(
 
 \item{prompt_clean}{Cleaned prompt.}
 
-\item{output_raw}{Raw provider output, or \code{NULL}.}
+\item{output_raw}{Raw model output, or \code{NULL}.}
 
 \item{elapsed_ms}{Elapsed time in milliseconds.}
 
@@ -41,10 +41,10 @@ run.
 }
 \details{
 \code{\link[=secure_chat]{secure_chat()}} builds this object automatically. \code{elapsed_ms} captures
-wall-clock elapsed time for the guarded workflow. \code{token_estimate} is a
-lightweight heuristic based on character count, currently
+wall-clock elapsed time for the guarded workflow. \code{token_estimate} uses an
+\code{ellmer} token counter when one is available and falls back to
 \code{ceiling(nchar(text) / 4)} over prompt and output text. It is intended for
-guardrails and trend monitoring, not provider billing reconciliation.
+guardrails and trend monitoring, not billing reconciliation.
 }
 \examples{
 shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")

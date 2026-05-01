@@ -12,6 +12,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^docs$
+^pkgdown$
 ^\.github$
 ^_pkgdown\.yml$
 ^CONTRIBUTING\.md$

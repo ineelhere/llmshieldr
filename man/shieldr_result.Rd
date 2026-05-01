@@ -7,7 +7,7 @@
 shieldr_result(output = NULL, audit, risk_summary, action)
 }
 \arguments{
-\item{output}{Cleaned provider output, or \code{NULL}.}
+\item{output}{Cleaned model output, or \code{NULL}.}
 
 \item{audit}{A \code{shieldr_audit} object.}
 

@@ -80,10 +80,9 @@ shieldr_rule <- function(id,
 #' Creates a validated policy from a list of `shieldr_rule` objects.
 #'
 #' @details
-#' This is the low-level constructor. Most users should start with
-#' [build_policy()] or [policy_preset()], which merge default thresholds and
-#' assemble built-in rule lists. `shieldr_policy()` is exported so advanced
-#' users and tests can construct exact policy objects.
+#' This is the low-level constructor. Most users should start with [policy()],
+#' which returns a ready-to-use built-in policy. `shieldr_policy()` is exported
+#' so advanced users and tests can construct exact policy objects.
 #'
 #' `trusted_sources` is used by [scan_context()] only. If it is `NULL`, all
 #' sources are treated as trusted. If it is a character vector and `source_col`
@@ -155,8 +154,8 @@ print.shieldr_policy <- function(x, ...) {
 #' Reports separate the cleaned text from the findings that explain why the
 #' text was allowed, redacted, or blocked. `risk_score` is a deterministic
 #' severity index from `0` to `1`; it is not a probability. The `checks` field
-#' records whether the report came from deterministic rules, an LLM reviewer,
-#' or both.
+#' records whether the report came from deterministic rules, NLP checks, an LLM
+#' reviewer, or a combined mode.
 #'
 #' @param action Resolved action: `"allow"`, `"redact"`, or `"block"`.
 #' @param text_clean Cleaned or redacted text.
@@ -165,6 +164,7 @@ print.shieldr_policy <- function(x, ...) {
 #' @param policy Policy name.
 #' @param checks Check mode used.
 #' @param timestamp ISO8601 timestamp.
+#' @param tokens Optional token count for the original text.
 #'
 #' @return A `shieldr_report` S3 object.
 #' @examples
@@ -176,7 +176,8 @@ shieldr_report <- function(action,
                            risk_score,
                            policy,
                            checks,
-                           timestamp = .now_iso()) {
+                           timestamp = .now_iso(),
+                           tokens = NULL) {
   .check_choice(action, "action", .shieldr_actions())
   .check_string(text_clean, "text_clean", allow_empty = TRUE)
   if (!is.list(findings)) {
@@ -186,6 +187,9 @@ shieldr_report <- function(action,
   .check_string(policy, "policy")
   .check_string(checks, "checks")
   .check_string(timestamp, "timestamp")
+  if (!is.null(tokens) && !(is.numeric(tokens) && length(tokens) == 1L && !is.na(tokens))) {
+    cli::cli_abort("{.arg tokens} must be a single integer-like value or {.code NULL}.")
+  }
 
   structure(
     list(
@@ -195,7 +199,8 @@ shieldr_report <- function(action,
       risk_score = risk_score,
       policy = policy,
       checks = checks,
-      timestamp = timestamp
+      timestamp = timestamp,
+      tokens = if (!is.null(tokens)) as.integer(tokens) else NULL
     ),
     class = "shieldr_report"
   )
@@ -220,6 +225,9 @@ print.shieldr_report <- function(x, ...) {
   cli::cli_text("{.field action}: {colour(x$action)}")
   cli::cli_text("{.field risk_score}: {format(round(x$risk_score, 3), nsmall = 3)}")
   cli::cli_text("{.field findings}: {length(x$findings)}")
+  if (!is.null(x$tokens)) {
+    cli::cli_text("{.field tokens}: {x$tokens}")
+  }
   invisible(x)
 }
 
@@ -230,16 +238,16 @@ print.shieldr_report <- function(x, ...) {
 #'
 #' @details
 #' [secure_chat()] builds this object automatically. `elapsed_ms` captures
-#' wall-clock elapsed time for the guarded workflow. `token_estimate` is a
-#' lightweight heuristic based on character count, currently
+#' wall-clock elapsed time for the guarded workflow. `token_estimate` uses an
+#' `ellmer` token counter when one is available and falls back to
 #' `ceiling(nchar(text) / 4)` over prompt and output text. It is intended for
-#' guardrails and trend monitoring, not provider billing reconciliation.
+#' guardrails and trend monitoring, not billing reconciliation.
 #'
 #' @param input_report A `shieldr_report`, or `NULL`.
 #' @param output_report A `shieldr_report`, or `NULL`.
 #' @param context_reports A list of `shieldr_report` objects, or `NULL`.
 #' @param prompt_clean Cleaned prompt.
-#' @param output_raw Raw provider output, or `NULL`.
+#' @param output_raw Raw model output, or `NULL`.
 #' @param elapsed_ms Elapsed time in milliseconds.
 #' @param token_estimate Integer token estimate.
 #' @param action Final action.
@@ -298,7 +306,7 @@ shieldr_audit <- function(input_report = NULL,
 #' category at `1.0`. This gives dashboards and audit logs a compact view of
 #' which OWASP categories were triggered.
 #'
-#' @param output Cleaned provider output, or `NULL`.
+#' @param output Cleaned model output, or `NULL`.
 #' @param audit A `shieldr_audit` object.
 #' @param risk_summary Named numeric vector keyed by OWASP category.
 #' @param action Final action.
@@ -341,9 +349,10 @@ shieldr_result <- function(output = NULL,
 #'
 #' @details
 #' The helpers are intentionally small wrappers around [shieldr_rule()]. They
-#' form the source rule bank used by [policy_preset()]. Each helper encodes one
-#' common class of risk, such as prompt injection, PII, secrets, excessive
-#' agency, system-prompt extraction, diagnosis claims, or financial advice.
+#' form the source rule bank used by [policy()]. Each helper encodes one
+#' common class of risk, such as prompt injection, NLP intent, PII, secrets,
+#' excessive agency, system-prompt extraction, diagnosis claims, or financial
+#' advice.
 #'
 #' The rules are conservative defaults, not exhaustive detectors. They are
 #' designed to be readable, testable, and easy to replace with organization-
@@ -394,6 +403,19 @@ rule_injection_indirect <- function() {
     severity = "critical",
     action = "block",
     description = "Indirect prompt-injection content inside supplied text."
+  )
+}
+
+#' @rdname builtin_rules
+#' @export
+rule_nlp_intent <- function() {
+  shieldr_rule(
+    id = "llm01.nlp.intent",
+    fn = .nlp_intent_findings,
+    owasp = "llm01",
+    severity = "high",
+    action = "block",
+    description = "NLP token/stem signal for risky prompt intent."
   )
 }
 
@@ -477,6 +499,45 @@ rule_secrets_aws <- function() {
     severity = "high",
     action = "redact",
     description = "AWS access key ID."
+  )
+}
+
+#' @rdname builtin_rules
+#' @export
+rule_secrets_password <- function() {
+  shieldr_rule(
+    id = "llm02.secret.password",
+    pattern = paste(
+      "(?i)",
+      "\\b(password|passcode|pwd)\\b\\s*(?:[:=]\\s*)?['\"]?",
+      "(?=[^\\s'\"]{8,})(?=[^\\s'\"]*(?:[0-9]|[!@#$%^&*()_+={}:;,.<>/?\\[\\]~\\-]))",
+      "[^\\s'\"]+",
+      sep = ""
+    ),
+    owasp = "llm02",
+    severity = "high",
+    action = "redact",
+    description = "Password or passcode literal."
+  )
+}
+
+#' @rdname builtin_rules
+#' @export
+rule_phi_condition <- function() {
+  shieldr_rule(
+    id = "llm02.phi.condition",
+    pattern = paste(
+      "(?i)",
+      "\\b(patient|subject|member)\\b.{0,40}",
+      "\\b(has|with|diagnosed\\s+with|dx\\s*:?|diagnosis\\s*:?|condition\\s*:)\\b.{0,40}",
+      "\\b(cancer|diabetes|hiv|aids|hepatitis|asthma|hypertension|depression|",
+      "pregnan(?:t|cy)|covid|tuberculosis|stroke|seizure|epilepsy|copd)\\b",
+      sep = ""
+    ),
+    owasp = "llm02",
+    severity = "high",
+    action = "redact",
+    description = "Potential PHI describing a patient's health condition."
   )
 }
 
@@ -667,6 +728,111 @@ rule_financial_advice <- function() {
     severity = "critical",
     action = "block",
     description = "High-confidence medical or financial misinformation marker."
+  )
+}
+
+.nlp_intent_findings <- function(text) {
+  tokens <- .nlp_tokens(text)
+  if (length(tokens) == 0L) {
+    return(list())
+  }
+
+  stems <- .nlp_stems(tokens)
+  terms <- unique(c(tokens, stems))
+  findings <- list()
+
+  has <- function(words) any(words %in% terms)
+
+  if (has(c("ignore", "ignor", "disregard", "forget", "override", "overrid", "bypass", "jailbreak")) &&
+      has(c("instruction", "instruct", "system", "developer", "rule", "prompt", "policy", "polici"))) {
+    findings[[length(findings) + 1L]] <- list(
+      rule_id = "llm01.nlp.override_intent",
+      owasp = "llm01",
+      severity = "high",
+      action = "block",
+      description = "NLP signal: override language appears with instruction words.",
+      source = "nlp"
+    )
+  }
+
+  if (has(c("reveal", "show", "print", "dump", "extract", "exfiltrate", "exfiltr", "leak")) &&
+      has(c("secret", "password", "token", "credential", "api", "key", "system", "prompt")) &&
+      !.nlp_negated_reveal(text)) {
+    findings[[length(findings) + 1L]] <- list(
+      rule_id = "llm01.nlp.secret_exposure_intent",
+      owasp = "llm01",
+      severity = "high",
+      action = "block",
+      description = "NLP signal: reveal/extract language appears with secret words.",
+      source = "nlp"
+    )
+  }
+
+  if (has(c("write", "create", "build", "generate", "steal", "hack", "exploit")) &&
+      has(c("malware", "ransomware", "keylogger", "phishing", "exploit"))) {
+    findings[[length(findings) + 1L]] <- list(
+      rule_id = "llm05.nlp.harmful_intent",
+      owasp = "llm05",
+      severity = "critical",
+      action = "block",
+      description = "NLP signal: harmful content word appears with an action verb.",
+      source = "nlp"
+    )
+  }
+
+  directive_terms <- c(
+    "ignore", "ignor", "forget", "override", "overrid", "disregard",
+    "bypass", "reveal", "show", "print", "dump", "extract", "exfiltrate",
+    "exfiltr", "act", "pretend", "write", "create", "build", "generate",
+    "steal", "hack"
+  )
+  directive_density <- sum(tokens %in% directive_terms | stems %in% directive_terms) / length(tokens)
+  if (length(tokens) >= 8L && directive_density >= 0.25) {
+    findings[[length(findings) + 1L]] <- list(
+      rule_id = "llm01.nlp.directive_density",
+      owasp = "llm01",
+      severity = "medium",
+      action = "block",
+      description = "NLP signal: unusually dense directive language.",
+      source = "nlp"
+    )
+  }
+
+  findings
+}
+
+.nlp_tokens <- function(text) {
+  if (requireNamespace("tokenizers", quietly = TRUE)) {
+    tokens <- tokenizers::tokenize_words(
+      text,
+      lowercase = TRUE,
+      strip_punct = TRUE,
+      strip_numeric = FALSE
+    )[[1]]
+  } else {
+    text <- tolower(text)
+    text <- gsub("[^[:alnum:]_]+", " ", text, perl = TRUE)
+    tokens <- strsplit(trimws(text), "\\s+", perl = TRUE)[[1]]
+  }
+  tokens <- as.character(tokens)
+  tokens[!is.na(tokens) & nzchar(tokens)]
+}
+
+.nlp_stems <- function(tokens) {
+  if (length(tokens) == 0L) {
+    return(character())
+  }
+  if (requireNamespace("SnowballC", quietly = TRUE)) {
+    return(as.character(SnowballC::wordStem(tokens, language = "en")))
+  }
+  gsub("(ingly|edly|ing|ed|es|s)$", "", tokens, perl = TRUE)
+}
+
+.nlp_negated_reveal <- function(text) {
+  grepl(
+    "(?i)\\b(do\\s+not|don't|never)\\s+(show|reveal|print|dump|extract|leak|return)\\b",
+    text,
+    perl = TRUE
   )
 }
 

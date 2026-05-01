@@ -12,13 +12,13 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
 Policies are lists of `shieldr_rule` objects plus thresholds. You can start
-with a preset and append domain-specific rules.
+with a built-in policy and append domain-specific rules.
 
 ```{r}
 library(llmshieldr)
 ```
 
-For the source model behind the built-in presets, see
+For the source model behind the built-in policies, see
 `vignette("policy-design", package = "llmshieldr")`.
 
 ## Rule Fields
@@ -52,8 +52,8 @@ Findings are summed and capped at `1.0`. A policy's thresholds then decide the
 final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
 
 ```{r}
-policy <- policy_preset("enterprise_default")
-policy$thresholds
+guardrails <- policy()
+guardrails$thresholds
 ```
 
 ## Regex Rules
@@ -61,8 +61,8 @@ policy$thresholds
 Regex rules are the simplest way to redact or block recognizable text.
 
 ```{r}
-policy <- add_rule(
-  policy,
+guardrails <- add_rule(
+  guardrails,
   id = "llm02.ticket_id",
   pattern = "\\bTICKET-[0-9]{6}\\b",
   owasp = "llm02",
@@ -71,7 +71,7 @@ policy <- add_rule(
   description = "Internal support ticket identifier."
 )
 
-scan_prompt("Summarize TICKET-123456 for the support team.", policy)
+scan_prompt("Summarize TICKET-123456 for the support team.", guardrails)
 ```
 
 ## Function Rules
@@ -85,7 +85,7 @@ contains_student_address <- function(text) {
     grepl("\\bhome address\\b", text, ignore.case = TRUE)
 }
 
-education <- policy_preset("education_safe")
+education <- policy("education_safe")
 education <- add_rule(
   education,
   id = "llm02.student.address",
@@ -104,7 +104,7 @@ scan_prompt("The student home address appears in the form.", education)
 Healthcare and life sciences often add identifiers beyond generic PII.
 
 ```{r}
-pharma <- policy_preset("pharma_gxp")
+pharma <- policy("pharma_gxp")
 pharma <- add_rule(
   pharma,
   id = "llm02.site_id",
@@ -119,7 +119,7 @@ pharma <- add_rule(
 Finance workflows often tighten language around recommendations and promises.
 
 ```{r}
-finance <- policy_preset("finance_strict")
+finance <- policy("finance_strict")
 finance <- add_rule(
   finance,
   id = "llm09.promissory_return",
@@ -136,7 +136,7 @@ finance <- add_rule(
 Use `list_rules()` to inspect a policy before deployment.
 
 ```{r}
-list_rules(policy)
+list_rules(guardrails)
 ```
 
 The resulting table includes `has_pattern` and `has_fn`, which make it easy to

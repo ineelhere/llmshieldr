@@ -20,8 +20,7 @@ build_policy(
 \code{redact_at = 0.4} and \code{block_at = 0.75}.}
 
 \item{rate_guard}{Optional \code{shieldr_rate_guard}. When present, \code{\link[=secure_chat]{secure_chat()}}
-checks the guard before provider calls and updates it after successful
-provider calls.}
+checks the guard before chat calls and updates it after successful calls.}
 }
 \value{
 A \code{shieldr_policy}.

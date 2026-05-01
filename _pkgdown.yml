@@ -29,28 +29,34 @@ reference:
   - title: Policies and Rules
     contents:
       - build_policy
-      - policy_preset
+      - policy
+      - available_policies
       - add_rule
       - remove_rule
       - list_rules
       - starts_with("rule_")
+
   - title: Scanners
     contents:
       - scan_prompt
       - preflight_check
       - scan_context
       - scan_output
+
   - title: Orchestration
     contents:
       - secure_chat
       - shield_ollama
+      - ollama_reviewer
       - trust_boundary
       - rate_guard
+
   - title: Audit and Explanation
     contents:
       - write_audit_log
       - explain_findings
       - example_prompts
+
   - title: Constructors
     contents:
       - shieldr_rule
@@ -66,6 +72,7 @@ articles:
     navbar: ~
     contents:
       - getting-started
+      - ollama-usage
       - policy-design
       - custom-rules
       - rag-pipeline
@@ -73,7 +80,6 @@ articles:
 
 search:
   enabled: true
-  indexUrl: search/search-index.json
 
 footer:
   structure:

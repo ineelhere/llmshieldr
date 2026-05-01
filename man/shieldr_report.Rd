@@ -11,7 +11,8 @@ shieldr_report(
   risk_score,
   policy,
   checks,
-  timestamp = .now_iso()
+  timestamp = .now_iso(),
+  tokens = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ shieldr_report(
 \item{checks}{Check mode used.}
 
 \item{timestamp}{ISO8601 timestamp.}
+
+\item{tokens}{Optional token count for the original text.}
 }
 \value{
 A \code{shieldr_report} S3 object.
@@ -40,8 +43,8 @@ A \code{shieldr_report} is the scanner result returned by \code{\link[=scan_prom
 Reports separate the cleaned text from the findings that explain why the
 text was allowed, redacted, or blocked. \code{risk_score} is a deterministic
 severity index from \code{0} to \code{1}; it is not a probability. The \code{checks} field
-records whether the report came from deterministic rules, an LLM reviewer,
-or both.
+records whether the report came from deterministic rules, NLP checks, an LLM
+reviewer, or a combined mode.
 }
 \examples{
 shieldr_report("allow", "hello", list(), 0, "custom", "rules")

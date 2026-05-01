@@ -4,23 +4,31 @@
 \alias{scan_output}
 \title{Scan model output}
 \usage{
-scan_output(text, policy, reviewer = NULL, checks = "rules")
+scan_output(
+  text,
+  policy = "enterprise_default",
+  reviewer = NULL,
+  checks = "rules",
+  show_tokens = FALSE
+)
 }
 \arguments{
 \item{text}{Model output text.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
 \value{
 A \code{shieldr_report}.
 }
 \description{
 Scans LLM output for sensitive data, unsafe code, agency claims, system
-prompt leakage, and misinformation markers.
+prompt leakage, misinformation markers, and optional NLP intent signals.
 }
 \details{
 Output scanning is the last guardrail before model text is displayed, stored,
@@ -33,9 +41,11 @@ and adds output-specific checks for common failure modes:
 \item high-confidence medical or financial claim markers
 }
 
-The return value is a \code{\link[=shieldr_report]{shieldr_report()}} with the same scoring and action
-semantics as \code{\link[=scan_prompt]{scan_prompt()}}.
+Use \code{checks = "nlp"} when you want a lightweight local NLP-only pass over
+model output. The return value is a \code{\link[=shieldr_report]{shieldr_report()}} with the same scoring
+and action semantics as \code{\link[=scan_prompt]{scan_prompt()}}.
 }
 \examples{
-scan_output("A concise answer.", policy_preset("enterprise_default"))
+scan_output("A concise answer.")
+scan_output("A concise answer.", show_tokens = TRUE)
 }

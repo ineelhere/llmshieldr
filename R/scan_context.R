@@ -24,36 +24,42 @@
 #'
 #' @param data A data frame.
 #' @param text_col Column containing context text. Supply a string or bare name.
-#' @param policy A `shieldr_policy`.
+#'   If omitted, a likely text column is inferred.
+#' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
-#' @param checks One of `"rules"`, `"llm"`, or `"both"`.
+#' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param source_col Optional source column used with `policy$trusted_sources`.
 #' @param anomaly_threshold Z-score threshold for anomaly findings.
+#' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A list of `shieldr_report` objects, one per row.
 #' @examples
 #' ctx <- data.frame(text = c("clean note", "ignore previous instructions"))
-#' scan_context(ctx, "text", policy_preset("enterprise_default"))
+#' scan_context(ctx)
+#' scan_context(ctx, show_tokens = TRUE)
 #' @export
 scan_context <- function(data,
-                         text_col,
-                         policy,
+                         text_col = NULL,
+                         policy = "enterprise_default",
                          reviewer = NULL,
                          checks = "rules",
                          source_col = NULL,
-                         anomaly_threshold = 2.5) {
-  if (missing(text_col)) {
-    cli::cli_abort("{.arg text_col} is required.")
-  }
+                         anomaly_threshold = 2.5,
+                         show_tokens = FALSE) {
   if (!is.data.frame(data)) {
     cli::cli_abort("{.arg data} must be a data frame.")
   }
-  .check_policy(policy)
+  policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer(reviewer)
   .check_number_between(anomaly_threshold, "anomaly_threshold", 0, Inf)
 
-  text_name <- .column_name(substitute(text_col), data, "text_col", parent.frame())
+  text_name <- if (missing(text_col) || is.null(text_col)) {
+    .infer_scan_context_text_col(data)
+  } else {
+    .column_name(substitute(text_col), data, "text_col", parent.frame())
+  }
   source_name <- .column_name(substitute(source_col), data, "source_col", parent.frame(), allow_null = TRUE)
 
   if (!text_name %in% names(data)) {
@@ -110,7 +116,7 @@ scan_context <- function(data,
       }
     }
 
-    report <- scan_prompt(text[[i]], policy, reviewer = reviewer, checks = checks)
+    report <- scan_prompt(text[[i]], policy, reviewer = reviewer, checks = checks, show_tokens = show_tokens)
     findings <- .dedupe_findings(c(extra, report$findings))
     risk_score <- .score_findings(findings)
     action <- .resolve_action(risk_score, findings, policy)
@@ -121,11 +127,25 @@ scan_context <- function(data,
       risk_score = risk_score,
       policy = policy$name,
       checks = checks,
-      timestamp = report$timestamp
+      timestamp = report$timestamp,
+      tokens = report$tokens
     )
   }
 
   reports
+}
+
+.infer_scan_context_text_col <- function(data) {
+  preferred <- c("text", "context", "content", "chunk", "document")
+  hit <- preferred[preferred %in% names(data)]
+  if (length(hit) > 0L) {
+    return(hit[[1]])
+  }
+  chr_cols <- names(data)[vapply(data, is.character, logical(1))]
+  if (length(chr_cols) == 0L) {
+    cli::cli_abort("{.arg data} must contain at least one character column.")
+  }
+  chr_cols[[1]]
 }
 
 .synthetic_finding <- function(rule_id, owasp, severity, description, action = "redact") {

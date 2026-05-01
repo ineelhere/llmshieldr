@@ -6,41 +6,44 @@
 \usage{
 shield_ollama(
   prompt,
-  policy,
+  policy = "enterprise_default",
   checks = "both",
   model = "gemma3:4b",
-  context = NULL
+  context = NULL,
+  show_tokens = FALSE
 )
 }
 \arguments{
 \item{prompt}{User prompt.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{model}{Ollama model name.}
 
 \item{context}{Optional data frame of retrieved context.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
 \value{
 A \code{shieldr_result}.
 }
 \description{
-Convenience wrapper that creates separate \code{ellmer} Ollama sessions for the
+Convenience wrapper that creates separate \code{ellmer} Ollama chats for the
 assistant and semantic reviewer, then delegates to \code{\link[=secure_chat]{secure_chat()}}.
 }
 \details{
 This is an optional local-model path. It requires the suggested \code{ellmer}
-package and a running Ollama installation. Two chat sessions are created:
+package and a running Ollama installation. Two chats are created:
 one for the assistant response and one for reviewer checks. Keeping them
 separate avoids mixing safety-review instructions into the assistant's
 conversation state.
 
-For hosted or custom providers, use \code{\link[=secure_chat]{secure_chat()}} directly.
+For an existing chat object, use \code{\link[=secure_chat]{secure_chat()}} directly.
 }
 \examples{
 \dontrun{
-shield_ollama("Summarise this safely.", policy_preset("enterprise_default"))
+shield_ollama("Summarise this safely.")
 }
 }

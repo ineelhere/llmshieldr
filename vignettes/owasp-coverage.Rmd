@@ -62,7 +62,7 @@ coverage <- data.frame(
     "Resource exhaustion"
   ),
   llmshieldr_surface = c(
-    "rule_injection_basic(), rule_injection_indirect(), scan_prompt(), scan_context()",
+    "rule_injection_basic(), rule_injection_indirect(), rule_nlp_intent(), scan_prompt(), scan_context()",
     "rule_pii_email(), rule_pii_phone(), rule_pii_ssn(), rule_secrets_api_key(), scan_output()",
     "trust_boundary()",
     "scan_context(), trusted_sources",
@@ -91,17 +91,17 @@ coverage <- data.frame(
 coverage
 ```
 
-## Presets
+## Built-In Policies
 
 ```{r}
 list(
-  enterprise_default = policy_preset("enterprise_default"),
-  pharma_gxp = policy_preset("pharma_gxp"),
-  finance_strict = policy_preset("finance_strict"),
-  education_safe = policy_preset("education_safe"),
-  open_research = policy_preset("open_research"),
-  comprehensive = policy_preset("comprehensive"),
-  custom = policy_preset("custom")
+  enterprise_default = policy(),
+  pharma_gxp = policy("pharma_gxp"),
+  finance_strict = policy("finance_strict"),
+  education_safe = policy("education_safe"),
+  open_research = policy("open_research"),
+  comprehensive = policy("comprehensive"),
+  custom = policy("custom")
 )
 ```
 
@@ -113,11 +113,11 @@ list(
 example_prompts()
 ```
 
-## Preset Thresholds
+## Policy Thresholds
 
 ```{r}
 thresholds <- data.frame(
-  preset = c(
+  policy = c(
     "enterprise_default",
     "baseline",
     "pharma_gxp",

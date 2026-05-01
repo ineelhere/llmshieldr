@@ -27,7 +27,7 @@ For the policy source model and scoring details, see
 Use `trusted_sources` when you want to allowlist provenance.
 
 ```{r}
-policy <- policy_preset(
+guardrails <- policy(
   "enterprise_default",
   overrides = list(trusted_sources = c("kb", "docs"))
 )
@@ -67,7 +67,8 @@ context_reports <- scan_context(
   retrieved,
   text_col = "text",
   source_col = "source",
-  policy = policy
+  policy = guardrails,
+  show_tokens = TRUE
 )
 
 vapply(context_reports, function(report) report$action, character(1))
@@ -77,22 +78,24 @@ Each row report has its own `risk_score`, `action`, and `findings`. In a RAG
 workflow, blocked context rows are omitted from the final prompt assembled by
 `secure_chat()`.
 
-## Orchestrate the Provider Call
+## Orchestrate the Chat Call
 
 `secure_chat()` blocks unsafe prompt input, scans context, drops blocked context
-rows, calls the provider, scans the raw output, and returns a `shieldr_result`.
+rows, calls the chat object, scans the raw output, and returns a
+`shieldr_result`.
 
 ```{r}
-provider <- function(prompt) {
+chat <- function(prompt) {
   "Use identity verification, then route unresolved cases to security operations."
 }
 
 result <- secure_chat(
   prompt = "How should a password reset request be handled?",
-  provider = provider,
-  policy = policy,
+  chat = chat,
+  policy = guardrails,
   context = retrieved,
-  checks = "rules"
+  checks = "rules",
+  show_tokens = TRUE
 )
 
 result$output
@@ -102,7 +105,7 @@ result$risk_summary
 
 The final action is the most conservative action across input and output:
 `block` beats `redact`, and `redact` beats `allow`. Context rows affect the
-assembled prompt because blocked rows are removed before the provider call.
+assembled prompt because blocked rows are removed before the chat call.
 
 ## Inspect the Audit
 
@@ -124,6 +127,7 @@ Persist the audit:
 write_audit_log(result$audit, tempfile(fileext = ".jsonl"))
 ```
 
-Audit timing is stored as `elapsed_ms`. Token usage is estimated as
-`ceiling(nchar(prompt_and_output) / 4)`, so it is useful for rate guards and
-trend monitoring but not a billing-grade tokenizer.
+Audit timing is stored as `elapsed_ms`. With `show_tokens = TRUE`, token usage
+uses `ellmer` usage records when available and otherwise falls back to
+`ceiling(nchar(text) / 4)`, so it is useful for rate guards and trend
+monitoring but not a billing-grade tokenizer.

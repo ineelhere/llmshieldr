@@ -12,7 +12,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
 This vignette explains how `llmshieldr` policies are assembled, what sources
-the built-in presets draw from, and how the numeric scores become actions.
+the built-in policies draw from, and how the numeric scores become actions.
 
 ```{r}
 library(llmshieldr)
@@ -60,6 +60,8 @@ concerns that recur across LLM applications:
   <https://genai.owasp.org/llm-top-10/>
 - Prompt-injection patterns: direct override language, hidden instructions,
   role confusion, and system-prompt extraction attempts
+- NLP intent signals: token and stem patterns for override, secret exposure,
+  harmful intent, and unusually dense directive language
 - Sensitive information patterns: email, phone, SSN, account numbers, medical
   record identifiers, subject IDs, API keys, bearer tokens, AWS keys, and
   credential-bearing connection strings
@@ -70,16 +72,16 @@ concerns that recur across LLM applications:
   claims
 - RAG-specific signals: untrusted source metadata, anomalous chunk length, and
   high density of instruction words inside retrieved text
-- Resource-exhaustion controls: request, token, and cost windows managed by
+- Resource-exhaustion controls: request and token windows managed by
   `rate_guard()`
 
 These sources are intentionally conservative. They are meant to catch common
 failure modes in R workflows before prompts, retrieved context, or model output
 cross a trust boundary.
 
-## Preset Construction
+## Built-In Policy Construction
 
-Every preset is assembled in `policy_preset()`.
+Every built-in policy is assembled in `policy()`.
 
 ```text
 enterprise_default
@@ -100,7 +102,7 @@ finance_strict
     account number rules
     financial advice and guaranteed-return language
     autonomous investment-action language
-    rate_guard(max_tokens = 100000, cost_limit_usd = 5.00)
+    rate_guard(max_tokens = 100000)
 
 education_safe
     enterprise_default
@@ -118,7 +120,7 @@ comprehensive
     finance_strict additions
     education_safe additions
     code-safety checks
-    rate_guard(max_tokens = 100000, cost_limit_usd = 5.00)
+    rate_guard(max_tokens = 100000)
     stricter thresholds: redact_at = 0.3, block_at = 0.6
 
 custom
@@ -132,6 +134,18 @@ baseline
 The policy names reflect intended operating posture, not legal compliance.
 For example, `pharma_gxp` adds useful GxP-style controls, but it does not by
 itself make a workflow compliant with any regulation.
+
+## Check Modes
+
+Scanners can run different layers depending on the workflow:
+
+- `checks = "rules"` runs the policy's deterministic rules. Built-in policies
+  include regex rules and the NLP intent rule.
+- `checks = "nlp"` runs only NLP intent rules. This is the local token/stem
+  path that uses `tokenizers` and `SnowballC` when installed.
+- `checks = "llm"` runs only the supplied reviewer, such as `ollama_reviewer()`
+  or your own reviewer function.
+- `checks = "both"` runs policy rules and the supplied reviewer.
 
 ## Scoring
 
@@ -240,15 +254,16 @@ llm10 = resource exhaustion and rate-guard findings
 Each category is capped at `1.0`. The value is useful for dashboards and audit
 summaries because it shows which risk category dominated a run.
 
-## Extending a Preset
+## Extending a Policy
 
-Start with the closest preset, add rules, then inspect the resulting inventory.
+Start with the closest built-in policy, add rules, then inspect the resulting
+inventory.
 
 ```{r}
-policy <- policy_preset("enterprise_default")
+guardrails <- policy()
 
-policy <- add_rule(
-  policy,
+guardrails <- add_rule(
+  guardrails,
   id = "llm02.ticket_id",
   pattern = "\\bTICKET-[0-9]{6}\\b",
   owasp = "llm02",
@@ -257,7 +272,7 @@ policy <- add_rule(
   description = "Internal support ticket identifier."
 )
 
-list_rules(policy)
+list_rules(guardrails)
 ```
 
 When a policy becomes important to production, keep its custom rules in package

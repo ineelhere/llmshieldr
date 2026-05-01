@@ -4,18 +4,27 @@
 \alias{preflight_check}
 \title{Preflight-check a prompt}
 \usage{
-preflight_check(text, policy, reviewer = NULL, checks = "rules", redact = TRUE)
+preflight_check(
+  text,
+  policy = "enterprise_default",
+  reviewer = NULL,
+  checks = "rules",
+  redact = TRUE,
+  show_tokens = FALSE
+)
 }
 \arguments{
 \item{text}{Prompt text.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{redact}{Whether to redact matched spans in \code{text_clean}.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
 \value{
 A \code{shieldr_report}.
@@ -24,5 +33,6 @@ A \code{shieldr_report}.
 Backward-compatible alias for \code{\link[=scan_prompt]{scan_prompt()}}.
 }
 \examples{
-preflight_check("hello", policy_preset("custom"))
+preflight_check("hello")
+preflight_check("hello", show_tokens = TRUE)
 }

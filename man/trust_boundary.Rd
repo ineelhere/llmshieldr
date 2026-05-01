@@ -2,17 +2,18 @@
 % Please edit documentation in R/trust_boundary.R
 \name{trust_boundary}
 \alias{trust_boundary}
-\title{Wrap a provider in a trust boundary}
+\title{Wrap a chat object in a trust boundary}
 \usage{
 trust_boundary(
-  provider,
+  chat = NULL,
   allowed_models = NULL,
   allowed_hosts = NULL,
-  require_hash = NULL
+  require_hash = NULL,
+  ...
 )
 }
 \arguments{
-\item{provider}{A provider function or an object with a \verb{$chat()} method.}
+\item{chat}{An \code{ellmer} chat object, an object with \verb{$chat()}, or a function.}
 
 \item{allowed_models}{Optional character vector of allowed model names.}
 
@@ -20,34 +21,36 @@ trust_boundary(
 
 \item{require_hash}{Optional expected SHA-256 hash for an Ollama modelfile
 manifest.}
+
+\item{...}{Reserved for backwards-compatible aliases.}
 }
 \value{
-A callable provider wrapper.
+A callable chat wrapper.
 }
 \description{
-Validates provider identity before calls cross into an LLM provider. This
+Validates chat identity before calls cross into an LLM service. This
 covers supply-chain and model-integrity concerns related to OWASP LLM03; see
 \url{https://genai.owasp.org/llm-top-10/}.
 }
 \details{
-\code{trust_boundary()} returns a provider wrapper. The wrapper validates the
-provider on creation and again on each call when \code{require_hash} is supplied.
-Function providers are passed through without model or host checks because a
-plain function has no standard model metadata. Provider objects with a
-\verb{$chat()} method may expose model and host fields through common ellmer-style
-internals or attributes.
+\code{trust_boundary()} returns a chat wrapper. The wrapper validates the chat on
+creation and again on each call when \code{require_hash} is supplied. Plain
+functions are passed through without model or host checks because a function
+has no standard model metadata. Chat objects with a \verb{$chat()} method may
+expose model and host fields through common ellmer-style internals or
+attributes.
 
-\code{allowed_models} and \code{allowed_hosts} are allowlists. If the provider exposes
-a model or host and it is outside the allowlist, the wrapper raises an OWASP
+\code{allowed_models} and \code{allowed_hosts} are allowlists. If the chat exposes a
+model or host and it is outside the allowlist, the wrapper raises an OWASP
 LLM03 error. \code{require_hash} is intended for local Ollama workflows where the
 model manifest can be checked with \verb{ollama show --modelfile}.
 
 This function is not a network firewall. It is an application-level
-assertion that the provider object being called is the provider object you
-intended to allow.
+assertion that the chat object being called is the chat object you intended
+to allow.
 }
 \examples{
-provider <- function(prompt) paste("ok:", prompt)
-safe_provider <- trust_boundary(provider)
-safe_provider("hello")
+chat <- function(prompt) paste("ok:", prompt)
+safe_chat <- trust_boundary(chat)
+safe_chat("hello")
 }

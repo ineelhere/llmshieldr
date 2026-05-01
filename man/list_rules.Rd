@@ -7,7 +7,7 @@
 list_rules(policy)
 }
 \arguments{
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 }
 \value{
 A data frame with columns \code{id}, \code{owasp}, \code{severity}, \code{action},
@@ -24,5 +24,5 @@ Function rules may produce findings without spans unless the function
 returns span metadata.
 }
 \examples{
-list_rules(policy_preset("custom"))
+list_rules(policy("custom"))
 }

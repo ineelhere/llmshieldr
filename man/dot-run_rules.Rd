@@ -9,7 +9,7 @@
 \arguments{
 \item{text}{Normalised text.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 }
 \value{
 A list of finding lists.

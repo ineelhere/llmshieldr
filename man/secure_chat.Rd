@@ -6,46 +6,52 @@
 \usage{
 secure_chat(
   prompt,
-  provider,
-  policy,
+  chat = NULL,
+  policy = "enterprise_default",
   reviewer = NULL,
   checks = "rules",
-  context = NULL
+  context = NULL,
+  show_tokens = FALSE,
+  ...
 )
 }
 \arguments{
 \item{prompt}{User prompt.}
 
-\item{provider}{A provider function or object with \verb{$chat()}.}
+\item{chat}{An \code{ellmer} chat object, an object with \verb{$chat()}, or a function.}
 
-\item{policy}{A \code{shieldr_policy}.}
+\item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{reviewer}{Optional reviewer function or object with \verb{$chat()}.}
 
-\item{checks}{One of \code{"rules"}, \code{"llm"}, or \code{"both"}.}
+\item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{context}{Optional data frame of retrieved context.}
+
+\item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{...}{Reserved for backwards-compatible aliases.}
 }
 \value{
 A \code{shieldr_result}.
 }
 \description{
-Orchestrates prompt scanning, optional context scanning, provider execution,
+Orchestrates prompt scanning, optional context scanning, chat execution,
 output scanning, rate guarding, and audit creation.
 }
 \details{
-\code{secure_chat()} is the main end-to-end workflow for users who already have a
-provider. The provider can be a plain R function or an object with a
-\verb{$chat()} method. The function executes these steps:
+\code{secure_chat()} is the main end-to-end workflow when you already have an
+\code{ellmer} chat object or another object with a \verb{$chat()} method. Plain
+functions are also accepted for small tests. The function executes these
+steps:
 \enumerate{
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
-\item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the
-provider.
+\item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.
 \item If context is supplied, scan it with \code{\link[=scan_context]{scan_context()}} and append only
 non-blocked context rows to the cleaned prompt.
 \item Check the policy rate guard, if present.
-\item Call the provider.
-\item Scan provider output with \code{\link[=scan_output]{scan_output()}}.
+\item Call the chat object.
+\item Scan model output with \code{\link[=scan_output]{scan_output()}}.
 \item Resolve the final action, update the rate guard, and build an audit.
 }
 
@@ -55,6 +61,8 @@ most conservative action across input and output: \code{block} beats \code{redac
 and \code{redact} beats \code{allow}.
 }
 \examples{
-provider <- function(prompt) "safe answer"
-secure_chat("hello", provider, policy_preset("enterprise_default"))
+\dontrun{
+chat <- ellmer::chat_ollama(model = "gemma3:4b")
+secure_chat("hello", chat, show_tokens = TRUE)
+}
 }
