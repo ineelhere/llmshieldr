@@ -34,7 +34,6 @@ Suggests:
     SnowballC
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-VignetteBuilder: knitr
 Config/testthat/edition: 3
 URL: http://www.indraneelchakraborty.com/llmshieldr/, https://github.com/ineelhere/llmshieldr, https://genai.owasp.org/llm-top-10/
 BugReports: https://github.com/ineelhere/llmshieldr/issues
