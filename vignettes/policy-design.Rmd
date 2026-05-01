@@ -1,0 +1,280 @@
+---
+title: "Policy Design"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Policy Design}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This vignette explains how `llmshieldr` policies are assembled, what sources
+the built-in policies draw from, and how the numeric scores become actions.
+
+```{r}
+library(llmshieldr)
+```
+
+## Design Goal
+
+An LLM safety policy should be easy to inspect, easy to test, and easy to
+extend. `llmshieldr` therefore uses explicit rule objects rather than a hidden
+classifier as its default layer.
+
+A policy is a list with these fields:
+
+```text
+shieldr_policy
+    name             policy identifier stored in reports
+    rules            list of shieldr_rule objects
+    thresholds       redact_at and block_at numeric cutoffs
+    rate_guard       optional shieldr_rate_guard environment
+    trusted_sources  optional allowlist used by scan_context()
+```
+
+Each rule is similarly explicit:
+
+```text
+shieldr_rule
+    id             stable rule identifier
+    pattern        regex pattern, or NULL
+    fn             R predicate function, or NULL
+    owasp          OWASP LLM category
+    severity       low, medium, high, or critical
+    action         allow, redact, or block
+    description    human-readable explanation
+```
+
+Exactly one of `pattern` or `fn` must be supplied. This keeps each rule
+deterministic and makes redaction spans possible for regex rules.
+
+## Source Model
+
+The built-in rules are sourced from a small number of security and governance
+concerns that recur across LLM applications:
+
+- OWASP GenAI / LLM Top 10:
+  <https://genai.owasp.org/llm-top-10/>
+- Prompt-injection patterns: direct override language, hidden instructions,
+  role confusion, and system-prompt extraction attempts
+- NLP intent signals: token and stem patterns for override, secret exposure,
+  harmful intent, and unusually dense directive language
+- Sensitive information patterns: email, phone, SSN, account numbers, medical
+  record identifiers, subject IDs, API keys, bearer tokens, AWS keys, and
+  credential-bearing connection strings
+- Agentic risk patterns: model claims that it sent, deleted, granted,
+  executed, notified, traded, or otherwise acted outside the chat boundary
+- Output handling patterns: unsafe shell or SQL snippets, code execution
+  markers, system-prompt structure, and high-confidence medical or financial
+  claims
+- RAG-specific signals: untrusted source metadata, anomalous chunk length, and
+  high density of instruction words inside retrieved text
+- Resource-exhaustion controls: request and token windows managed by
+  `rate_guard()`
+
+These sources are intentionally conservative. They are meant to catch common
+failure modes in R workflows before prompts, retrieved context, or model output
+cross a trust boundary.
+
+## Built-In Policy Construction
+
+Every built-in policy is assembled in `policy()`.
+
+```text
+enterprise_default
+    prompt injection rules
+    PII and secret rules
+    system prompt extraction rules
+    excessive agency rules
+
+pharma_gxp
+    enterprise_default
+    MRN and clinical subject identifiers
+    diagnosis and treatment claim language
+    code-safety checks
+    stricter thresholds: redact_at = 0.3, block_at = 0.6
+
+finance_strict
+    enterprise_default
+    account number rules
+    financial advice and guaranteed-return language
+    autonomous investment-action language
+    rate_guard(max_tokens = 100000)
+
+education_safe
+    enterprise_default
+    minor-related PII patterns
+    academic-integrity bypass language
+
+open_research
+    injection rules
+    secret rules
+    higher thresholds: redact_at = 0.8, block_at = 0.95
+
+comprehensive
+    enterprise_default
+    pharma_gxp additions
+    finance_strict additions
+    education_safe additions
+    code-safety checks
+    rate_guard(max_tokens = 100000)
+    stricter thresholds: redact_at = 0.3, block_at = 0.6
+
+custom
+    no rules
+    default thresholds
+
+baseline
+    alias for enterprise_default
+```
+
+The policy names reflect intended operating posture, not legal compliance.
+For example, `pharma_gxp` adds useful GxP-style controls, but it does not by
+itself make a workflow compliant with any regulation.
+
+## Check Modes
+
+Scanners can run different layers depending on the workflow:
+
+- `checks = "rules"` runs the policy's deterministic rules. Built-in policies
+  include regex rules and the NLP intent rule.
+- `checks = "nlp"` runs only NLP intent rules. This is the local token/stem
+  path that uses `tokenizers` and `SnowballC` when installed.
+- `checks = "llm"` runs only the supplied reviewer, such as `ollama_reviewer()`
+  or your own reviewer function.
+- `checks = "both"` runs policy rules and the supplied reviewer.
+
+## Scoring
+
+Each finding contributes a numeric severity weight.
+
+| Severity | Contribution |
+| --- | ---: |
+| `low` | 0.1 |
+| `medium` | 0.3 |
+| `high` | 0.6 |
+| `critical` | 1.0 |
+
+The scanner sums contributions and caps the total at `1.0`.
+
+```text
+findings:
+    medium email finding      0.3
+    high secret finding       0.6
+
+risk_score = min(0.3 + 0.6, 1.0) = 0.9
+```
+
+The score is deliberately coarse. It is not a probability. It is a deterministic
+severity index that helps a policy decide whether to allow, redact, or block.
+
+## Action Resolution
+
+Thresholds define how much risk the policy tolerates.
+
+```text
+default thresholds:
+    redact_at = 0.40
+    block_at  = 0.75
+```
+
+Action resolution is conservative:
+
+```text
+if any finding is critical:
+    block
+else if any finding's rule action is block:
+    block
+else if risk_score >= block_at:
+    block
+else if any finding's rule action is redact:
+    redact
+else if risk_score >= redact_at:
+    redact
+else:
+    allow
+```
+
+This means a policy can block either because of accumulated score or because a
+single high-risk rule explicitly asks to block.
+
+## Redaction
+
+Regex rules create match spans. When the resolved action is `redact`, or when a
+redacting rule contributes to a report, matched spans are replaced with
+`[REDACTED]`.
+
+```text
+input:
+    Contact jane@example.com about the ticket.
+
+output:
+    Contact [REDACTED] about the ticket.
+```
+
+Function rules may not know exact character spans. They can still contribute
+findings and affect the action, but span redaction depends on span data.
+
+## Context Anomaly Scores
+
+`scan_context()` adds RAG-specific findings before returning row-aligned
+reports. It calculates:
+
+- robust z-score of character length
+- robust z-score of instruction-word density
+
+Instruction density counts these words per 100 tokens:
+
+```text
+ignore, forget, override, instead, disregard
+```
+
+Rows above `anomaly_threshold`, default `2.5`, receive high-severity OWASP
+LLM08 findings. If `source_col` is supplied and the policy has
+`trusted_sources`, rows from outside that allowlist receive a medium-severity
+OWASP LLM08 finding.
+
+## Risk Summary
+
+`secure_chat()` returns `risk_summary`, a named numeric vector keyed by OWASP
+category.
+
+```text
+llm01 = prompt injection and instruction override findings
+llm02 = sensitive information and secret findings
+llm06 = excessive agency findings
+llm08 = retrieved-context trust and anomaly findings
+llm09 = misinformation and unsupported claim findings
+llm10 = resource exhaustion and rate-guard findings
+```
+
+Each category is capped at `1.0`. The value is useful for dashboards and audit
+summaries because it shows which risk category dominated a run.
+
+## Extending a Policy
+
+Start with the closest built-in policy, add rules, then inspect the resulting
+inventory.
+
+```{r}
+guardrails <- policy()
+
+guardrails <- add_rule(
+  guardrails,
+  id = "llm02.ticket_id",
+  pattern = "\\bTICKET-[0-9]{6}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Internal support ticket identifier."
+)
+
+list_rules(guardrails)
+```
+
+When a policy becomes important to production, keep its custom rules in package
+or application code, test them with representative prompts, and write audit
+logs for real workflow runs.

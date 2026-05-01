@@ -41,9 +41,22 @@ vignettes/*.pdf
 
 # pkgdown site
 docs/
+.pkgdown/
 
 # translation temp files
 po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Generated package/vignette artefacts
+inst/doc/
+Meta/
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+llmshieldr-mvp-blueprint.md
+.vscode
