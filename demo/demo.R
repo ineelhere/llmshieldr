@@ -10,17 +10,18 @@ if (!requireNamespace("ellmer", quietly = TRUE)) {
 }
 
 library(llmshieldr)
-library(ellmer)
 
-assistant <- chat_ollama(model = "gemma3:4b")
-reviewer <- chat_ollama(model = "gemma3:4b")
+guardrails <- policy("enterprise_default")
+assistant <- ellmer::chat_ollama(model = "gemma3:4b")
+reviewer <- ollama_reviewer(model = "gemma3:4b")
 
 cat("\n--- Demo 1: Prompt check with local Ollama reviewer ---\n")
 report1 <- scan_prompt(
   text = "Please review password = hunter2 before I paste this into chat.",
-  policy = policy_preset("enterprise_default"),
+  policy = guardrails,
   reviewer = reviewer,
-  checks = "both"
+  checks = "both",
+  show_tokens = TRUE
 )
 print(report1)
 
@@ -35,17 +36,19 @@ docs <- data.frame(
 reports <- scan_context(
   docs,
   text_col = "narrative",
-  policy = policy_preset("enterprise_default")
+  policy = guardrails,
+  show_tokens = TRUE
 )
 print(vapply(reports, `[[`, character(1), "action"))
 
 cat("\n--- Demo 3: Full guarded local chat ---\n")
 result <- secure_chat(
   prompt = "Explain this dplyr error and suggest a fix.",
-  provider = assistant,
+  chat = assistant,
   reviewer = reviewer,
-  policy = policy_preset("enterprise_default"),
-  checks = "both"
+  policy = guardrails,
+  checks = "both",
+  show_tokens = TRUE
 )
 print(result$output)
 print(result$audit)
@@ -54,9 +57,10 @@ print(result$risk_summary)
 cat("\n--- Demo 4: One-call Ollama workflow ---\n")
 quick <- shield_ollama(
   prompt = "Summarize this bug report without exposing secrets.",
-  policy = policy_preset("enterprise_default"),
+  policy = guardrails,
   checks = "both",
-  model = "gemma3:4b"
+  model = "gemma3:4b",
+  show_tokens = TRUE
 )
 print(quick$output)
 print(quick$risk_summary)
