@@ -1,6 +1,6 @@
 Package: llmshieldr
 Title: Safety Guardrails for LLM Workflows in R
-Version: 0.2.0
+Version: 0.1.0
 Description: A model-agnostic safety layer for R developers building with
     large language models. Covers all ten OWASP LLM Top 10 (2025) risk
     categories via a composable rule engine. Supports regex rules, lightweight
@@ -34,6 +34,7 @@ Suggests:
     SnowballC
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 URL: http://www.indraneelchakraborty.com/llmshieldr/, https://github.com/ineelhere/llmshieldr, https://genai.owasp.org/llm-top-10/
 BugReports: https://github.com/ineelhere/llmshieldr/issues
