@@ -90,6 +90,7 @@ write_audit_log <- function(audit, path, format = "jsonl") {
       for (finding in report$findings) {
         rows[[length(rows) + 1L]] <- data.frame(
           stage = stage,
+          context_row_index = if (identical(stage, "context")) report_index else NA_integer_,
           report_index = report_index,
           action = report$action,
           risk_score = report$risk_score,
@@ -106,6 +107,7 @@ write_audit_log <- function(audit, path, format = "jsonl") {
   if (length(rows) == 0L) {
     return(data.frame(
       stage = character(),
+      context_row_index = integer(),
       report_index = integer(),
       action = character(),
       risk_score = numeric(),

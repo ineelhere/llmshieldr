@@ -40,7 +40,9 @@ academic-integrity bypass language.
 \item \code{open_research}: a smaller open-workflow profile focused on injection and
 secrets, with higher thresholds.
 \item \code{comprehensive}: a maximum-coverage profile combining the enterprise,
-pharma, finance, education, code-safety, and rate-guard controls.
+pharma, finance, education, code-safety, and rate-guard controls. Uses
+moderate thresholds (\code{redact_at = 0.4}, \code{block_at = 0.7}). For pharma-tier
+strictness, supply \code{overrides = list(thresholds = list(redact_at = 0.3, block_at = 0.6))} explicitly.
 \item \code{custom}: no rules, default thresholds.
 \item \code{baseline}: backward-compatible alias for \code{enterprise_default}.
 }

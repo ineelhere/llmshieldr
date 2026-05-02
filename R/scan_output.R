@@ -55,7 +55,7 @@ scan_output <- function(text,
         )
         for (block in code_blocks) {
           block_findings <- .run_rules(block$text, code_policy)
-          findings <- c(findings, .offset_findings(block_findings, block$start - 1L))
+          findings <- c(findings, .offset_findings(block_findings, block$offset - 1L))
         }
       }
     }
@@ -113,16 +113,29 @@ scan_output <- function(text,
     start <- as.integer(matches[[i]])
     end <- start + as.integer(lengths[[i]]) - 1L
     raw <- substr(text, start, end)
-    content <- sub("^```[[:alnum:]_+.-]*\\s*", "", raw, perl = TRUE)
-    content <- sub("```$", "", content, perl = TRUE)
-    content_start <- start + nchar(raw) - nchar(content) - 3L
-    out[[i]] <- list(text = content, start = max(start, content_start))
+    opening <- regexpr("^```[[:alnum:]_+.-]*[^\r\n]*(\r\n|\n|\r)?", raw, perl = TRUE)
+    opening_length <- if (identical(as.integer(opening[[1]]), -1L)) 0L else as.integer(attr(opening, "match.length"))
+    closing <- regexpr("(\r\n|\n|\r)?```\\s*$", raw, perl = TRUE)
+    content_end <- if (identical(as.integer(closing[[1]]), -1L)) {
+      nchar(raw)
+    } else {
+      as.integer(closing[[1]]) - 1L
+    }
+    content <- if (content_end >= opening_length + 1L) {
+      substr(raw, opening_length + 1L, content_end)
+    } else {
+      ""
+    }
+    # R character positions are 1-based; offset points to the first content character.
+    content_offset <- start + opening_length
+    out[[i]] <- list(text = content, content = content, offset = content_offset)
   }
   out
 }
 
 .offset_findings <- function(findings, offset) {
   lapply(findings, function(finding) {
+    # Findings use 1-based R character positions; offset is content_start - 1.
     if (!is.null(finding$start) && !is.na(finding$start)) {
       finding$start <- finding$start + offset
     }

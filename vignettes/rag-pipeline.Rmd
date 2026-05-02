@@ -51,7 +51,9 @@ The anomaly checks are numeric:
 
 Instruction words are `ignore`, `forget`, `override`, `instead`, and
 `disregard`. A flagged anomaly contributes a high-severity finding, which adds
-`0.6` to the row's risk score.
+to a synthetic finding subtotal. Synthetic findings are capped at `0.3` per
+row before they are combined with normal rule findings, so anomaly and source
+signals inform risk without overwhelming stronger rule matches.
 
 ```{r}
 retrieved <- data.frame(
@@ -76,7 +78,8 @@ vapply(context_reports, function(report) report$action, character(1))
 
 Each row report has its own `risk_score`, `action`, and `findings`. In a RAG
 workflow, blocked context rows are omitted from the final prompt assembled by
-`secure_chat()`.
+`secure_chat()`. When rows are blocked and excluded, `secure_chat()` emits a
+warning with the triggered rule ids.
 
 ## Orchestrate the Chat Call
 
@@ -127,7 +130,9 @@ Persist the audit:
 write_audit_log(result$audit, tempfile(fileext = ".jsonl"))
 ```
 
-Audit timing is stored as `elapsed_ms`. With `show_tokens = TRUE`, token usage
-uses `ellmer` usage records when available and otherwise falls back to
-`ceiling(nchar(text) / 4)`, so it is useful for rate guards and trend
-monitoring but not a billing-grade tokenizer.
+For CSV audit logs, context findings include `context_row_index`, the 1-based
+position of the corresponding row in `context_reports`. Audit timing is stored
+as `elapsed_ms`. With `show_tokens = TRUE`, token usage uses `ellmer` usage
+records when available and otherwise falls back to `ceiling(nchar(text) / 4)`,
+so it is useful for rate guards and trend monitoring but not a billing-grade
+tokenizer.

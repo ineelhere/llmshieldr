@@ -8,7 +8,6 @@
 #'
 #' @importFrom cli cli_abort cli_bullets cli_h1 cli_text cli_warn col_cyan col_green col_grey col_red col_yellow
 #' @importFrom digest digest
-#' @importFrom httr2 request
 #' @importFrom jsonlite fromJSON toJSON
 #' @importFrom rlang check_installed
 #' @importFrom stringi stri_trans_nfkc

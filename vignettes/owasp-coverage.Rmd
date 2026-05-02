@@ -35,9 +35,10 @@ contributions:
 | `high` | 0.6 |
 | `critical` | 1.0 |
 
-The final `risk_score` is the sum of finding contributions capped at `1.0`.
-Critical findings and explicit block rules resolve to `block` even when a
-policy has high thresholds.
+The final `risk_score` is the sum of deduplicated finding contributions capped
+at `1.0`. Synthetic context findings are capped at `0.3` per row before being
+combined with normal rule findings. Critical findings and explicit block rules
+resolve to `block` even when a policy has high thresholds.
 
 `risk_summary` groups the same severity contributions by OWASP category, also
 capping each category at `1.0`. It is meant for dashboards and audits: a run
@@ -127,8 +128,8 @@ thresholds <- data.frame(
     "comprehensive",
     "custom"
   ),
-  redact_at = c(0.4, 0.4, 0.3, 0.4, 0.4, 0.8, 0.3, 0.4),
-  block_at = c(0.75, 0.75, 0.6, 0.75, 0.75, 0.95, 0.6, 0.75),
+  redact_at = c(0.4, 0.4, 0.3, 0.4, 0.4, 0.8, 0.4, 0.4),
+  block_at = c(0.75, 0.75, 0.6, 0.75, 0.75, 0.95, 0.7, 0.75),
   stringsAsFactors = FALSE
 )
 

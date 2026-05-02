@@ -18,13 +18,16 @@ Depends:
     R (>= 4.1.0)
 Imports:
     jsonlite,
-    httr2,
     cli,
     rlang,
     digest,
     stringi
 Suggests:
     ellmer,
+    httr2,
+    processx,
+    filelock,
+    htmltools,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,

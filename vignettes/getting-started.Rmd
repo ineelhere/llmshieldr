@@ -49,7 +49,8 @@ The default thresholds are:
 - `redact_at = 0.4`
 - `block_at = 0.75`
 
-The scanner sums severity scores from findings and caps the total at `1.0`.
+The scanner deduplicates findings, sums severity scores, and caps the total at
+`1.0`.
 Severity weights are:
 
 - `low = 0.1`
@@ -60,6 +61,10 @@ Severity weights are:
 An action becomes `block` when a finding is critical, a rule explicitly asks
 for `block`, or the score reaches `block_at`. It becomes `redact` when a rule
 asks for redaction or the score reaches `redact_at`. Otherwise it is `allow`.
+
+Context anomaly and source-trust findings are synthetic. Their combined
+contribution is capped at `0.3` per context row before normal rule-finding
+scores are added.
 
 ## Preflight a Prompt
 
@@ -97,8 +102,13 @@ scan_prompt(
 )
 ```
 
+Prompt normalization applies Unicode NFKC normalization, whitespace collapse,
+a small ASCII-confusable map, and delimiter-split word collapse. This helps
+rules catch evasive text such as `i.g.n.o.r.e`.
+
 For a local NLP-only pass, use `checks = "nlp"`. This uses `tokenizers` and
-`SnowballC` when they are installed, with base R fallbacks.
+`SnowballC` when they are installed, with base R fallbacks. NLP trigger seed
+groups are expanded with stems at runtime.
 
 ```{r}
 scan_prompt(
@@ -124,6 +134,10 @@ result$output
 result$action
 result$risk_summary
 ```
+
+If `secure_chat()` blocks retrieved context rows, those rows are excluded from
+the final prompt and a warning identifies the triggered rules. CSV audit logs
+include `context_row_index` for context-stage findings.
 
 For more local LLM patterns, see
 `vignette("ollama-usage", package = "llmshieldr")`.
@@ -160,3 +174,7 @@ and the final action.
 With `show_tokens = TRUE`, token counts use `ellmer` usage records when they
 are available and fall back to `ceiling(nchar(text) / 4)`. They are intended
 for operational safety limits, not exact billing.
+
+For stricter budget behavior, create a guard with `rate_guard(strict = TRUE)`.
+For shared guards in parallel or async code on one machine, use
+`rate_guard(concurrent = TRUE)` and install the optional `filelock` package.

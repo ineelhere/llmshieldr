@@ -294,9 +294,7 @@ preflight_check <- function(text,
 #' @keywords internal
 .semantic_review <- function(text, reviewer, policy_name) {
   prompt <- paste(
-    "You are a security reviewer for llmshieldr.",
-    "Return only JSON: an array of objects with rule_id, owasp, severity, and description.",
-    "Use severity values low, medium, high, or critical.",
+    .shieldr_reviewer_prompt,
     paste0("Policy: ", policy_name),
     "Text:",
     text,
@@ -360,9 +358,51 @@ preflight_check <- function(text,
   out
 }
 
+.homoglyph_map <- c(
+  "À" = "A", "Á" = "A", "Â" = "A", "Ã" = "A", "Ä" = "A", "Å" = "A",
+  "à" = "a", "á" = "a", "â" = "a", "ã" = "a", "ä" = "a", "å" = "a",
+  "È" = "E", "É" = "E", "Ê" = "E", "Ë" = "E",
+  "è" = "e", "é" = "e", "ê" = "e", "ë" = "e",
+  "Ì" = "I", "Í" = "I", "Î" = "I", "Ï" = "I",
+  "ì" = "i", "í" = "i", "î" = "i", "ï" = "i", "і" = "i",
+  "Ò" = "O", "Ó" = "O", "Ô" = "O", "Õ" = "O", "Ö" = "O",
+  "ò" = "o", "ó" = "o", "ô" = "o", "õ" = "o", "ö" = "o",
+  "Ù" = "U", "Ú" = "U", "Û" = "U", "Ü" = "U",
+  "ù" = "u", "ú" = "u", "û" = "u", "ü" = "u",
+  "ñ" = "n", "ç" = "c"
+)
+
 .normalise_text <- function(text) {
   text <- stringi::stri_trans_nfkc(text)
-  gsub("\\s+", " ", trimws(text), perl = TRUE)
+  text <- gsub("\\s+", " ", trimws(text), perl = TRUE)
+  for (i in seq_along(.homoglyph_map)) {
+    text <- stringi::stri_replace_all_fixed(
+      text,
+      names(.homoglyph_map)[[i]],
+      .homoglyph_map[[i]],
+      vectorize_all = FALSE
+    )
+  }
+  .collapse_delimited_words(text)
+}
+
+.collapse_delimited_words <- function(text) {
+  matches <- gregexpr("\\b(?:[A-Za-z][ ._-]){2,}[A-Za-z]\\b", text, perl = TRUE)[[1]]
+  if (length(matches) == 0L || identical(matches[[1]], -1L)) {
+    return(text)
+  }
+  lengths <- as.integer(attr(matches, "match.length"))
+  out <- text
+  for (i in rev(seq_along(matches))) {
+    start <- as.integer(matches[[i]])
+    end <- start + lengths[[i]] - 1L
+    raw <- substr(out, start, end)
+    collapsed <- gsub("(?<=[a-zA-Z])([ ._-](?=[a-zA-Z]))+", "", raw, perl = TRUE)
+    before <- if (start > 1L) substr(out, 1L, start - 1L) else ""
+    after <- if (end < nchar(out)) substr(out, end + 1L, nchar(out)) else ""
+    out <- paste0(before, collapsed, after)
+  }
+  out
 }
 
 .validate_checks <- function(checks) {
@@ -457,7 +497,10 @@ preflight_check <- function(text,
   scores <- vapply(findings, function(finding) {
     .severity_score(tolower(finding$severity %||% "low"))
   }, numeric(1))
-  min(sum(scores), 1)
+  synthetic <- vapply(findings, function(finding) isTRUE(finding$synthetic), logical(1))
+  rule_score <- sum(scores[!synthetic])
+  synthetic_score <- sum(scores[synthetic])
+  min(rule_score + min(synthetic_score, 0.3), 1)
 }
 
 .dedupe_findings <- function(findings) {

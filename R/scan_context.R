@@ -158,7 +158,8 @@ scan_context <- function(data,
     match = NA_character_,
     start = NA_integer_,
     end = NA_integer_,
-    source = "rules"
+    source = "rules",
+    synthetic = TRUE
   )
 }
 

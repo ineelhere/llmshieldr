@@ -25,7 +25,8 @@ For the source model behind the built-in policies, see
 
 Every rule has the same shape:
 
-- `id`: unique rule identifier
+- `id`: unique rule identifier. The recommended convention is
+  `llmXX.category.name`, such as `llm02.ticket_id`.
 - `pattern`: regex pattern, or `NULL`
 - `fn`: R predicate function, or `NULL`
 - `owasp`: OWASP LLM category such as `llm02`
@@ -48,8 +49,9 @@ Severity maps to risk score contributions:
 | `high` | 0.6 |
 | `critical` | 1.0 |
 
-Findings are summed and capped at `1.0`. A policy's thresholds then decide the
-final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
+Findings are deduplicated, summed, and capped at `1.0`. Synthetic context
+findings are capped separately at `0.3` per row. A policy's thresholds then
+decide the final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
 
 ```{r}
 guardrails <- policy()
@@ -141,3 +143,7 @@ list_rules(guardrails)
 
 The resulting table includes `has_pattern` and `has_fn`, which make it easy to
 audit whether a policy is mostly regex-based, function-based, or mixed.
+
+Custom rule ids that do not follow the `llmXX.` naming convention still work,
+but `shieldr_rule()` warns because OWASP risk summaries are clearest when rule
+ids carry the category prefix.

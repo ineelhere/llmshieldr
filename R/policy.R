@@ -144,7 +144,7 @@ build_policy <- function(name = "custom",
     policy_name,
     pharma_gxp = list(redact_at = 0.3, block_at = 0.6),
     open_research = list(redact_at = 0.8, block_at = 0.95),
-    comprehensive = list(redact_at = 0.3, block_at = 0.6),
+    comprehensive = list(redact_at = 0.4, block_at = 0.7),
     list()
   )
 
@@ -209,7 +209,10 @@ build_policy <- function(name = "custom",
 #' - `open_research`: a smaller open-workflow profile focused on injection and
 #'   secrets, with higher thresholds.
 #' - `comprehensive`: a maximum-coverage profile combining the enterprise,
-#'   pharma, finance, education, code-safety, and rate-guard controls.
+#'   pharma, finance, education, code-safety, and rate-guard controls. Uses
+#'   moderate thresholds (`redact_at = 0.4`, `block_at = 0.7`). For pharma-tier
+#'   strictness, supply `overrides = list(thresholds = list(redact_at = 0.3,
+#'   block_at = 0.6))` explicitly.
 #' - `custom`: no rules, default thresholds.
 #' - `baseline`: backward-compatible alias for `enterprise_default`.
 #'
@@ -248,7 +251,7 @@ policy <- function(name = "enterprise_default", overrides = list()) {
       "Financial-services controls with account, advice, trading, and rate-guard checks.",
       "Education controls for minor PII and academic-integrity bypasses.",
       "Lighter research profile focused on injection and secrets with higher thresholds.",
-      "Maximum built-in coverage across enterprise, clinical, finance, education, code, and rate limits.",
+      "Maximum built-in coverage across enterprise, clinical, finance, education, code, and rate limits. Uses moderate thresholds (redact_at = 0.4, block_at = 0.7). For pharma-tier strictness, supply overrides = list(thresholds = list(redact_at = 0.3, block_at = 0.6)) explicitly.",
       "Empty policy for fully custom rule sets."
     ),
     stringsAsFactors = FALSE

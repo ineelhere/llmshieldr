@@ -94,6 +94,20 @@ secure_chat <- function(prompt,
       source_col = source_col,
       show_tokens = show_tokens
     )
+    blocked_idx <- which(vapply(context_reports, function(report) report$action, character(1)) == "block")
+    n_blocked <- length(blocked_idx)
+    if (n_blocked > 0L) {
+      rule_ids <- unique(.compact_chr(unlist(lapply(context_reports[blocked_idx], function(report) {
+        vapply(report$findings, function(finding) finding$rule_id %||% NA_character_, character(1))
+      }), use.names = FALSE)))
+      if (length(rule_ids) == 0L) {
+        rule_ids <- "<unknown>"
+      }
+      cli::cli_warn(c(
+        "{n_blocked} context row{?s} blocked and excluded from prompt.",
+        "i" = "Triggered rule{?s}: {.val {rule_ids}}."
+      ))
+    }
     safe_idx <- which(vapply(context_reports, function(report) report$action, character(1)) != "block")
     if (length(safe_idx) > 0L) {
       safe_text <- vapply(context_reports[safe_idx], function(report) report$text_clean, character(1))
@@ -106,8 +120,13 @@ secure_chat <- function(prompt,
     }
   }
 
+  strict_estimate <- NULL
   if (!is.null(policy$rate_guard)) {
     rate_guard(policy$rate_guard)
+    if (isTRUE(policy$rate_guard$.strict)) {
+      strict_estimate <- .count_tokens(final_prompt)
+      policy$rate_guard$update(tokens = strict_estimate)
+    }
   }
 
   usage_before <- if (isTRUE(show_tokens)) .ellmer_usage_snapshot() else NULL
@@ -118,7 +137,14 @@ secure_chat <- function(prompt,
 
   token_estimate <- .ellmer_usage_delta(usage_before, usage_after) %||% .count_tokens(final_prompt, raw_output)
   if (!is.null(policy$rate_guard)) {
-    policy$rate_guard$update(tokens = token_estimate)
+    if (isTRUE(policy$rate_guard$.strict)) {
+      actual_delta <- token_estimate - (strict_estimate %||% .count_tokens(final_prompt))
+      if (actual_delta > 0) {
+        policy$rate_guard$update(tokens = actual_delta, requests = 0L)
+      }
+    } else {
+      policy$rate_guard$update(tokens = token_estimate)
+    }
   }
 
   audit <- shieldr_audit(

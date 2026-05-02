@@ -33,7 +33,8 @@ The NLP strategy lives in `rule_nlp_intent()`. Internally it calls:
   installed
 
 If those optional packages are not installed, llmshieldr falls back to simple
-base R tokenization and suffix stripping.
+base R tokenization and suffix stripping. Trigger seed groups for override,
+secret exposure, and harmful intent are expanded with stems at runtime.
 
 Use `checks = "nlp"` when you want only the local NLP strategy, without regex
 rules and without an LLM reviewer.
@@ -83,6 +84,14 @@ scan_prompt(
   reviewer = reviewer,
   checks = "both"
 )
+```
+
+The default reviewer instruction can be inspected with `reviewer_prompt()`.
+If you want a custom reviewer prompt, wrap the reviewer function or chat object
+and prepend your own context before calling the model.
+
+```{r}
+reviewer_prompt()
 ```
 
 ## Full Ollama Chat
@@ -158,3 +167,8 @@ secure_chat(
 
 This is the same contract used by Ollama. llmshieldr scans text before and after
 the call; you decide which model service actually produces or reviews text.
+
+When using `trust_boundary(require_hash = ...)` for local Ollama model manifest
+checks, install the optional `processx` package. The model name is passed as an
+argument vector element to `ollama show --modelfile`, not interpolated into a
+shell command string.

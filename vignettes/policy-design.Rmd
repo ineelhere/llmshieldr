@@ -61,7 +61,8 @@ concerns that recur across LLM applications:
 - Prompt-injection patterns: direct override language, hidden instructions,
   role confusion, and system-prompt extraction attempts
 - NLP intent signals: token and stem patterns for override, secret exposure,
-  harmful intent, and unusually dense directive language
+  harmful intent, and unusually dense directive language. Trigger seed groups
+  are expanded with stems at runtime.
 - Sensitive information patterns: email, phone, SSN, account numbers, medical
   record identifiers, subject IDs, API keys, bearer tokens, AWS keys, and
   credential-bearing connection strings
@@ -73,7 +74,8 @@ concerns that recur across LLM applications:
 - RAG-specific signals: untrusted source metadata, anomalous chunk length, and
   high density of instruction words inside retrieved text
 - Resource-exhaustion controls: request and token windows managed by
-  `rate_guard()`
+  `rate_guard()`, with optional strict pre-call reservation and local
+  file-locking for shared guards
 
 These sources are intentionally conservative. They are meant to catch common
 failure modes in R workflows before prompts, retrieved context, or model output
@@ -121,7 +123,7 @@ comprehensive
     education_safe additions
     code-safety checks
     rate_guard(max_tokens = 100000)
-    stricter thresholds: redact_at = 0.3, block_at = 0.6
+    moderate thresholds: redact_at = 0.4, block_at = 0.7
 
 custom
     no rules
@@ -135,6 +137,16 @@ The policy names reflect intended operating posture, not legal compliance.
 For example, `pharma_gxp` adds useful GxP-style controls, but it does not by
 itself make a workflow compliant with any regulation.
 
+The `comprehensive` policy is broad rather than maximally strict. Use explicit
+threshold overrides when you want pharma-tier thresholds:
+
+```{r}
+policy(
+  "comprehensive",
+  overrides = list(thresholds = list(redact_at = 0.3, block_at = 0.6))
+)
+```
+
 ## Check Modes
 
 Scanners can run different layers depending on the workflow:
@@ -147,6 +159,10 @@ Scanners can run different layers depending on the workflow:
   or your own reviewer function.
 - `checks = "both"` runs policy rules and the supplied reviewer.
 
+The semantic reviewer prompt is inspectable with `reviewer_prompt()`. If you
+need different reviewer instructions, wrap the reviewer function or chat object
+and prepend your own context before delegating to the model.
+
 ## Scoring
 
 Each finding contributes a numeric severity weight.
@@ -158,7 +174,10 @@ Each finding contributes a numeric severity weight.
 | `high` | 0.6 |
 | `critical` | 1.0 |
 
-The scanner sums contributions and caps the total at `1.0`.
+The scanner sums contributions and caps the total at `1.0`. Findings are
+deduplicated before scoring. Synthetic context findings are scored separately
+and contribute at most `0.3` per row, so source or anomaly signals cannot by
+themselves dominate a report.
 
 ```text
 findings:
@@ -236,6 +255,10 @@ Rows above `anomaly_threshold`, default `2.5`, receive high-severity OWASP
 LLM08 findings. If `source_col` is supplied and the policy has
 `trusted_sources`, rows from outside that allowlist receive a medium-severity
 OWASP LLM08 finding.
+
+These RAG-specific findings are marked as synthetic. Their combined
+contribution is capped at `0.3` per row before being added to normal rule
+findings.
 
 ## Risk Summary
 

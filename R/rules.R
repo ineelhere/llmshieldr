@@ -1,3 +1,23 @@
+.shieldr_reviewer_prompt <- paste0(
+  "You are a security reviewer for llmshieldr. ",
+  "Return only JSON: an array of objects with rule_id, owasp, severity, and description. ",
+  "Use severity values low, medium, high, or critical."
+)
+
+#' Return the default semantic reviewer prompt
+#'
+#' Returns the internal prompt used by the semantic reviewer path in
+#' [scan_prompt()], [scan_context()], [scan_output()], and [secure_chat()].
+#' Users who need custom reviewer instructions should wrap their reviewer
+#' function or chat object and prepend their own system context instead of
+#' patching this package constant.
+#'
+#' @return A single prompt string.
+#' @examples
+#' reviewer_prompt()
+#' @export
+reviewer_prompt <- function() .shieldr_reviewer_prompt
+
 #' Construct a `shieldr_rule`
 #'
 #' Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
@@ -45,6 +65,12 @@ shieldr_rule <- function(id,
                          action = "redact",
                          description = "") {
   .check_string(id, "id")
+  if (!grepl("^llm[0-9]{2}\\.", id)) {
+    cli::cli_warn(c(
+      "Rule id {.val {id}} does not follow the {.code llmXX.} naming convention.",
+      "i" = "{.fn risk_summary} groups findings by OWASP prefix; non-conforming ids will appear under an {.val NA} category."
+    ))
+  }
   if (!is.null(pattern)) {
     .check_string(pattern, "pattern")
   }
@@ -743,8 +769,24 @@ rule_financial_advice <- function() {
 
   has <- function(words) any(words %in% terms)
 
-  if (has(c("ignore", "ignor", "disregard", "forget", "override", "overrid", "bypass", "jailbreak")) &&
-      has(c("instruction", "instruct", "system", "developer", "rule", "prompt", "policy", "polici"))) {
+  override_seeds <- c(
+    "ignore", "forget", "override", "instead", "disregard",
+    "bypass", "skip", "suppress", "cancel", "nullify"
+  )
+  instruction_seeds <- c("instruction", "system", "developer", "rule", "prompt", "policy")
+  reveal_seeds <- c("reveal", "show", "print", "dump", "extract", "exfiltrate", "leak")
+  secret_seeds <- c("secret", "password", "token", "credential", "api", "key", "system", "prompt")
+  harmful_action_seeds <- c("write", "create", "build", "generate", "steal", "hack", "exploit")
+  harmful_content_seeds <- c("malware", "ransomware", "keylogger", "phishing", "exploit")
+
+  override_terms <- .nlp_seed_terms(override_seeds)
+  instruction_terms <- .nlp_seed_terms(instruction_seeds)
+  reveal_terms <- .nlp_seed_terms(reveal_seeds)
+  secret_terms <- .nlp_seed_terms(secret_seeds)
+  harmful_action_terms <- .nlp_seed_terms(harmful_action_seeds)
+  harmful_content_terms <- .nlp_seed_terms(harmful_content_seeds)
+
+  if (has(override_terms) && has(instruction_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm01.nlp.override_intent",
       owasp = "llm01",
@@ -755,8 +797,8 @@ rule_financial_advice <- function() {
     )
   }
 
-  if (has(c("reveal", "show", "print", "dump", "extract", "exfiltrate", "exfiltr", "leak")) &&
-      has(c("secret", "password", "token", "credential", "api", "key", "system", "prompt")) &&
+  if (has(reveal_terms) &&
+      has(secret_terms) &&
       !.nlp_negated_reveal(text)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm01.nlp.secret_exposure_intent",
@@ -768,8 +810,7 @@ rule_financial_advice <- function() {
     )
   }
 
-  if (has(c("write", "create", "build", "generate", "steal", "hack", "exploit")) &&
-      has(c("malware", "ransomware", "keylogger", "phishing", "exploit"))) {
+  if (has(harmful_action_terms) && has(harmful_content_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm05.nlp.harmful_intent",
       owasp = "llm05",
@@ -780,12 +821,12 @@ rule_financial_advice <- function() {
     )
   }
 
-  directive_terms <- c(
-    "ignore", "ignor", "forget", "override", "overrid", "disregard",
-    "bypass", "reveal", "show", "print", "dump", "extract", "exfiltrate",
-    "exfiltr", "act", "pretend", "write", "create", "build", "generate",
-    "steal", "hack"
-  )
+  directive_terms <- unique(c(
+    override_terms,
+    reveal_terms,
+    harmful_action_terms,
+    .nlp_seed_terms(c("act", "pretend"))
+  ))
   directive_density <- sum(tokens %in% directive_terms | stems %in% directive_terms) / length(tokens)
   if (length(tokens) >= 8L && directive_density >= 0.25) {
     findings[[length(findings) + 1L]] <- list(
@@ -799,6 +840,10 @@ rule_financial_advice <- function() {
   }
 
   findings
+}
+
+.nlp_seed_terms <- function(seeds) {
+  unique(c(seeds, .nlp_stems(seeds)))
 }
 
 .nlp_tokens <- function(text) {

@@ -5,21 +5,26 @@
 \title{Create or check a rate guard}
 \usage{
 rate_guard(
-  session = NULL,
   max_tokens = NULL,
   max_requests = NULL,
-  window_seconds = 3600L
+  window_seconds = 3600L,
+  strict = FALSE,
+  concurrent = FALSE
 )
 }
 \arguments{
-\item{session}{A \code{shieldr_rate_guard} returned by \code{rate_guard()}, or \code{NULL}
-to create a new guard.}
-
-\item{max_tokens}{Maximum tokens per window, or \code{NULL}.}
+\item{max_tokens}{Maximum tokens per window, \code{NULL}, or an existing
+\code{shieldr_rate_guard} when checking a guard with \code{rate_guard(guard)}.}
 
 \item{max_requests}{Maximum requests per window, or \code{NULL}.}
 
 \item{window_seconds}{Window length in seconds.}
+
+\item{strict}{Whether \code{\link[=secure_chat]{secure_chat()}} should reserve estimated prompt tokens
+before calling the model.}
+
+\item{concurrent}{Whether to protect \verb{$usage()} and \verb{$update()} with a
+file-based lock from the suggested \code{filelock} package.}
 }
 \value{
 When creating a guard, a \code{shieldr_rate_guard} environment. When
@@ -31,15 +36,15 @@ budgets for LLM workflows. Resource exhaustion is covered by OWASP
 LLM10; see \url{https://genai.owasp.org/llm-top-10/}.
 }
 \details{
-Calling \code{rate_guard()} with limits and \code{session = NULL} creates a new
-\code{shieldr_rate_guard} environment. The environment stores counters for the
-current window and exposes two methods:
+Calling \code{rate_guard()} with limits creates a new \code{shieldr_rate_guard}
+environment. The environment stores counters for the current window and
+exposes two methods:
 \itemize{
 \item \verb{$usage()}: returns current counters and configured limits
 \item \verb{$update(tokens)}: increments tokens and request count
 }
 
-Calling \code{rate_guard(session)} checks the existing environment and returns
+Calling \code{rate_guard(guard)} checks an existing environment and returns
 \code{TRUE} if all counters are within limits. If a limit has been exceeded, it
 raises an OWASP LLM10 error with \code{\link[cli:cli_abort]{cli::cli_abort()}}. Limits set to \code{NULL}
 are disabled for that dimension.
@@ -48,6 +53,25 @@ Windows reset automatically when \code{window_seconds} has elapsed. This object
 is intentionally stateful; it is the one place where llmshieldr expects
 mutable state, because rate limiting is inherently session-based.
 }
+\section{Concurrency}{
+
+The rate guard is not safe for concurrent use by default. Parallel or async R
+code (\code{future}, \code{parallel}, \code{callr}) that shares a single guard environment
+will produce inaccurate counts. Use \code{concurrent = TRUE} and install the
+\code{filelock} package to enable file-based mutual exclusion within a single
+machine. Cross-process or cross-machine coordination is not supported.
+}
+
+\section{Pre-call Reservation}{
+
+With \code{strict = TRUE}, \code{\link[=secure_chat]{secure_chat()}} reserves an estimated prompt token cost
+before the model call and then records only the positive difference between
+the actual token estimate and the reserved amount after the call. This makes
+shared guards more useful under bursty load, but estimated tokens may differ
+from actual usage. Strict mode is recommended when multiple callers share one
+guard.
+}
+
 \examples{
 guard <- rate_guard(max_tokens = 100)
 guard$update(tokens = 10)
