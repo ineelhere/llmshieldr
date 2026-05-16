@@ -11,6 +11,28 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
 Policies are lists of `shieldr_rule` objects plus thresholds. You can start
 with a built-in policy and append domain-specific rules.
 
@@ -183,6 +205,7 @@ Custom rule ids that do not follow the `llmXX.` naming convention still work,
 but `shieldr_rule()` warns because OWASP risk summaries are clearest when rule
 ids carry the category prefix.
 
+::: {.llmshieldr-info-box}
 ## Rule Test Checklist
 
 For every new rule, keep at least:
@@ -197,3 +220,4 @@ For every new rule, keep at least:
 The packaged evaluation corpus at `inst/extdata/security_eval_cases.csv` is a
 small starting point for these cases. Add application-specific corpora outside
 the package when examples contain real or sensitive data.
+:::

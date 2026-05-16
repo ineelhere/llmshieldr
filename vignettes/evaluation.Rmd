@@ -11,6 +11,28 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
 `llmshieldr` includes a small starter corpus and an evaluation helper so teams
 can measure behavior before adopting a policy. The corpus is intentionally
 small. It is meant to start a repeatable process, not prove production-grade
@@ -111,6 +133,7 @@ inst/scripts/benchmark-security-eval.R
 Run it locally before releases or adoption reviews. It prints action accuracy,
 median latency, p95 latency, package version, R version, and per-case results.
 
+::: {.llmshieldr-info-box}
 ## Caveats
 
 The starter corpus is deliberately transparent and compact. It should be
@@ -118,3 +141,4 @@ extended with organization-specific benign and risky examples before production
 use. Do not present OWASP category mapping or action accuracy on this corpus as
 proof that a workflow is secure, compliant, jailbreak-proof, or complete for
 PII/PHI discovery.
+:::

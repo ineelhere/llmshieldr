@@ -11,6 +11,28 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
 This article is a compact maintainer-oriented map of the package. It explains
 how safety decisions are produced without requiring a separate design document
 at the repository root.
@@ -147,8 +169,10 @@ Explicit `block` rules and critical findings still block immediately.
 - Wrap local or remote reviewer models with `ollama_reviewer()` or
   `remote_reviewer()`.
 
+::: {.llmshieldr-info-box}
 ## Release Hygiene
 
 Before release, regenerate documentation, run the test suite, run
 `R CMD check --as-cran`, review examples that require external services, and
 update `NEWS.md` and `cran-comments.md`.
+:::

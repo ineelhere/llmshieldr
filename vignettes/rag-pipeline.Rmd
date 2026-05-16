@@ -11,6 +11,28 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
 Retrieval-augmented generation introduces a second input surface: retrieved
 context. `llmshieldr` scans that context before appending it to the model
 prompt.
@@ -81,6 +103,9 @@ context_reports <- scan_context(
 vapply(context_reports, function(report) report$action, character(1))
 ```
 
+::: {.llmshieldr-info-box}
+### Context Rows Are Evidence
+
 Each row report has its own `risk_score`, `action`, and `findings`. In a RAG
 workflow, blocked context rows are omitted from the final prompt assembled by
 `secure_chat()`. When rows are blocked and excluded, `secure_chat()` emits a
@@ -99,6 +124,7 @@ Context:
 [context row=1 source=kb]
 Password resets require identity verification.
 ```
+:::
 
 ## Orchestrate the Chat Call
 

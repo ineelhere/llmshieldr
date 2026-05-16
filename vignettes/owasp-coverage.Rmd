@@ -11,6 +11,28 @@ vignette: >
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
 `llmshieldr` maps rules, scanners, and orchestration helpers to the OWASP LLM
 Top 10. The package is not a substitute for governance, model evaluation, or
 human review; it gives R workflows a concrete safety layer that can be tested
@@ -49,9 +71,13 @@ moderate disclosure signal.
 
 ## Coverage Map
 
+::: {.llmshieldr-info-box}
+### Reading This Matrix
+
 This matrix separates taxonomy mapping from effective detector coverage. The
 strength of protection depends on rules, policy configuration, reviewer
 quality, and application-specific evaluation.
+:::
 
 | OWASP | Risk Area | Current Package Surface | Detector Type | Evidence Level | Known Gaps |
 | --- | --- | --- | --- | --- | --- |

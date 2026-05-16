@@ -116,6 +116,87 @@ reviewer <- function(prompt) {
 }
 ```
 
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
+```
+
+::: {.llmshieldr-info-box}
+## Interpreting Reviewer Results
+
+The semantic reviewer can explain why a prompt or output was allowed, redacted,
+or blocked through the `findings` field on the returned report.
+
+```{r}
+x <- scan_prompt(
+  "Can you inspect this prompt before I send it?",
+  reviewer = reviewer,
+  checks = "llm"
+)
+
+x$action
+x$text_clean
+x$findings
+```
+
+If `checks = "llm"`, the decision comes only from the reviewer. A clean review
+should usually return an empty findings array, which produces `action = "allow"`.
+If the reviewer returns a low, medium, or high severity finding without an
+explicit `recommended_action`, llmshieldr treats that finding as redaction
+oriented. This can produce `action = "redact"` even when no text changes.
+
+Redaction only changes `text_clean` when a finding includes valid character
+spans. If `start` and `end` are missing or `NA`, llmshieldr keeps the text as-is
+but still records the reviewer finding and conservative report action.
+
+```{r}
+lapply(x$findings, function(f) {
+  f[c("description", "severity", "action", "start", "end", "evidence")]
+})
+```
+
+For example, a local reviewer may overflag a benign phrase such as "inspect this
+prompt" as suspicious. In that case, `x$findings` shows the reviewer's rationale
+and `x$text_clean` shows whether anything was actually removed. You can reduce
+these false positives by adding reviewer guidance such as:
+
+```{r}
+reviewer <- function(prompt) {
+  base_reviewer$chat(paste(
+    "Additional reviewer policy:",
+    "- Return [] for benign requests to inspect, review, or check a prompt.",
+    "- Do not flag text merely because it contains the word prompt.",
+    "- Only return findings for concrete security, privacy, jailbreak, secret, or policy risks.",
+    "- Only use recommended_action = 'redact' when a specific sensitive span should be removed.",
+    "",
+    prompt,
+    sep = "\n"
+  ))
+}
+```
+
+When a result seems surprising, inspect `report$metadata$reviewer_errors`.
+Malformed JSON and schema issues are soft failures; llmshieldr records them
+there and continues with whatever findings it can safely use.
+:::
+
 ## Full Ollama Chat
 
 `shield_ollama()` is the shortest path for a local guarded chat call. It creates
