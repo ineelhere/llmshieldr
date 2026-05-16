@@ -9,7 +9,7 @@ editor_options:
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  eval = FALSE
+  eval = TRUE
 )
 ```
 
@@ -36,7 +36,7 @@ setup, logs, and risk tolerance.
 
 ## 🚀 Install
 
-```{r install}
+```{r install, eval = FALSE}
 # CRAN, once available
 install.packages("llmshieldr")
 
@@ -48,7 +48,7 @@ remotes::install_github("ineelhere/llmshieldr")
 Optional extras unlock local Ollama workflows, remote reviewers,
 tokenization, HTTP, model hash checks, and concurrency helpers:
 
-```{r install-extras}
+```{r install-extras, eval = FALSE}
 install.packages(c("ellmer", "httr2", "tokenizers", "SnowballC", "processx", "filelock"))
 ```
 
@@ -119,6 +119,9 @@ result <- secure_chat(
   policy = policy("enterprise_default"),
   context = context
 )
+
+result$output
+result$audit$context_reports
 
 result$action
 length(result$audit$context_reports)
