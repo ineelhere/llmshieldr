@@ -166,8 +166,10 @@ Scanners can run different layers depending on the workflow:
 - `checks = "both"` runs policy rules and the supplied reviewer.
 
 The semantic reviewer prompt is inspectable with `reviewer_prompt()`. If you
-need different reviewer instructions, wrap the reviewer function or chat object
-and prepend your own context before delegating to the model.
+need additional reviewer instructions, wrap the reviewer function or chat
+object and prepend additive organization-specific context before delegating to
+the model. Treat `reviewer_prompt()` as an audit/inspection helper, not as a
+mutable package setting, and preserve the JSON contract below.
 
 Reviewer output may be either an array of finding objects or an object with a
 `findings` array. Each finding can include:

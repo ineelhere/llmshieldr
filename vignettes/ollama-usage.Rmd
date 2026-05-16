@@ -87,8 +87,10 @@ scan_prompt(
 ```
 
 The default reviewer instruction can be inspected with `reviewer_prompt()`.
-If you want a custom reviewer prompt, wrap the reviewer function or chat object
-and prepend your own context before calling the model.
+This is an inspection helper rather than a package option. If you want custom
+reviewer instructions, wrap the reviewer function or chat object and prepend
+additive organization-specific context before calling the model. Keep the
+llmshieldr JSON contract intact so the scanner can parse findings.
 
 Reviewer responses may include `confidence`, `evidence`,
 `recommended_action`, and `span` fields in addition to `rule_id`, `owasp`,
@@ -97,6 +99,21 @@ Reviewer responses may include `confidence`, `evidence`,
 
 ```{r}
 reviewer_prompt()
+```
+
+```{r}
+base_reviewer <- ollama_reviewer(model = "gemma3:4b")
+
+reviewer <- function(prompt) {
+  base_reviewer$chat(paste(
+    "Additional reviewer policy:",
+    "- Treat PHI leakage as high severity.",
+    "- Return [] when there are no findings.",
+    "",
+    prompt,
+    sep = "\n"
+  ))
+}
 ```
 
 ## Full Ollama Chat

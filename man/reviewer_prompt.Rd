@@ -12,10 +12,23 @@ A single prompt string.
 \description{
 Returns the internal prompt used by the semantic reviewer path in
 \code{\link[=scan_prompt]{scan_prompt()}}, \code{\link[=scan_context]{scan_context()}}, \code{\link[=scan_output]{scan_output()}}, and \code{\link[=secure_chat]{secure_chat()}}.
-Users who need custom reviewer instructions should wrap their reviewer
-function or chat object and prepend their own system context instead of
-patching this package constant.
+This helper is for inspection and auditability; the returned value is not a
+package option. Users who need custom reviewer instructions should wrap their
+reviewer function or chat object and prepend additive organization-specific
+context before delegating to the model, while preserving llmshieldr's JSON
+finding schema.
 }
 \examples{
 reviewer_prompt()
+
+base_reviewer <- function(prompt) "[]"
+reviewer <- function(prompt) {
+  custom_context <- paste(
+    "Additional reviewer policy:",
+    "- Treat PHI leakage as high severity.",
+    "- Return [] when there are no findings.",
+    sep = "\n"
+  )
+  base_reviewer(paste(custom_context, prompt, sep = "\n\n"))
+}
 }
