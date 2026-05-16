@@ -7,15 +7,16 @@
 \title{llmshieldr: Safety Guardrails for LLM Workflows in R}
 \description{
 A model-agnostic safety layer for R developers building with large
-language models. The package covers the OWASP LLM Top 10 (2025) risk
-categories through composable policies, deterministic rules, optional
-semantic review, lightweight NLP intent checks, local Ollama helpers, output
-scanning, rate guards, and audit logs.
+language models. The package maps starter controls to the OWASP LLM Top 10
+(2025) risk categories through composable policies, deterministic rules,
+optional semantic review, lightweight NLP intent checks, conversation,
+tool-call, streaming-output, RAG-context, and output scanning, local Ollama
+helpers, rate guards, and audit logs.
 }
 \seealso{
 Useful links:
 \itemize{
-  \item \url{http://www.indraneelchakraborty.com/llmshieldr/}
+  \item \url{https://www.indraneelchakraborty.com/llmshieldr/}
   \item \url{https://github.com/ineelhere/llmshieldr}
   \item \url{https://genai.owasp.org/llm-top-10/}
   \item Report bugs at \url{https://github.com/ineelhere/llmshieldr/issues}

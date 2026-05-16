@@ -157,15 +157,22 @@ trust_boundary <- function(chat = NULL,
   if (is.null(model)) {
     cli::cli_abort("OWASP LLM03 trust boundary failed: cannot verify a hash without a model name.")
   }
-  manifest <- tryCatch(
-    system2("ollama", c("show", "--modelfile", model), stdout = TRUE, stderr = TRUE),
+  .check_processx()
+  result <- tryCatch(
+    processx::run("ollama", c("show", "--modelfile", model), error_on_status = FALSE),
     error = function(e) {
       cli::cli_abort("OWASP LLM03 trust boundary failed: could not call {.code ollama show --modelfile}.")
     }
   )
-  status <- attr(manifest, "status")
-  if (!is.null(status) && !identical(status, 0L)) {
+  if (!identical(result$status, 0L)) {
     cli::cli_abort("OWASP LLM03 trust boundary failed: Ollama returned a non-zero status.")
   }
-  digest::digest(paste(manifest, collapse = "\n"), algo = "sha256", serialize = FALSE)
+  digest::digest(result$stdout, algo = "sha256", serialize = FALSE)
+}
+
+.check_processx <- function() {
+  rlang::check_installed(
+    "processx",
+    reason = "Install processx for Ollama model hash verification."
+  )
 }

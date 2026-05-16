@@ -12,8 +12,9 @@
 #' 1. Scan the prompt with [scan_prompt()].
 #' 2. If the prompt is blocked, return a [shieldr_result()] without calling the chat.
 #' 3. If context is supplied, scan it with [scan_context()] and append only
-#'    non-blocked context rows to the cleaned prompt.
-#' 4. Check the policy rate guard, if present.
+#'    allowed context rows to the cleaned prompt, using row IDs, source labels,
+#'    and separators.
+#' 4. Reserve request and token budget with the policy rate guard, if present.
 #' 5. Call the chat object.
 #' 6. Scan model output with [scan_output()].
 #' 7. Resolve the final action, update the rate guard, and build an audit.
@@ -21,7 +22,8 @@
 #' The returned `risk_summary` aggregates finding severity scores by OWASP
 #' category across prompt, context, and output reports. The final action is the
 #' most conservative action across input and output: `block` beats `redact`,
-#' and `redact` beats `allow`.
+#' and `redact` beats `allow`. Policy controls can map blocked prompt or output
+#' reports to final actions of `refuse` or `escalate`.
 #'
 #' @param prompt User prompt.
 #' @param chat An `ellmer` chat object, an object with `$chat()`, or a function.
@@ -29,6 +31,8 @@
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param context Optional data frame of retrieved context.
+#' @param redaction Optional redaction strategy from [redaction_strategy()].
+#' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #' @param ... Reserved for backwards-compatible aliases.
 #'
@@ -45,6 +49,8 @@ secure_chat <- function(prompt,
                         reviewer = NULL,
                         checks = "rules",
                         context = NULL,
+                        redaction = NULL,
+                        scanners = scanner_options(),
                         show_tokens = FALSE,
                         ...) {
   .check_string(prompt, "prompt", allow_empty = TRUE)
@@ -52,16 +58,27 @@ secure_chat <- function(prompt,
   .validate_chat(chat)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  redaction <- .validate_redaction_strategy(redaction)
+  scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
-  .validate_reviewer(reviewer)
+  .validate_reviewer_for_checks(reviewer, checks)
   if (!is.null(context) && !is.data.frame(context)) {
     cli::cli_abort("{.arg context} must be a data frame or {.code NULL}.")
   }
 
   t0 <- proc.time()[["elapsed"]]
-  input_report <- scan_prompt(prompt, policy, reviewer = reviewer, checks = checks, show_tokens = show_tokens)
+  input_report <- scan_prompt(
+    prompt,
+    policy,
+    reviewer = reviewer,
+    checks = checks,
+    redaction = redaction,
+    scanners = scanners,
+    show_tokens = show_tokens
+  )
 
   if (identical(input_report$action, "block")) {
+    final_action <- policy$controls$on_prompt_block
     audit <- shieldr_audit(
       input_report = input_report,
       output_report = NULL,
@@ -70,13 +87,13 @@ secure_chat <- function(prompt,
       output_raw = NULL,
       elapsed_ms = .elapsed_ms(t0),
       token_estimate = .count_tokens(input_report$text_clean),
-      action = "block"
+      action = final_action
     )
     return(shieldr_result(
-      output = NULL,
+      output = .controlled_output(final_action, policy$controls),
       audit = audit,
       risk_summary = .risk_summary(input_report),
-      action = "block"
+      action = final_action
     ))
   }
 
@@ -92,33 +109,117 @@ secure_chat <- function(prompt,
       reviewer = reviewer,
       checks = checks,
       source_col = source_col,
+      redaction = redaction,
+      scanners = scanners,
       show_tokens = show_tokens
     )
-    safe_idx <- which(vapply(context_reports, function(report) report$action, character(1)) != "block")
+    blocked_idx <- which(vapply(context_reports, function(report) report$action, character(1)) == "block")
+    n_blocked <- length(blocked_idx)
+    if (n_blocked > 0L) {
+      rule_ids <- unique(.compact_chr(unlist(lapply(context_reports[blocked_idx], function(report) {
+        vapply(report$findings, function(finding) finding$rule_id %||% NA_character_, character(1))
+      }), use.names = FALSE)))
+      if (length(rule_ids) == 0L) {
+        rule_ids <- "<unknown>"
+      }
+      cli::cli_warn(c(
+        "{n_blocked} context row{?s} blocked and excluded from prompt.",
+        "i" = "Triggered rule{?s}: {.val {rule_ids}}."
+      ))
+    }
+    if (n_blocked > 0L && policy$controls$on_context_block %in% c("block", "refuse", "escalate")) {
+      final_action <- policy$controls$on_context_block
+      audit <- shieldr_audit(
+        input_report = input_report,
+        output_report = NULL,
+        context_reports = context_reports,
+        prompt_clean = input_report$text_clean,
+        output_raw = NULL,
+        elapsed_ms = .elapsed_ms(t0),
+        token_estimate = .count_tokens(input_report$text_clean),
+        action = final_action
+      )
+      return(shieldr_result(
+        output = .controlled_output(final_action, policy$controls),
+        audit = audit,
+        risk_summary = .risk_summary(input_report, context_reports),
+        action = final_action
+      ))
+    }
+    safe_idx <- if (identical(policy$controls$on_context_block, "keep_redacted")) {
+      seq_along(context_reports)
+    } else {
+      which(vapply(context_reports, function(report) report$action, character(1)) != "block")
+    }
     if (length(safe_idx) > 0L) {
-      safe_text <- vapply(context_reports[safe_idx], function(report) report$text_clean, character(1))
-      final_prompt <- paste(
+      final_prompt <- .assemble_context_prompt(
         input_report$text_clean,
-        "Context:",
-        paste(safe_text, collapse = "\n\n"),
-        sep = "\n\n"
+        context_reports = context_reports,
+        keep = safe_idx
       )
     }
   }
 
+  strict_estimate <- NULL
+  reserved_tokens <- 0
+  reserved_requests <- 0L
   if (!is.null(policy$rate_guard)) {
-    rate_guard(policy$rate_guard)
+    if (isTRUE(policy$rate_guard$.strict)) {
+      strict_estimate <- .count_tokens(final_prompt)
+      policy$rate_guard$reserve(tokens = strict_estimate, requests = 1L)
+      reserved_tokens <- strict_estimate
+      reserved_requests <- 1L
+    } else {
+      policy$rate_guard$reserve(tokens = 0, requests = 1L)
+      reserved_requests <- 1L
+    }
   }
 
-  usage_before <- if (isTRUE(show_tokens)) .ellmer_usage_snapshot() else NULL
-  raw_output <- .call_chat(chat, final_prompt)
-  usage_after <- if (isTRUE(show_tokens)) .ellmer_usage_snapshot() else NULL
-  output_report <- scan_output(raw_output, policy, reviewer = reviewer, checks = checks, show_tokens = show_tokens)
+  chat_stage <- tryCatch(
+    {
+      usage_before <- if (isTRUE(show_tokens)) .ellmer_usage_snapshot() else NULL
+      raw_output <- .call_chat(chat, final_prompt)
+      usage_after <- if (isTRUE(show_tokens)) .ellmer_usage_snapshot() else NULL
+      output_report <- scan_output(
+        raw_output,
+        policy,
+        reviewer = reviewer,
+        checks = checks,
+        redaction = redaction,
+        scanners = scanners,
+        show_tokens = show_tokens
+      )
+      list(
+        raw_output = raw_output,
+        output_report = output_report,
+        usage_before = usage_before,
+        usage_after = usage_after
+      )
+    },
+    error = function(e) {
+      if (!is.null(policy$rate_guard) && (reserved_tokens > 0 || reserved_requests > 0L)) {
+        policy$rate_guard$rollback(tokens = reserved_tokens, requests = reserved_requests)
+      }
+      stop(e)
+    }
+  )
+  raw_output <- chat_stage$raw_output
+  output_report <- chat_stage$output_report
   final_action <- .combine_actions(input_report$action, output_report$action)
+  if (identical(output_report$action, "block")) {
+    final_action <- policy$controls$on_output_block
+  }
 
-  token_estimate <- .ellmer_usage_delta(usage_before, usage_after) %||% .count_tokens(final_prompt, raw_output)
+  token_estimate <- .ellmer_usage_delta(chat_stage$usage_before, chat_stage$usage_after) %||% .count_tokens(final_prompt, raw_output)
   if (!is.null(policy$rate_guard)) {
-    policy$rate_guard$update(tokens = token_estimate)
+    if (isTRUE(policy$rate_guard$.strict)) {
+      actual_delta <- token_estimate - (strict_estimate %||% .count_tokens(final_prompt))
+      if (actual_delta > 0) {
+        policy$rate_guard$update(tokens = actual_delta, requests = 0L)
+      }
+    } else {
+      policy$rate_guard$update(tokens = token_estimate, requests = 0L)
+    }
   }
 
   audit <- shieldr_audit(
@@ -133,7 +234,7 @@ secure_chat <- function(prompt,
   )
 
   shieldr_result(
-    output = if (identical(final_action, "block")) NULL else output_report$text_clean,
+    output = if (final_action %in% c("block", "escalate")) NULL else .controlled_output(final_action, policy$controls) %||% output_report$text_clean,
     audit = audit,
     risk_summary = .risk_summary(input_report, output_report, context_reports),
     action = final_action
@@ -312,4 +413,30 @@ secure_chat <- function(prompt,
     cli::cli_abort("{.arg context} must contain at least one character column.")
   }
   chr_cols[[1]]
+}
+
+.assemble_context_prompt <- function(prompt, context_reports, keep) {
+  entries <- vapply(keep, function(i) {
+    report <- context_reports[[i]]
+    metadata <- report$metadata %||% list()
+    row_index <- metadata$row_index %||% i
+    source <- metadata$source %||% NA_character_
+    source_label <- if (!is.na(source) && nzchar(source)) {
+      paste0(" source=", source)
+    } else {
+      ""
+    }
+    paste(
+      paste0("[context row=", row_index, source_label, "]"),
+      report$text_clean,
+      sep = "\n"
+    )
+  }, character(1))
+
+  paste(
+    prompt,
+    "Context:",
+    paste(c("---", entries), collapse = "\n\n---\n\n"),
+    sep = "\n\n"
+  )
 }

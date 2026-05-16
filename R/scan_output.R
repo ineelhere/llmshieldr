@@ -21,6 +21,8 @@
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
+#' @param redaction Optional redaction strategy from [redaction_strategy()].
+#' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_report`.
@@ -32,16 +34,22 @@ scan_output <- function(text,
                         policy = "enterprise_default",
                         reviewer = NULL,
                         checks = "rules",
+                        redaction = NULL,
+                        scanners = scanner_options(),
                         show_tokens = FALSE) {
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  redaction <- .validate_redaction_strategy(redaction)
+  scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
-  .validate_reviewer(reviewer)
+  .validate_reviewer_for_checks(reviewer, checks)
 
-  text_norm <- stringi::stri_trans_nfkc(text)
+  text_norm <- .normalise_text(text, collapse_whitespace = FALSE, collapse_delimited = FALSE)
   output_policy <- .output_policy(policy)
   findings <- list()
+  reviewer_errors <- list()
+  findings <- c(findings, .run_scanners(text, text_norm, output_policy, scanners, stage = "output"))
 
   if (checks %in% c("rules", "both")) {
     code_blocks <- .extract_fenced_code(text_norm)
@@ -55,7 +63,7 @@ scan_output <- function(text,
         )
         for (block in code_blocks) {
           block_findings <- .run_rules(block$text, code_policy)
-          findings <- c(findings, .offset_findings(block_findings, block$start - 1L))
+          findings <- c(findings, .offset_findings(block_findings, block$offset - 1L))
         }
       }
     }
@@ -65,7 +73,9 @@ scan_output <- function(text,
   }
 
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
-    findings <- c(findings, .semantic_review(text_norm, reviewer, policy$name))
+    semantic <- .semantic_review(text_norm, reviewer, policy$name)
+    reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
+    findings <- c(findings, semantic)
   }
 
   findings <- .dedupe_findings(findings)
@@ -74,12 +84,17 @@ scan_output <- function(text,
 
   shieldr_report(
     action = action,
-    text_clean = .apply_redaction(text_norm, findings),
+    text_clean = .apply_redaction(text_norm, findings, redaction),
     findings = findings,
     risk_score = risk_score,
     policy = policy$name,
     checks = checks,
-    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL
+    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL,
+    metadata = .report_metadata(
+      stage = "output",
+      reviewer_errors = reviewer_errors,
+      scanners = scanners
+    )
   )
 }
 
@@ -113,16 +128,29 @@ scan_output <- function(text,
     start <- as.integer(matches[[i]])
     end <- start + as.integer(lengths[[i]]) - 1L
     raw <- substr(text, start, end)
-    content <- sub("^```[[:alnum:]_+.-]*\\s*", "", raw, perl = TRUE)
-    content <- sub("```$", "", content, perl = TRUE)
-    content_start <- start + nchar(raw) - nchar(content) - 3L
-    out[[i]] <- list(text = content, start = max(start, content_start))
+    opening <- regexpr("^```[[:alnum:]_+.-]*[^\r\n]*(\r\n|\n|\r)?", raw, perl = TRUE)
+    opening_length <- if (identical(as.integer(opening[[1]]), -1L)) 0L else as.integer(attr(opening, "match.length"))
+    closing <- regexpr("(\r\n|\n|\r)?```\\s*$", raw, perl = TRUE)
+    content_end <- if (identical(as.integer(closing[[1]]), -1L)) {
+      nchar(raw)
+    } else {
+      as.integer(closing[[1]]) - 1L
+    }
+    content <- if (content_end >= opening_length + 1L) {
+      substr(raw, opening_length + 1L, content_end)
+    } else {
+      ""
+    }
+    # R character positions are 1-based; offset points to the first content character.
+    content_offset <- start + opening_length
+    out[[i]] <- list(text = content, content = content, offset = content_offset)
   }
   out
 }
 
 .offset_findings <- function(findings, offset) {
   lapply(findings, function(finding) {
+    # Findings use 1-based R character positions; offset is content_start - 1.
     if (!is.null(finding$start) && !is.na(finding$start)) {
       finding$start <- finding$start + offset
     }

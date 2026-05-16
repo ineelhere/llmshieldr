@@ -1,3 +1,25 @@
+.shieldr_reviewer_prompt <- paste0(
+  "You are a security reviewer for llmshieldr. ",
+  "Return only JSON: an array of objects with rule_id, owasp, severity, description, ",
+  "and optional confidence, evidence, recommended_action, and span. ",
+  "Use severity values low, medium, high, or critical. ",
+  "Use recommended_action values allow, redact, or block when supplied."
+)
+
+#' Return the default semantic reviewer prompt
+#'
+#' Returns the internal prompt used by the semantic reviewer path in
+#' [scan_prompt()], [scan_context()], [scan_output()], and [secure_chat()].
+#' Users who need custom reviewer instructions should wrap their reviewer
+#' function or chat object and prepend their own system context instead of
+#' patching this package constant.
+#'
+#' @return A single prompt string.
+#' @examples
+#' reviewer_prompt()
+#' @export
+reviewer_prompt <- function() .shieldr_reviewer_prompt
+
 #' Construct a `shieldr_rule`
 #'
 #' Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
@@ -45,6 +67,12 @@ shieldr_rule <- function(id,
                          action = "redact",
                          description = "") {
   .check_string(id, "id")
+  if (!grepl("^llm[0-9]{2}\\.", id)) {
+    cli::cli_warn(c(
+      "Rule id {.val {id}} does not follow the {.code llmXX.} naming convention.",
+      "i" = "{.fn risk_summary} groups findings by OWASP prefix; non-conforming ids will appear under an {.val NA} category."
+    ))
+  }
   if (!is.null(pattern)) {
     .check_string(pattern, "pattern")
   }
@@ -58,7 +86,7 @@ shieldr_rule <- function(id,
     .check_string(owasp, "owasp")
   }
   .check_choice(severity, "severity", .shieldr_severities())
-  .check_choice(action, "action", .shieldr_actions())
+  .check_choice(action, "action", .shieldr_rule_actions())
   .check_string(description, "description", allow_empty = TRUE)
 
   structure(
@@ -89,12 +117,19 @@ shieldr_rule <- function(id,
 #' is supplied to [scan_context()], rows with source values outside the allowlist
 #' receive an OWASP LLM08 finding.
 #'
+#' `controls` is used by [secure_chat()] after scanner reports have already
+#' resolved to `allow`, `redact`, or `block`. Use [policy_controls()] to decide
+#' whether blocked prompts or outputs should return `block`, `refuse`, or
+#' `escalate`, and whether blocked context rows should be dropped, kept in
+#' redacted form, or stop the chat call.
+#'
 #' @param name Policy name.
 #' @param rules A list of `shieldr_rule` objects.
 #' @param thresholds A list containing numeric `redact_at` and `block_at`
 #'   values between 0 and 1.
 #' @param rate_guard A `shieldr_rate_guard` environment, or `NULL`.
 #' @param trusted_sources Optional character vector of trusted context sources.
+#' @param controls Optional list from [policy_controls()].
 #'
 #' @return A `shieldr_policy` S3 object.
 #' @examples
@@ -104,7 +139,8 @@ shieldr_policy <- function(name,
                            rules,
                            thresholds,
                            rate_guard = NULL,
-                           trusted_sources = NULL) {
+                           trusted_sources = NULL,
+                           controls = NULL) {
   .check_string(name, "name")
   .check_rule_list(rules, "rules")
   thresholds <- .validate_thresholds(thresholds)
@@ -112,6 +148,7 @@ shieldr_policy <- function(name,
   if (!is.null(trusted_sources) && !is.character(trusted_sources)) {
     cli::cli_abort("{.arg trusted_sources} must be a character vector or {.code NULL}.")
   }
+  controls <- .validate_policy_controls(controls)
 
   structure(
     list(
@@ -119,7 +156,8 @@ shieldr_policy <- function(name,
       rules = rules,
       thresholds = thresholds,
       rate_guard = rate_guard,
-      trusted_sources = trusted_sources
+      trusted_sources = trusted_sources,
+      controls = controls
     ),
     class = "shieldr_policy"
   )
@@ -155,7 +193,9 @@ print.shieldr_policy <- function(x, ...) {
 #' text was allowed, redacted, or blocked. `risk_score` is a deterministic
 #' severity index from `0` to `1`; it is not a probability. The `checks` field
 #' records whether the report came from deterministic rules, NLP checks, an LLM
-#' reviewer, or a combined mode.
+#' reviewer, or a combined mode. `metadata` carries optional operational
+#' details such as semantic reviewer parse errors, scanner settings, context row
+#' indexes, source labels, tool names, or conversation roles.
 #'
 #' @param action Resolved action: `"allow"`, `"redact"`, or `"block"`.
 #' @param text_clean Cleaned or redacted text.
@@ -165,6 +205,7 @@ print.shieldr_policy <- function(x, ...) {
 #' @param checks Check mode used.
 #' @param timestamp ISO8601 timestamp.
 #' @param tokens Optional token count for the original text.
+#' @param metadata Optional list of operational metadata.
 #'
 #' @return A `shieldr_report` S3 object.
 #' @examples
@@ -177,8 +218,9 @@ shieldr_report <- function(action,
                            policy,
                            checks,
                            timestamp = .now_iso(),
-                           tokens = NULL) {
-  .check_choice(action, "action", .shieldr_actions())
+                           tokens = NULL,
+                           metadata = list()) {
+  .check_choice(action, "action", .shieldr_report_actions())
   .check_string(text_clean, "text_clean", allow_empty = TRUE)
   if (!is.list(findings)) {
     cli::cli_abort("{.arg findings} must be a list.")
@@ -190,6 +232,9 @@ shieldr_report <- function(action,
   if (!is.null(tokens) && !(is.numeric(tokens) && length(tokens) == 1L && !is.na(tokens))) {
     cli::cli_abort("{.arg tokens} must be a single integer-like value or {.code NULL}.")
   }
+  if (!is.list(metadata)) {
+    cli::cli_abort("{.arg metadata} must be a list.")
+  }
 
   structure(
     list(
@@ -200,7 +245,8 @@ shieldr_report <- function(action,
       policy = policy,
       checks = checks,
       timestamp = timestamp,
-      tokens = if (!is.null(tokens)) as.integer(tokens) else NULL
+      tokens = if (!is.null(tokens)) as.integer(tokens) else NULL,
+      metadata = metadata
     ),
     class = "shieldr_report"
   )
@@ -250,7 +296,8 @@ print.shieldr_report <- function(x, ...) {
 #' @param output_raw Raw model output, or `NULL`.
 #' @param elapsed_ms Elapsed time in milliseconds.
 #' @param token_estimate Integer token estimate.
-#' @param action Final action.
+#' @param action Final action. `secure_chat()` may return `"refuse"` or
+#'   `"escalate"` when policy controls map a blocked report to those outcomes.
 #'
 #' @return A `shieldr_audit` S3 object.
 #' @examples
@@ -277,7 +324,7 @@ shieldr_audit <- function(input_report = NULL,
   if (!(is.numeric(token_estimate) && length(token_estimate) == 1L && !is.na(token_estimate))) {
     cli::cli_abort("{.arg token_estimate} must be a single integer-like value.")
   }
-  .check_choice(action, "action", .shieldr_actions())
+  .check_choice(action, "action", .shieldr_final_actions())
 
   structure(
     list(
@@ -309,7 +356,8 @@ shieldr_audit <- function(input_report = NULL,
 #' @param output Cleaned model output, or `NULL`.
 #' @param audit A `shieldr_audit` object.
 #' @param risk_summary Named numeric vector keyed by OWASP category.
-#' @param action Final action.
+#' @param action Final action. May be `"allow"`, `"redact"`, `"block"`,
+#'   `"refuse"`, or `"escalate"`.
 #'
 #' @return A `shieldr_result` S3 object.
 #' @examples
@@ -329,7 +377,7 @@ shieldr_result <- function(output = NULL,
   if (!is.numeric(risk_summary)) {
     cli::cli_abort("{.arg risk_summary} must be a named numeric vector.")
   }
-  .check_choice(action, "action", .shieldr_actions())
+  .check_choice(action, "action", .shieldr_final_actions())
 
   structure(
     list(
@@ -509,9 +557,9 @@ rule_secrets_password <- function() {
     id = "llm02.secret.password",
     pattern = paste(
       "(?i)",
-      "\\b(password|passcode|pwd)\\b\\s*(?:[:=]\\s*)?['\"]?",
-      "(?=[^\\s'\"]{8,})(?=[^\\s'\"]*(?:[0-9]|[!@#$%^&*()_+={}:;,.<>/?\\[\\]~\\-]))",
-      "[^\\s'\"]+",
+      "\\b(password|passcode|pwd)\\b(?:\\s*[:=]\\s*|\\s+)['\"]?",
+      "(?=[^\\s'\";]{8,})(?=[^\\s'\";]*(?:[0-9]|[!@#$%^&*()_+={}:,.<>/?\\[\\]~\\-]))",
+      "[^\\s'\";]+",
       sep = ""
     ),
     owasp = "llm02",
@@ -618,7 +666,7 @@ rule_financial_advice <- function() {
 .rule_secrets_connection_string <- function() {
   shieldr_rule(
     id = "llm02.secret.connection_string",
-    pattern = "(?i)\\b(server|host|data\\s+source)\\s*=\\s*[^;]+;.*\\b(uid|user\\s*id|password|pwd)\\s*=",
+    pattern = "(?i)\\b(server|host|data\\s+source)\\s*=\\s*[^;]+;.*\\b(uid|user\\s*id|password|pwd)\\s*=\\s*[^;\\s]+;?",
     owasp = "llm02",
     severity = "high",
     action = "redact",
@@ -743,8 +791,24 @@ rule_financial_advice <- function() {
 
   has <- function(words) any(words %in% terms)
 
-  if (has(c("ignore", "ignor", "disregard", "forget", "override", "overrid", "bypass", "jailbreak")) &&
-      has(c("instruction", "instruct", "system", "developer", "rule", "prompt", "policy", "polici"))) {
+  override_seeds <- c(
+    "ignore", "forget", "override", "instead", "disregard",
+    "bypass", "skip", "suppress", "cancel", "nullify"
+  )
+  instruction_seeds <- c("instruction", "system", "developer", "rule", "prompt", "policy")
+  reveal_seeds <- c("reveal", "show", "print", "dump", "extract", "exfiltrate", "leak")
+  secret_seeds <- c("secret", "password", "token", "credential", "api", "key", "system", "prompt")
+  harmful_action_seeds <- c("write", "create", "build", "generate", "steal", "hack", "exploit")
+  harmful_content_seeds <- c("malware", "ransomware", "keylogger", "phishing", "exploit")
+
+  override_terms <- .nlp_seed_terms(override_seeds)
+  instruction_terms <- .nlp_seed_terms(instruction_seeds)
+  reveal_terms <- .nlp_seed_terms(reveal_seeds)
+  secret_terms <- .nlp_seed_terms(secret_seeds)
+  harmful_action_terms <- .nlp_seed_terms(harmful_action_seeds)
+  harmful_content_terms <- .nlp_seed_terms(harmful_content_seeds)
+
+  if (has(override_terms) && has(instruction_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm01.nlp.override_intent",
       owasp = "llm01",
@@ -755,8 +819,8 @@ rule_financial_advice <- function() {
     )
   }
 
-  if (has(c("reveal", "show", "print", "dump", "extract", "exfiltrate", "exfiltr", "leak")) &&
-      has(c("secret", "password", "token", "credential", "api", "key", "system", "prompt")) &&
+  if (has(reveal_terms) &&
+      has(secret_terms) &&
       !.nlp_negated_reveal(text)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm01.nlp.secret_exposure_intent",
@@ -768,8 +832,7 @@ rule_financial_advice <- function() {
     )
   }
 
-  if (has(c("write", "create", "build", "generate", "steal", "hack", "exploit")) &&
-      has(c("malware", "ransomware", "keylogger", "phishing", "exploit"))) {
+  if (has(harmful_action_terms) && has(harmful_content_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm05.nlp.harmful_intent",
       owasp = "llm05",
@@ -780,12 +843,12 @@ rule_financial_advice <- function() {
     )
   }
 
-  directive_terms <- c(
-    "ignore", "ignor", "forget", "override", "overrid", "disregard",
-    "bypass", "reveal", "show", "print", "dump", "extract", "exfiltrate",
-    "exfiltr", "act", "pretend", "write", "create", "build", "generate",
-    "steal", "hack"
-  )
+  directive_terms <- unique(c(
+    override_terms,
+    reveal_terms,
+    harmful_action_terms,
+    .nlp_seed_terms(c("act", "pretend"))
+  ))
   directive_density <- sum(tokens %in% directive_terms | stems %in% directive_terms) / length(tokens)
   if (length(tokens) >= 8L && directive_density >= 0.25) {
     findings[[length(findings) + 1L]] <- list(
@@ -799,6 +862,10 @@ rule_financial_advice <- function() {
   }
 
   findings
+}
+
+.nlp_seed_terms <- function(seeds) {
+  unique(c(seeds, .nlp_stems(seeds)))
 }
 
 .nlp_tokens <- function(text) {
@@ -842,6 +909,14 @@ rule_financial_advice <- function() {
 
 .shieldr_actions <- function() {
   c("allow", "redact", "block")
+}
+
+.shieldr_rule_actions <- .shieldr_actions
+
+.shieldr_report_actions <- .shieldr_actions
+
+.shieldr_final_actions <- function() {
+  c(.shieldr_actions(), "refuse", "escalate")
 }
 
 .severity_score <- function(severity) {
@@ -952,4 +1027,18 @@ rule_financial_advice <- function() {
   x <- as.character(x)
   x <- x[!is.na(x)]
   x[nzchar(x)]
+}
+
+.report_metadata <- function(...) {
+  metadata <- list(...)
+  keep <- vapply(metadata, function(value) {
+    if (is.null(value)) {
+      return(FALSE)
+    }
+    if (is.list(value) && length(value) == 0L) {
+      return(FALSE)
+    }
+    TRUE
+  }, logical(1))
+  metadata[keep]
 }

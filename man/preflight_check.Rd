@@ -10,6 +10,8 @@ preflight_check(
   reviewer = NULL,
   checks = "rules",
   redact = TRUE,
+  redaction = NULL,
+  scanners = scanner_options(),
   show_tokens = FALSE
 )
 }
@@ -23,6 +25,11 @@ preflight_check(
 \item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{redact}{Whether to redact matched spans in \code{text_clean}.}
+
+\item{redaction}{Optional redaction strategy from \code{\link[=redaction_strategy]{redaction_strategy()}}.
+Ignored when \code{redact = FALSE}.}
+
+\item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }

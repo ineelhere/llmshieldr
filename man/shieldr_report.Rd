@@ -12,7 +12,8 @@ shieldr_report(
   policy,
   checks,
   timestamp = .now_iso(),
-  tokens = NULL
+  tokens = NULL,
+  metadata = list()
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ shieldr_report(
 \item{timestamp}{ISO8601 timestamp.}
 
 \item{tokens}{Optional token count for the original text.}
+
+\item{metadata}{Optional list of operational metadata.}
 }
 \value{
 A \code{shieldr_report} S3 object.
@@ -44,7 +47,9 @@ Reports separate the cleaned text from the findings that explain why the
 text was allowed, redacted, or blocked. \code{risk_score} is a deterministic
 severity index from \code{0} to \code{1}; it is not a probability. The \code{checks} field
 records whether the report came from deterministic rules, NLP checks, an LLM
-reviewer, or a combined mode.
+reviewer, or a combined mode. \code{metadata} carries optional operational
+details such as semantic reviewer parse errors, scanner settings, context row
+indexes, source labels, tool names, or conversation roles.
 }
 \examples{
 shieldr_report("allow", "hello", list(), 0, "custom", "rules")

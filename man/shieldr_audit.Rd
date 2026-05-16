@@ -30,7 +30,8 @@ shieldr_audit(
 
 \item{token_estimate}{Integer token estimate.}
 
-\item{action}{Final action.}
+\item{action}{Final action. \code{secure_chat()} may return \code{"refuse"} or
+\code{"escalate"} when policy controls map a blocked report to those outcomes.}
 }
 \value{
 A \code{shieldr_audit} S3 object.

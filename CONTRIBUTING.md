@@ -31,6 +31,16 @@ devtools::check()
 - Preserve backwards compatibility unless there is a strong security or usability reason to change behavior.
 - For security-related changes, include at least one regression test that captures the failure mode.
 
+## Adding Or Changing Rules
+
+Rule changes need both detection and overblocking evidence.
+
+- Add at least one positive test where the risky text triggers the intended rule.
+- Add at least one negative test where ordinary text in the same domain is allowed.
+- Use a stable rule id with an OWASP prefix when the mapping is clear.
+- Keep regex rules narrow enough to preserve useful text around the finding.
+- Document any known false-positive tradeoff in the test or rule description.
+
 ## Documentation
 
 - Keep `README.md` focused on quick onboarding.

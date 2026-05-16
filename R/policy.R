@@ -11,6 +11,11 @@
 #' findings, calculate a risk score from finding severities, and then compare
 #' that score with the policy thresholds.
 #'
+#' `controls` configures [secure_chat()] orchestration behavior after a report
+#' has already resolved to `block`. For example, a policy can refuse blocked
+#' prompts with a user-facing message, drop blocked RAG rows, or mark blocked
+#' output for human review.
+#'
 #' Thresholds are merged over the package defaults:
 #'
 #' - `redact_at = 0.4`
@@ -26,6 +31,7 @@
 #'   `redact_at = 0.4` and `block_at = 0.75`.
 #' @param rate_guard Optional `shieldr_rate_guard`. When present, [secure_chat()]
 #'   checks the guard before chat calls and updates it after successful calls.
+#' @param controls Optional controls from [policy_controls()].
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -35,7 +41,8 @@
 build_policy <- function(name = "custom",
                          rules = list(),
                          thresholds = list(),
-                         rate_guard = NULL) {
+                         rate_guard = NULL,
+                         controls = NULL) {
   .check_string(name, "name")
   .check_rule_list(rules, "rules")
   defaults <- list(redact_at = 0.4, block_at = 0.75)
@@ -44,7 +51,8 @@ build_policy <- function(name = "custom",
     name = name,
     rules = rules,
     thresholds = thresholds,
-    rate_guard = rate_guard
+    rate_guard = rate_guard,
+    controls = controls
   )
 }
 
@@ -144,7 +152,7 @@ build_policy <- function(name = "custom",
     policy_name,
     pharma_gxp = list(redact_at = 0.3, block_at = 0.6),
     open_research = list(redact_at = 0.8, block_at = 0.95),
-    comprehensive = list(redact_at = 0.3, block_at = 0.6),
+    comprehensive = list(redact_at = 0.4, block_at = 0.7),
     list()
   )
 
@@ -165,12 +173,18 @@ build_policy <- function(name = "custom",
     .check_rate_guard(overrides$rate_guard)
     guard <- overrides$rate_guard
   }
+  controls <- if (!is.null(overrides$controls)) {
+    .validate_policy_controls(overrides$controls)
+  } else {
+    NULL
+  }
 
   policy <- build_policy(
     name = requested_name,
     rules = rules,
     thresholds = thresholds,
-    rate_guard = guard
+    rate_guard = guard,
+    controls = controls
   )
 
   if (!is.null(overrides$trusted_sources)) {
@@ -209,7 +223,10 @@ build_policy <- function(name = "custom",
 #' - `open_research`: a smaller open-workflow profile focused on injection and
 #'   secrets, with higher thresholds.
 #' - `comprehensive`: a maximum-coverage profile combining the enterprise,
-#'   pharma, finance, education, code-safety, and rate-guard controls.
+#'   pharma, finance, education, code-safety, and rate-guard controls. Uses
+#'   moderate thresholds (`redact_at = 0.4`, `block_at = 0.7`). For pharma-tier
+#'   strictness, supply `overrides = list(thresholds = list(redact_at = 0.3,
+#'   block_at = 0.6))` explicitly.
 #' - `custom`: no rules, default thresholds.
 #' - `baseline`: backward-compatible alias for `enterprise_default`.
 #'
@@ -218,7 +235,8 @@ build_policy <- function(name = "custom",
 #'
 #' @param name Built-in policy name. Defaults to `"enterprise_default"`.
 #' @param overrides Optional list with `rules`, `thresholds`, `rate_guard`, or
-#'   `trusted_sources` entries.
+#'   `trusted_sources` entries. `controls` may be supplied with
+#'   [policy_controls()] to tune orchestration behavior in [secure_chat()].
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -248,7 +266,7 @@ policy <- function(name = "enterprise_default", overrides = list()) {
       "Financial-services controls with account, advice, trading, and rate-guard checks.",
       "Education controls for minor PII and academic-integrity bypasses.",
       "Lighter research profile focused on injection and secrets with higher thresholds.",
-      "Maximum built-in coverage across enterprise, clinical, finance, education, code, and rate limits.",
+      "Maximum built-in coverage across enterprise, clinical, finance, education, code, and rate limits. Uses moderate thresholds (redact_at = 0.4, block_at = 0.7). For pharma-tier strictness, supply overrides = list(thresholds = list(redact_at = 0.3, block_at = 0.6)) explicitly.",
       "Empty policy for fully custom rule sets."
     ),
     stringsAsFactors = FALSE
@@ -314,6 +332,9 @@ available_policies <- function(selected = NULL) {
 
 .as_policy <- function(policy) {
   if (inherits(policy, "shieldr_policy")) {
+    if (is.null(policy$controls)) {
+      policy$controls <- policy_controls()
+    }
     return(policy)
   }
   if (is.character(policy) && length(policy) == 1L && !is.na(policy)) {

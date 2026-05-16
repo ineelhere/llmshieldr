@@ -11,6 +11,8 @@ secure_chat(
   reviewer = NULL,
   checks = "rules",
   context = NULL,
+  redaction = NULL,
+  scanners = scanner_options(),
   show_tokens = FALSE,
   ...
 )
@@ -27,6 +29,10 @@ secure_chat(
 \item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{context}{Optional data frame of retrieved context.}
+
+\item{redaction}{Optional redaction strategy from \code{\link[=redaction_strategy]{redaction_strategy()}}.}
+
+\item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 
@@ -48,8 +54,9 @@ steps:
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
 \item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.
 \item If context is supplied, scan it with \code{\link[=scan_context]{scan_context()}} and append only
-non-blocked context rows to the cleaned prompt.
-\item Check the policy rate guard, if present.
+allowed context rows to the cleaned prompt, using row IDs, source labels,
+and separators.
+\item Reserve request and token budget with the policy rate guard, if present.
 \item Call the chat object.
 \item Scan model output with \code{\link[=scan_output]{scan_output()}}.
 \item Resolve the final action, update the rate guard, and build an audit.
@@ -58,7 +65,8 @@ non-blocked context rows to the cleaned prompt.
 The returned \code{risk_summary} aggregates finding severity scores by OWASP
 category across prompt, context, and output reports. The final action is the
 most conservative action across input and output: \code{block} beats \code{redact},
-and \code{redact} beats \code{allow}.
+and \code{redact} beats \code{allow}. Policy controls can map blocked prompt or output
+reports to final actions of \code{refuse} or \code{escalate}.
 }
 \examples{
 \dontrun{

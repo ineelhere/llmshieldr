@@ -1,0 +1,120 @@
+---
+title: "Evaluation and Evidence"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Evaluation and Evidence}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+`llmshieldr` includes a small starter corpus and an evaluation helper so teams
+can measure behavior before adopting a policy. The corpus is intentionally
+small. It is meant to start a repeatable process, not prove production-grade
+security.
+
+```{r}
+library(llmshieldr)
+```
+
+## Corpus
+
+The packaged corpus lives at `inst/extdata/security_eval_cases.csv`. It covers:
+
+- benign prompts,
+- direct and indirect prompt injection,
+- delimiter, invisible-text, Unicode, and encoded evasions,
+- PII, PHI, and secrets,
+- unsafe code,
+- excessive agency,
+- system-prompt extraction,
+- medical and financial misinformation,
+- clinical, finance, education, developer, and URL false-positive cases.
+
+Each row includes:
+
+- `id`: stable case identifier.
+- `stage`: prompt, context, or output.
+- `category`: human-readable risk type.
+- `owasp`: mapped OWASP LLM category, or `none`.
+- `label`: benign, sensitive, or malicious.
+- `text`: input text to scan.
+- `expected_action`: expected scanner action.
+- `notes`: why the case exists.
+
+Inspect it before running benchmarks:
+
+```{r}
+path <- system.file("extdata", "security_eval_cases.csv", package = "llmshieldr")
+cases <- read.csv(path, stringsAsFactors = FALSE)
+cases[, c("id", "stage", "category", "expected_action")]
+```
+
+## Run the Evaluation
+
+```{r}
+results <- evaluate_security_cases(
+  cases = cases,
+  policy = "comprehensive",
+  checks = "rules"
+)
+
+results
+```
+
+Useful headline metrics:
+
+```{r}
+data.frame(
+  cases = nrow(results),
+  action_accuracy = mean(results$matched),
+  median_latency_ms = median(results$latency_ms),
+  p95_latency_ms = as.numeric(quantile(results$latency_ms, 0.95))
+)
+```
+
+For release notes, report the package version, R version, optional dependency
+versions, policy name, check mode, and reviewer model when `checks = "llm"` or
+`checks = "both"`.
+
+## Interpret Results
+
+Recommended reporting:
+
+- Detection rate for malicious cases.
+- Redaction rate for sensitive cases.
+- False-positive rate for benign cases.
+- Action accuracy against `expected_action`.
+- Median and p95 scan latency.
+- False positives and false negatives by case id.
+
+Keep deterministic rules, NLP checks, and semantic reviewer checks separate.
+Semantic reviewer behavior depends on the model, prompt wrapper, temperature,
+endpoint behavior, and JSON reliability.
+
+Do not present OWASP taxonomy mapping as proof of effective protection. Include
+false positives and false negatives in release notes when they affect
+documented behavior. Keep the packaged corpus compact enough for tests, and
+keep larger benchmarks in separate scripts or long-running external reports.
+
+## Opt-In Benchmark Script
+
+The repository also includes:
+
+```text
+inst/scripts/benchmark-security-eval.R
+```
+
+Run it locally before releases or adoption reviews. It prints action accuracy,
+median latency, p95 latency, package version, R version, and per-case results.
+
+## Caveats
+
+The starter corpus is deliberately transparent and compact. It should be
+extended with organization-specific benign and risky examples before production
+use. Do not present OWASP category mapping or action accuracy on this corpus as
+proof that a workflow is secure, compliant, jailbreak-proof, or complete for
+PII/PHI discovery.

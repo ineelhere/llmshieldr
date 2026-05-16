@@ -9,7 +9,8 @@ shieldr_policy(
   rules,
   thresholds,
   rate_guard = NULL,
-  trusted_sources = NULL
+  trusted_sources = NULL,
+  controls = NULL
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ values between 0 and 1.}
 \item{rate_guard}{A \code{shieldr_rate_guard} environment, or \code{NULL}.}
 
 \item{trusted_sources}{Optional character vector of trusted context sources.}
+
+\item{controls}{Optional list from \code{\link[=policy_controls]{policy_controls()}}.}
 }
 \value{
 A \code{shieldr_policy} S3 object.
@@ -39,6 +42,12 @@ so advanced users and tests can construct exact policy objects.
 sources are treated as trusted. If it is a character vector and \code{source_col}
 is supplied to \code{\link[=scan_context]{scan_context()}}, rows with source values outside the allowlist
 receive an OWASP LLM08 finding.
+
+\code{controls} is used by \code{\link[=secure_chat]{secure_chat()}} after scanner reports have already
+resolved to \code{allow}, \code{redact}, or \code{block}. Use \code{\link[=policy_controls]{policy_controls()}} to decide
+whether blocked prompts or outputs should return \code{block}, \code{refuse}, or
+\code{escalate}, and whether blocked context rows should be dropped, kept in
+redacted form, or stop the chat call.
 }
 \examples{
 shieldr_policy("empty", list(), list(redact_at = 0.4, block_at = 0.75))

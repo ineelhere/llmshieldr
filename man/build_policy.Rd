@@ -8,7 +8,8 @@ build_policy(
   name = "custom",
   rules = list(),
   thresholds = list(),
-  rate_guard = NULL
+  rate_guard = NULL,
+  controls = NULL
 )
 }
 \arguments{
@@ -21,6 +22,8 @@ build_policy(
 
 \item{rate_guard}{Optional \code{shieldr_rate_guard}. When present, \code{\link[=secure_chat]{secure_chat()}}
 checks the guard before chat calls and updates it after successful calls.}
+
+\item{controls}{Optional controls from \code{\link[=policy_controls]{policy_controls()}}.}
 }
 \value{
 A \code{shieldr_policy}.
@@ -36,6 +39,11 @@ a list of deterministic rules, threshold values, and an optional rate guard.
 The scanners do not mutate a policy; they read the rule list, create
 findings, calculate a risk score from finding severities, and then compare
 that score with the policy thresholds.
+
+\code{controls} configures \code{\link[=secure_chat]{secure_chat()}} orchestration behavior after a report
+has already resolved to \code{block}. For example, a policy can refuse blocked
+prompts with a user-facing message, drop blocked RAG rows, or mark blocked
+output for human review.
 
 Thresholds are merged over the package defaults:
 \itemize{

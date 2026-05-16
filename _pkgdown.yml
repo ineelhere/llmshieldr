@@ -1,4 +1,4 @@
-url: http://www.indraneelchakraborty.com/llmshieldr/
+url: https://www.indraneelchakraborty.com/llmshieldr/
 
 template:
   bootstrap: 5
@@ -31,6 +31,7 @@ reference:
       - build_policy
       - policy
       - available_policies
+      - policy_controls
       - add_rule
       - remove_rule
       - list_rules
@@ -42,12 +43,19 @@ reference:
       - preflight_check
       - scan_context
       - scan_output
+      - scan_conversation
+      - scan_stream
+      - scan_tool_call
+      - scan_tool_output
+      - scanner_options
+      - redaction_strategy
 
   - title: Orchestration
     contents:
       - secure_chat
       - shield_ollama
       - ollama_reviewer
+      - remote_reviewer
       - trust_boundary
       - rate_guard
 
@@ -56,6 +64,8 @@ reference:
       - write_audit_log
       - explain_findings
       - example_prompts
+      - evaluate_security_cases
+      - reviewer_prompt
 
   - title: Constructors
     contents:
@@ -77,6 +87,11 @@ articles:
       - custom-rules
       - rag-pipeline
       - owasp-coverage
+      - evaluation
+      - threat-model
+      - operations
+      - architecture
+      - ecosystem-context
 
 search:
   enabled: true

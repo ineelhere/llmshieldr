@@ -14,7 +14,7 @@
 #'
 #' @return A character vector of formatted finding explanations.
 #' @examples
-#' report <- scan_prompt("email me at jane@example.com", policy("enterprise_default"))
+#' report <- scan_prompt("email me at neel@example.com", policy("enterprise_default"))
 #' explain_findings(report$findings)
 #' @export
 explain_findings <- function(findings, format = "text") {
@@ -48,11 +48,20 @@ explain_findings <- function(findings, format = "text") {
   }
 
   vapply(findings, function(finding) {
-    severity <- finding$severity %||% "unknown"
+    severity <- .html_escape(finding$severity %||% "unknown")
+    rule_id <- .html_escape(finding$rule_id %||% "finding")
+    description <- .html_escape(finding$description %||% "")
+    match <- finding$match %||% NA_character_
+    match_html <- if (!is.na(match) && nzchar(match)) {
+      paste0("<span class=\"shieldr-match\">", .html_escape(match), "</span>")
+    } else {
+      ""
+    }
     paste0(
-      "<div class=\"shieldr-finding severity-", .html_escape(severity), "\">",
-      "<strong>", .html_escape(finding$rule_id %||% "finding"), "</strong>: ",
-      .html_escape(finding$description %||% ""),
+      "<div class=\"shieldr-finding severity-", severity, "\">",
+      "<strong>", rule_id, "</strong>: ",
+      description,
+      match_html,
       "</div>"
     )
   }, character(1))
@@ -84,9 +93,8 @@ explain_findings <- function(findings, format = "text") {
 
 .html_escape <- function(x) {
   x <- as.character(x)
-  x <- gsub("&", "&amp;", x, fixed = TRUE)
-  x <- gsub("<", "&lt;", x, fixed = TRUE)
-  x <- gsub(">", "&gt;", x, fixed = TRUE)
-  x <- gsub("\"", "&quot;", x, fixed = TRUE)
-  x
+  if (requireNamespace("htmltools", quietly = TRUE)) {
+    return(as.character(htmltools::htmlEscape(x)))
+  }
+  gsub("[<>&\"']", "", x)
 }

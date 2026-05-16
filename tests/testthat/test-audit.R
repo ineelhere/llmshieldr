@@ -1,5 +1,5 @@
 test_that("write_audit_log writes JSONL that can be read back", {
-  report <- scan_prompt("Contact jane@example.com.", policy("enterprise_default"))
+  report <- scan_prompt("Contact neel@example.com.", policy("enterprise_default"))
   audit <- shieldr_audit(report, NULL, NULL, report$text_clean, NULL, 1, 1L, report$action)
   path <- tempfile(fileext = ".jsonl")
 
@@ -11,7 +11,7 @@ test_that("write_audit_log writes JSONL that can be read back", {
 })
 
 test_that("explain_findings returns character output", {
-  report <- scan_prompt("Contact jane@example.com.", policy("enterprise_default"))
+  report <- scan_prompt("Contact neel@example.com.", policy("enterprise_default"))
 
   text <- explain_findings(report$findings)
   markdown <- explain_findings(report$findings, format = "markdown")

@@ -12,7 +12,7 @@ test_that("prompt injection is blocked", {
 })
 
 test_that("PII and secrets are redacted", {
-  pii <- scan_prompt("Contact jane@example.com for details.", policy("enterprise_default"))
+  pii <- scan_prompt("Contact neel@example.com for details.", policy("enterprise_default"))
   expect_equal(pii$action, "redact")
   expect_match(pii$text_clean, "\\[REDACTED\\]")
 
@@ -22,7 +22,7 @@ test_that("PII and secrets are redacted", {
 })
 
 test_that("built-in policy names can be used directly", {
-  report <- scan_prompt("Contact jane@example.com for details.", policy = "enterprise_default")
+  report <- scan_prompt("Contact neel@example.com for details.", policy = "enterprise_default")
 
   expect_s3_class(report, "shieldr_report")
   expect_equal(report$action, "redact")

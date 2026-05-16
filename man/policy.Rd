@@ -10,7 +10,8 @@ policy(name = "enterprise_default", overrides = list())
 \item{name}{Built-in policy name. Defaults to \code{"enterprise_default"}.}
 
 \item{overrides}{Optional list with \code{rules}, \code{thresholds}, \code{rate_guard}, or
-\code{trusted_sources} entries.}
+\code{trusted_sources} entries. \code{controls} may be supplied with
+\code{\link[=policy_controls]{policy_controls()}} to tune orchestration behavior in \code{\link[=secure_chat]{secure_chat()}}.}
 }
 \value{
 A \code{shieldr_policy}.
@@ -40,7 +41,9 @@ academic-integrity bypass language.
 \item \code{open_research}: a smaller open-workflow profile focused on injection and
 secrets, with higher thresholds.
 \item \code{comprehensive}: a maximum-coverage profile combining the enterprise,
-pharma, finance, education, code-safety, and rate-guard controls.
+pharma, finance, education, code-safety, and rate-guard controls. Uses
+moderate thresholds (\code{redact_at = 0.4}, \code{block_at = 0.7}). For pharma-tier
+strictness, supply \code{overrides = list(thresholds = list(redact_at = 0.3, block_at = 0.6))} explicitly.
 \item \code{custom}: no rules, default thresholds.
 \item \code{baseline}: backward-compatible alias for \code{enterprise_default}.
 }

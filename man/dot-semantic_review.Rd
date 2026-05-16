@@ -21,8 +21,12 @@ Asks a reviewer model or function for JSON findings.
 }
 \details{
 The reviewer prompt asks for an array of objects containing \code{rule_id},
-\code{owasp}, \code{severity}, and \code{description}. The reviewer can be a function or an
-object with \verb{$chat()}. Malformed JSON is treated as a soft failure because
-deterministic rule findings should still be usable.
+\code{owasp}, \code{severity}, and \code{description}. Reviewers may also return
+\code{confidence}, \code{evidence}, \code{recommended_action}, and \code{span}. \code{span} may be a
+two-element numeric vector or an object with \code{start} and \code{end}. The reviewer
+can be a function or an object with \verb{$chat()}. Malformed JSON is treated as a
+soft failure because deterministic rule findings should still be usable.
+Structured parse and schema errors are attached to the report metadata by the
+public scanner wrappers.
 }
 \keyword{internal}
