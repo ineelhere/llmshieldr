@@ -38,6 +38,17 @@ Exactly one of `pattern` or `fn` must be supplied. Regex rules produce match
 spans that can be redacted. Function rules are useful when the condition is
 easier to express in R.
 
+Function rules may return:
+
+- `TRUE` or `FALSE`
+- one finding list
+- a list of finding lists
+- a data frame of findings
+
+Finding lists can include `rule_id`, `owasp`, `severity`, `action`,
+`description`, `match`, `start`, `end`, and `source`. Include `start` and
+`end` when you want custom function findings to participate in redaction.
+
 ## Numbers and Thresholds
 
 Severity maps to risk score contributions:
@@ -49,8 +60,9 @@ Severity maps to risk score contributions:
 | `high` | 0.6 |
 | `critical` | 1.0 |
 
-Findings are deduplicated, summed, and capped at `1.0`. Synthetic context
-findings are capped separately at `0.3` per row. A policy's thresholds then
+Findings are deduplicated, overlapping spans from the same evidence are scored
+once, distinct findings are summed, and the total is capped at `1.0`.
+Synthetic context findings are capped separately. A policy's thresholds then
 decide the final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
 
 ```{r}
@@ -101,6 +113,29 @@ education <- add_rule(
 scan_prompt("The student home address appears in the form.", education)
 ```
 
+Function rules can also return span-aware findings:
+
+```{r}
+ticket_span_rule <- function(text) {
+  hit <- regexpr("\\bTICKET-[0-9]{6}\\b", text, perl = TRUE)
+  if (identical(as.integer(hit[[1]]), -1L)) {
+    return(FALSE)
+  }
+  start <- as.integer(hit[[1]])
+  end <- start + as.integer(attr(hit, "match.length")) - 1L
+  list(
+    rule_id = "llm02.ticket_id.fn",
+    owasp = "llm02",
+    severity = "medium",
+    action = "redact",
+    description = "Internal support ticket identifier.",
+    match = substr(text, start, end),
+    start = start,
+    end = end
+  )
+}
+```
+
 ## Industry Examples
 
 Healthcare and life sciences often add identifiers beyond generic PII.
@@ -147,3 +182,18 @@ audit whether a policy is mostly regex-based, function-based, or mixed.
 Custom rule ids that do not follow the `llmXX.` naming convention still work,
 but `shieldr_rule()` warns because OWASP risk summaries are clearest when rule
 ids carry the category prefix.
+
+## Rule Test Checklist
+
+For every new rule, keep at least:
+
+- one positive case that should trigger the rule,
+- one nearby negative case that should not trigger,
+- one redaction assertion when the rule should redact,
+- one policy-level assertion when the rule should block,
+- one domain-specific benign case if the rule targets clinical, finance,
+  education, developer, or other specialized text.
+
+The packaged evaluation corpus at `inst/extdata/security_eval_cases.csv` is a
+small starting point for these cases. Add application-specific corpora outside
+the package when examples contain real or sensitive data.

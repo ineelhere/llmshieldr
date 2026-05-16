@@ -1,0 +1,108 @@
+---
+title: "Threat Model"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Threat Model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+`llmshieldr` is an application-level guardrail layer for R workflows that send
+text to large language models or receive text from them. It helps make common
+risks visible and auditable; it is not a complete security boundary.
+
+## Assets
+
+- User prompts and chat history.
+- Retrieved context in RAG workflows.
+- Model outputs before display, storage, or downstream use.
+- Sensitive data such as PII, PHI, credentials, and business records.
+- Tool inputs and outputs in applications that call external systems.
+- Streaming chunks before complete model output is available.
+- Audit logs and policy configuration.
+
+## Trust Boundaries
+
+- User-provided text entering an R application.
+- Retrieved documents, search results, or database rows entering model context.
+- Model output leaving the LLM provider or local model.
+- Tool calls that can affect files, databases, APIs, accounts, or transactions.
+- Streaming output chunks crossing from model provider to application.
+- Audit logs written to local or shared storage.
+
+## In Scope
+
+`llmshieldr` provides starter controls for:
+
+- Direct and indirect prompt-injection language.
+- Common PII, PHI, and secret patterns.
+- Simple NLP intent signals for override, exposure, and harmful-action intent.
+- Output markers for unsafe agency, system-prompt leakage, unsafe code, and
+  high-confidence medical or financial claims.
+- RAG context source allowlists and simple context anomaly signals.
+- Tool-call argument scanning and tool-output scanning.
+- Conversation scanning with role-preserving metadata.
+- Streaming output scanning with rolling context.
+- Token and request budget guards with pre-call reservation and rollback.
+- Optional semantic review through a reviewer function, chat object, local
+  Ollama reviewer, or remote reviewer endpoint.
+- Auditable findings, actions, risk scores, and JSONL/CSV/RDS audit output.
+
+## Partially Covered
+
+These areas have package surface but need workflow-specific evidence or
+additional controls before they should be treated as robust protections:
+
+- OWASP LLM Top 10 coverage. The package maps controls to categories, but this
+  is not exhaustive protection for each category.
+- Obfuscated prompt injection. Unicode normalization, delimiter collapse,
+  invisible-text findings, and encoded-payload checks help, but a larger
+  adversarial evaluation suite is still needed.
+- RAG poisoning. Source allowlists and anomaly checks help, but there is no
+  provenance scoring, embedding-neighborhood analysis, or document trust graph.
+- Semantic review. Reviewer JSON is parsed with schema metadata, confidence,
+  evidence, recommended actions, span support, and structured failure metadata,
+  but reviewer reliability depends on the model and deployment.
+- Tool and streaming guardrails. Package helpers scan text surfaces, but they
+  do not replace application authorization, sandboxing, idempotency, or
+  rollback for external side effects.
+
+## Out Of Scope
+
+`llmshieldr` does not provide:
+
+- A network firewall or sandbox.
+- Model training-time alignment.
+- Formal compliance certification.
+- Guaranteed PII/PHI discovery.
+- Malware analysis.
+- Full multilingual safety coverage.
+- Automated execution of tools or tool authorization.
+- Full human approval workflow management beyond `escalate` action metadata.
+- Cross-machine distributed rate limiting.
+- Protection against compromised model providers, dependencies, or
+  infrastructure.
+
+## Expected Use
+
+Use `llmshieldr` as one transparent layer in a broader safety design:
+
+- Scan and redact prompts before sending them to a model.
+- Scan retrieved context before adding it to prompts.
+- Scan model outputs before display or downstream use.
+- Scan tool-call inputs before execution and tool outputs before reuse.
+- Scan streaming output chunks when using streaming APIs.
+- Configure policy controls for refusal and escalation behavior.
+- Write audit logs to sensitive storage.
+- Add organization-specific rules and negative tests.
+- Run evaluations against your own application data before deployment.
+
+## Non-Goals
+
+Do not describe `llmshieldr` as guaranteeing safety, compliance, jailbreak
+resistance, or complete OWASP coverage. It is an R-native, transparent,
+testable guardrail package with starter controls and extension points.

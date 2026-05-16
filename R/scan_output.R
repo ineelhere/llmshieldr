@@ -21,6 +21,8 @@
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
+#' @param redaction Optional redaction strategy from [redaction_strategy()].
+#' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_report`.
@@ -32,16 +34,22 @@ scan_output <- function(text,
                         policy = "enterprise_default",
                         reviewer = NULL,
                         checks = "rules",
+                        redaction = NULL,
+                        scanners = scanner_options(),
                         show_tokens = FALSE) {
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  redaction <- .validate_redaction_strategy(redaction)
+  scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
-  .validate_reviewer(reviewer)
+  .validate_reviewer_for_checks(reviewer, checks)
 
-  text_norm <- stringi::stri_trans_nfkc(text)
+  text_norm <- .normalise_text(text, collapse_whitespace = FALSE, collapse_delimited = FALSE)
   output_policy <- .output_policy(policy)
   findings <- list()
+  reviewer_errors <- list()
+  findings <- c(findings, .run_scanners(text, text_norm, output_policy, scanners, stage = "output"))
 
   if (checks %in% c("rules", "both")) {
     code_blocks <- .extract_fenced_code(text_norm)
@@ -65,7 +73,9 @@ scan_output <- function(text,
   }
 
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
-    findings <- c(findings, .semantic_review(text_norm, reviewer, policy$name))
+    semantic <- .semantic_review(text_norm, reviewer, policy$name)
+    reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
+    findings <- c(findings, semantic)
   }
 
   findings <- .dedupe_findings(findings)
@@ -74,12 +84,17 @@ scan_output <- function(text,
 
   shieldr_report(
     action = action,
-    text_clean = .apply_redaction(text_norm, findings),
+    text_clean = .apply_redaction(text_norm, findings, redaction),
     findings = findings,
     risk_score = risk_score,
     policy = policy$name,
     checks = checks,
-    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL
+    tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL,
+    metadata = .report_metadata(
+      stage = "output",
+      reviewer_errors = reviewer_errors,
+      scanners = scanners
+    )
   )
 }
 

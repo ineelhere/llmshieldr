@@ -11,6 +11,11 @@
 #' findings, calculate a risk score from finding severities, and then compare
 #' that score with the policy thresholds.
 #'
+#' `controls` configures [secure_chat()] orchestration behavior after a report
+#' has already resolved to `block`. For example, a policy can refuse blocked
+#' prompts with a user-facing message, drop blocked RAG rows, or mark blocked
+#' output for human review.
+#'
 #' Thresholds are merged over the package defaults:
 #'
 #' - `redact_at = 0.4`
@@ -26,6 +31,7 @@
 #'   `redact_at = 0.4` and `block_at = 0.75`.
 #' @param rate_guard Optional `shieldr_rate_guard`. When present, [secure_chat()]
 #'   checks the guard before chat calls and updates it after successful calls.
+#' @param controls Optional controls from [policy_controls()].
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -35,7 +41,8 @@
 build_policy <- function(name = "custom",
                          rules = list(),
                          thresholds = list(),
-                         rate_guard = NULL) {
+                         rate_guard = NULL,
+                         controls = NULL) {
   .check_string(name, "name")
   .check_rule_list(rules, "rules")
   defaults <- list(redact_at = 0.4, block_at = 0.75)
@@ -44,7 +51,8 @@ build_policy <- function(name = "custom",
     name = name,
     rules = rules,
     thresholds = thresholds,
-    rate_guard = rate_guard
+    rate_guard = rate_guard,
+    controls = controls
   )
 }
 
@@ -165,12 +173,18 @@ build_policy <- function(name = "custom",
     .check_rate_guard(overrides$rate_guard)
     guard <- overrides$rate_guard
   }
+  controls <- if (!is.null(overrides$controls)) {
+    .validate_policy_controls(overrides$controls)
+  } else {
+    NULL
+  }
 
   policy <- build_policy(
     name = requested_name,
     rules = rules,
     thresholds = thresholds,
-    rate_guard = guard
+    rate_guard = guard,
+    controls = controls
   )
 
   if (!is.null(overrides$trusted_sources)) {
@@ -221,7 +235,8 @@ build_policy <- function(name = "custom",
 #'
 #' @param name Built-in policy name. Defaults to `"enterprise_default"`.
 #' @param overrides Optional list with `rules`, `thresholds`, `rate_guard`, or
-#'   `trusted_sources` entries.
+#'   `trusted_sources` entries. `controls` may be supplied with
+#'   [policy_controls()] to tune orchestration behavior in [secure_chat()].
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -317,6 +332,9 @@ available_policies <- function(selected = NULL) {
 
 .as_policy <- function(policy) {
   if (inherits(policy, "shieldr_policy")) {
+    if (is.null(policy$controls)) {
+      policy$controls <- policy_controls()
+    }
     return(policy)
   }
   if (is.character(policy) && length(policy) == 1L && !is.na(policy)) {

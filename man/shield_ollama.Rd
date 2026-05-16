@@ -10,6 +10,8 @@ shield_ollama(
   checks = "both",
   model = "gemma3:4b",
   context = NULL,
+  redaction = NULL,
+  scanners = scanner_options(),
   show_tokens = FALSE
 )
 }
@@ -23,6 +25,10 @@ shield_ollama(
 \item{model}{Ollama model name.}
 
 \item{context}{Optional data frame of retrieved context.}
+
+\item{redaction}{Optional redaction strategy from \code{\link[=redaction_strategy]{redaction_strategy()}}.}
+
+\item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }

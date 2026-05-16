@@ -13,7 +13,8 @@ shieldr_result(output = NULL, audit, risk_summary, action)
 
 \item{risk_summary}{Named numeric vector keyed by OWASP category.}
 
-\item{action}{Final action.}
+\item{action}{Final action. May be \code{"allow"}, \code{"redact"}, \code{"block"},
+\code{"refuse"}, or \code{"escalate"}.}
 }
 \value{
 A \code{shieldr_result} S3 object.

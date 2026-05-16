@@ -14,7 +14,7 @@
 #'
 #' @return A character vector of formatted finding explanations.
 #' @examples
-#' report <- scan_prompt("email me at jane@example.com", policy("enterprise_default"))
+#' report <- scan_prompt("email me at neel@example.com", policy("enterprise_default"))
 #' explain_findings(report$findings)
 #' @export
 explain_findings <- function(findings, format = "text") {

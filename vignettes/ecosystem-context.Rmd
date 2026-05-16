@@ -1,0 +1,59 @@
+---
+title: "Ecosystem Context"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Ecosystem Context}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+Most mature LLM guardrail and red-team tooling is Python-first. `llmshieldr`
+should be understood as an R-native, transparent guardrail layer rather than a
+replacement for every Python tool.
+
+## Comparison Summary
+
+| Tool | Main Role | What It Does Well | How `llmshieldr` Relates |
+| --- | --- | --- | --- |
+| Guardrails AI | Runtime validation and structured-output guards | Validator hub, on-fail actions, structured output, server mode | Similar runtime validation ideas; R-first scanner ergonomics |
+| NVIDIA NeMo Guardrails | Programmable LLM rails | Input, output, retrieval, dialog, execution rails, deployment docs | Inspiration for richer workflow stages and policy configuration |
+| LLM Guard | Runtime prompt/response scanning | Many input/output scanners, anonymization, prompt injection, secrets, URLs, toxicity | Closest conceptual peer; useful benchmark for scanner breadth |
+| Microsoft Presidio | PII detection and anonymization | Mature recognizers, anonymizers, structured data, extensibility | Potential optional bridge for stronger PII/PHI workflows |
+| LlamaFirewall | Agentic security guardrails | Prompt, alignment, code, agent, and tool layers | Useful reference point for tool-call and generated-code protection |
+| garak | Vulnerability scanning | Red-team probes and vulnerability reports | Evaluation inspiration, not runtime competition |
+| Promptfoo | LLM evals and red teaming | CI-friendly evals, attack generation, reports, provider coverage | Inspiration for benchmarks, fixtures, and CI eval workflows |
+
+## R-Native Niche
+
+`llmshieldr` can be useful because many R users build LLM workflows in:
+
+- notebooks and reports,
+- Shiny applications,
+- `plumber` APIs,
+- data-frame based RAG pipelines,
+- local Ollama experiments,
+- regulated analytics environments where R is already approved.
+
+The package leans into that niche through:
+
+- simple function-first APIs,
+- data-frame friendly context scanning,
+- transparent S3 objects,
+- audit logs that are easy to inspect,
+- local-first examples,
+- optional bridges to stronger external detectors.
+
+## Near-Term Lessons
+
+- From Guardrails AI: explicit validator failure actions and runtime metadata.
+- From NeMo Guardrails: distinct input, retrieval, output, tool, and execution
+  guardrail stages.
+- From LLM Guard: a wider scanner catalog and configurable scanner pipelines.
+- From Presidio: stronger PII recognizers and anonymization operators.
+- From LlamaFirewall: agent, tool, and code defense layers.
+- From garak and Promptfoo: evidence, benchmarks, and red-team regression
+  suites.

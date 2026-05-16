@@ -10,6 +10,8 @@ scan_prompt(
   reviewer = NULL,
   checks = "rules",
   redact = TRUE,
+  redaction = NULL,
+  scanners = scanner_options(),
   show_tokens = FALSE
 )
 }
@@ -23,6 +25,11 @@ scan_prompt(
 \item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
 \item{redact}{Whether to redact matched spans in \code{text_clean}.}
+
+\item{redaction}{Optional redaction strategy from \code{\link[=redaction_strategy]{redaction_strategy()}}.
+Ignored when \code{redact = FALSE}.}
+
+\item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }
@@ -55,5 +62,6 @@ can influence score and action even when they do not provide exact spans.
 \examples{
 scan_prompt("hello")
 scan_prompt("patient has cancer password ak$1234567890", policy = "comprehensive")
+scan_prompt("email neel@example.com", redaction = redaction_strategy("hash"))
 scan_prompt("hello", show_tokens = TRUE)
 }

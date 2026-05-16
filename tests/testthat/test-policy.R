@@ -45,15 +45,15 @@ test_that("available_policies lists and marks selected policies", {
 
 test_that("add_rule, remove_rule, and list_rules work", {
   policy <- build_policy()
-  policy <- add_rule(policy, "demo.block", pattern = "BLOCK", action = "block")
+  policy <- add_rule(policy, "llm01.demo.block", pattern = "BLOCK", action = "block")
   expect_equal(length(policy$rules), 1)
-  expect_error(add_rule(policy, "demo.block", pattern = "BLOCK"), "already exists")
+  expect_error(add_rule(policy, "llm01.demo.block", pattern = "BLOCK"), "already exists")
 
   listed <- suppressMessages(capture.output(rules <- list_rules(policy)))
   expect_gt(length(listed), 0)
   expect_named(rules, c("id", "owasp", "severity", "action", "has_pattern", "has_fn"))
 
-  policy <- remove_rule(policy, "demo.block")
+  policy <- remove_rule(policy, "llm01.demo.block")
   expect_equal(length(policy$rules), 0)
   expect_warning(policy <- remove_rule(policy, "missing"), "not found")
 })

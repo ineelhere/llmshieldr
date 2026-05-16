@@ -36,9 +36,11 @@ contributions:
 | `critical` | 1.0 |
 
 The final `risk_score` is the sum of deduplicated finding contributions capped
-at `1.0`. Synthetic context findings are capped at `0.3` per row before being
-combined with normal rule findings. Critical findings and explicit block rules
-resolve to `block` even when a policy has high thresholds.
+at `1.0`. Overlapping span findings from the same source, OWASP category, and
+action count as the strongest single piece of evidence instead of stacking
+together. Synthetic context findings are capped before being combined with
+normal rule findings. Critical findings and explicit block rules resolve to
+`block` even when a policy has high thresholds.
 
 `risk_summary` groups the same severity contributions by OWASP category, also
 capping each category at `1.0`. It is meant for dashboards and audits: a run
@@ -46,6 +48,28 @@ with `llm01 = 1.0` and `llm02 = 0.3` had a severe injection signal plus a
 moderate disclosure signal.
 
 ## Coverage Map
+
+This matrix separates taxonomy mapping from effective detector coverage. The
+strength of protection depends on rules, policy configuration, reviewer
+quality, and application-specific evaluation.
+
+| OWASP | Risk Area | Current Package Surface | Detector Type | Evidence Level | Known Gaps |
+| --- | --- | --- | --- | --- | --- |
+| LLM01 | Prompt injection | `scan_prompt()`, `scan_context()`, `scan_conversation()`, injection rules, NLP intent rule, invisible/encoded scanners | Regex, NLP, optional reviewer, normalization, scanner heuristics | Unit examples, behavior tests, starter corpus | Needs larger adversarial corpus and multilingual coverage |
+| LLM02 | Sensitive information disclosure | PII, PHI, secret, password, token, AWS, connection-string rules, configurable redaction | Regex, redaction spans, hash/mask/drop/keep operators | Unit examples and behavior tests | No full Presidio-style PII engine, weak international PII coverage |
+| LLM03 | Supply chain and model trust | `trust_boundary()` model/host allowlists, optional Ollama hash check, `remote_reviewer()` wrapper | Metadata checks, local command integration, HTTP reviewer integration | Limited tests | No dependency attestation, provider identity proof, or remote model verification |
+| LLM04 | Data and model poisoning | `scan_context()`, trusted sources, context anomaly checks | Regex, simple robust z-score, source allowlist | Basic context tests | No provenance graph, freshness scoring, embedding poisoning detection, or corpus validation |
+| LLM05 | Improper output handling | `scan_output()`, `scan_tool_output()`, `scan_stream()`, code and unsafe-output rules | Regex, output scan, rolling stream windows | Basic output and stream tests | Not a replacement for escaping, sandboxing, parameterized SQL, or downstream validation |
+| LLM06 | Excessive agency | `rule_agency_language()`, output scan, `scan_tool_call()`, `policy_controls()` | Regex, allowlist checks, orchestration controls | Basic output and tool-call tests | No external authorization, human approval queue, or side-effect rollback |
+| LLM07 | System prompt leakage | Prompt/output system-prompt extraction rules, conversation scanning | Regex, optional reviewer | Basic tests | No canary tracking |
+| LLM08 | Vector and embedding weaknesses | Context anomaly and source-trust findings | Heuristic statistics, source allowlist | Basic context tests | No embedding-index inspection, retrieval attack benchmarks, or source provenance verification |
+| LLM09 | Misinformation and overreliance | Diagnosis and financial-advice rules, output scan | Regex, optional reviewer | Basic output tests | No factuality model, citation verification, calibration, or domain expert review |
+| LLM10 | Resource exhaustion | `rate_guard()`, strict reservation, rollback, scanner token limits | Stateful counters, projected reservation checks | Basic rate-guard tests | No cross-machine distributed coordination and only approximate fallback token accounting |
+
+Package surface means the API has a relevant control or extension point.
+Detector type describes the current implementation style. Known gaps are not
+defects by themselves; they define where teams need additional controls before
+relying on the package in serious deployments.
 
 ```{r}
 coverage <- data.frame(
@@ -63,20 +87,20 @@ coverage <- data.frame(
     "Resource exhaustion"
   ),
   llmshieldr_surface = c(
-    "rule_injection_basic(), rule_injection_indirect(), rule_nlp_intent(), scan_prompt(), scan_context()",
-    "rule_pii_email(), rule_pii_phone(), rule_pii_ssn(), rule_secrets_api_key(), scan_output()",
-    "trust_boundary()",
+    "rule_injection_basic(), rule_injection_indirect(), rule_nlp_intent(), scan_prompt(), scan_context(), scan_conversation(), scanner_options()",
+    "rule_pii_email(), rule_pii_phone(), rule_pii_ssn(), rule_secrets_api_key(), scan_output(), redaction_strategy()",
+    "trust_boundary(), remote_reviewer()",
     "scan_context(), trusted_sources",
-    "scan_output(), internal code-safety rules",
-    "rule_agency_language(), secure_chat()",
+    "scan_output(), scan_tool_output(), scan_stream(), internal code-safety rules",
+    "rule_agency_language(), secure_chat(), scan_tool_call(), policy_controls()",
     "rule_system_prompt_leak(), scan_output()",
     "scan_context() anomaly and source-trust findings",
     "rule_diagnosis_claim(), rule_financial_advice(), scan_output()",
-    "rate_guard(), secure_chat()"
+    "rate_guard(), secure_chat(), scanner_options(max_tokens = ...)"
   ),
   example = c(
     "Ignore previous instructions.",
-    "Email jane@example.com with api_key = 'abcdefghijklmnop123456'.",
+    "Email neel@example.com with api_key = 'abcdefghijklmnop123456'.",
     "Only call an approved model or host.",
     "A retrieved page contains hidden assistant instructions.",
     "The model emits unsafe shell or SQL code.",
@@ -113,6 +137,19 @@ list(
 ```{r}
 example_prompts()
 ```
+
+The adoption evaluation corpus is stored separately at
+`inst/extdata/security_eval_cases.csv` and can be run with
+`evaluate_security_cases()`.
+
+```{r}
+results <- evaluate_security_cases(policy = "comprehensive")
+head(results)
+```
+
+Report deterministic rules, NLP mode, and semantic reviewer mode separately.
+Taxonomy mapping is not evidence of effective protection; it only shows which
+risk category a control is intended to address.
 
 ## Policy Thresholds
 

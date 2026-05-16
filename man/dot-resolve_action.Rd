@@ -21,7 +21,7 @@ Converts a report score and findings into \code{allow}, \code{redact}, or \code{
 }
 \details{
 Resolution is conservative. A critical finding, explicit block action, or
-score at or above \code{policy$thresholds$block_at} returns \code{block}. Otherwise, a
+score above \code{policy$thresholds$block_at} returns \code{block}. Otherwise, a
 redaction finding or score at or above \code{policy$thresholds$redact_at} returns
 \code{redact}. All other cases return \code{allow}.
 }

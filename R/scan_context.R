@@ -30,6 +30,8 @@
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param source_col Optional source column used with `policy$trusted_sources`.
 #' @param anomaly_threshold Z-score threshold for anomaly findings.
+#' @param redaction Optional redaction strategy from [redaction_strategy()].
+#' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A list of `shieldr_report` objects, one per row.
@@ -45,14 +47,18 @@ scan_context <- function(data,
                          checks = "rules",
                          source_col = NULL,
                          anomaly_threshold = 2.5,
+                         redaction = NULL,
+                         scanners = scanner_options(),
                          show_tokens = FALSE) {
   if (!is.data.frame(data)) {
     cli::cli_abort("{.arg data} must be a data frame.")
   }
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
+  redaction <- .validate_redaction_strategy(redaction)
+  scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
-  .validate_reviewer(reviewer)
+  .validate_reviewer_for_checks(reviewer, checks)
   .check_number_between(anomaly_threshold, "anomaly_threshold", 0, Inf)
 
   text_name <- if (missing(text_col) || is.null(text_col)) {
@@ -116,19 +122,37 @@ scan_context <- function(data,
       }
     }
 
-    report <- scan_prompt(text[[i]], policy, reviewer = reviewer, checks = checks, show_tokens = show_tokens)
+    report <- scan_prompt(
+      text[[i]],
+      policy,
+      reviewer = reviewer,
+      checks = checks,
+      redaction = redaction,
+      scanners = scanners,
+      show_tokens = show_tokens
+    )
     findings <- .dedupe_findings(c(extra, report$findings))
     risk_score <- .score_findings(findings)
     action <- .resolve_action(risk_score, findings, policy)
+    source_value <- if (!is.null(source_name)) as.character(data[[source_name]][[i]]) else NULL
     reports[[i]] <- shieldr_report(
       action = action,
-      text_clean = .apply_redaction(report$text_clean, findings),
+      text_clean = .apply_redaction(report$text_clean, findings, redaction),
       findings = findings,
       risk_score = risk_score,
       policy = policy$name,
       checks = checks,
       timestamp = report$timestamp,
-      tokens = report$tokens
+      tokens = report$tokens,
+      metadata = .report_metadata(
+        stage = "context",
+        row_index = i,
+        text_col = text_name,
+        source_col = source_name,
+        source = source_value,
+        reviewer_errors = report$metadata$reviewer_errors %||% list(),
+        scanners = scanners
+      )
     )
   }
 

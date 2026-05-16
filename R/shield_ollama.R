@@ -17,6 +17,8 @@
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param model Ollama model name.
 #' @param context Optional data frame of retrieved context.
+#' @param redaction Optional redaction strategy from [redaction_strategy()].
+#' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #'
 #' @return A `shieldr_result`.
@@ -30,6 +32,8 @@ shield_ollama <- function(prompt,
                           checks = "both",
                           model = "gemma3:4b",
                           context = NULL,
+                          redaction = NULL,
+                          scanners = scanner_options(),
                           show_tokens = FALSE) {
   rlang::check_installed("ellmer")
   .check_string(model, "model")
@@ -37,7 +41,17 @@ shield_ollama <- function(prompt,
   show_tokens <- .validate_show_tokens(show_tokens)
   assistant <- ellmer::chat_ollama(model = model)
   reviewer <- if (checks %in% c("llm", "both")) ellmer::chat_ollama(model = model) else NULL
-  secure_chat(prompt, assistant, policy, reviewer = reviewer, checks = checks, context = context, show_tokens = show_tokens)
+  secure_chat(
+    prompt,
+    assistant,
+    policy,
+    reviewer = reviewer,
+    checks = checks,
+    context = context,
+    redaction = redaction,
+    scanners = scanners,
+    show_tokens = show_tokens
+  )
 }
 
 #' Create a local Ollama reviewer

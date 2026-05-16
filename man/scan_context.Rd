@@ -12,6 +12,8 @@ scan_context(
   checks = "rules",
   source_col = NULL,
   anomaly_threshold = 2.5,
+  redaction = NULL,
+  scanners = scanner_options(),
   show_tokens = FALSE
 )
 }
@@ -30,6 +32,10 @@ If omitted, a likely text column is inferred.}
 \item{source_col}{Optional source column used with \code{policy$trusted_sources}.}
 
 \item{anomaly_threshold}{Z-score threshold for anomaly findings.}
+
+\item{redaction}{Optional redaction strategy from \code{\link[=redaction_strategy]{redaction_strategy()}}.}
+
+\item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 }

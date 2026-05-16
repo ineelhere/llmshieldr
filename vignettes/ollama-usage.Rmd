@@ -90,6 +90,11 @@ The default reviewer instruction can be inspected with `reviewer_prompt()`.
 If you want a custom reviewer prompt, wrap the reviewer function or chat object
 and prepend your own context before calling the model.
 
+Reviewer responses may include `confidence`, `evidence`,
+`recommended_action`, and `span` fields in addition to `rule_id`, `owasp`,
+`severity`, and `description`. Schema issues are stored in
+`report$metadata$reviewer_errors`.
+
 ```{r}
 reviewer_prompt()
 ```
@@ -168,7 +173,73 @@ secure_chat(
 This is the same contract used by Ollama. llmshieldr scans text before and after
 the call; you decide which model service actually produces or reviews text.
 
+Provider compatibility notes:
+
+- OpenAI-compatible SDKs: wrap the call in a function that accepts one prompt
+  string and returns one response string.
+- Anthropic-compatible SDKs: do the same, preserving any provider-specific
+  message formatting inside your wrapper.
+- Internal gateways: expose a `$chat()` method or plain function and keep
+  authentication, retries, and request logging outside llmshieldr.
+- Local Ollama: use `shield_ollama()` for the convenience path or pass an
+  `ellmer::chat_ollama()` object to `secure_chat()`.
+
+If your organization has a remote review service, use `remote_reviewer()`.
+
+```{r}
+reviewer <- remote_reviewer(
+  "https://policy.example.com/review",
+  headers = c(Authorization = "Bearer <token>")
+)
+
+scan_prompt(
+  "Review this prompt.",
+  reviewer = reviewer,
+  checks = "llm"
+)
+```
+
 When using `trust_boundary(require_hash = ...)` for local Ollama model manifest
 checks, install the optional `processx` package. The model name is passed as an
 argument vector element to `ollama show --modelfile`, not interpolated into a
 shell command string.
+
+## Plumber and Shiny Sketches
+
+For an API, scan before dispatching work in a `plumber` handler.
+
+```{r}
+# plumber.R
+library(plumber)
+library(llmshieldr)
+
+guardrails <- policy("enterprise_default")
+
+#* @post /chat
+function(req, res) {
+  prompt <- if (is.null(req$body$prompt)) "" else req$body$prompt
+  report <- scan_prompt(prompt, policy = guardrails)
+  if (identical(report$action, "block")) {
+    res$status <- 400
+    return(list(error = "blocked", findings = report$findings))
+  }
+  list(prompt = report$text_clean)
+}
+```
+
+For Shiny, scan user input before passing it to a model callback.
+
+```{r}
+server <- function(input, output, session) {
+  guardrails <- policy("enterprise_default")
+
+  observeEvent(input$submit, {
+    report <- scan_prompt(input$prompt, policy = guardrails)
+    if (identical(report$action, "block")) {
+      showNotification("Request blocked by policy.", type = "error")
+      return()
+    }
+    # call your chat function with report$text_clean
+  })
+}
+```

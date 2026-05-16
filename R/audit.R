@@ -7,8 +7,10 @@
 #' JSON Lines is the preferred append-only format for production logs because
 #' each call writes one complete audit object as one line. CSV flattens findings
 #' into one row per finding, which is convenient for spreadsheets and simple
-#' dashboards but loses some nested structure. RDS preserves the R object
-#' exactly and overwrites the target path.
+#' dashboards but loses some nested structure. The CSV path preserves common
+#' metadata such as context row index, context source, tool name, conversation
+#' role, and reviewer error counts. RDS preserves the R object exactly and
+#' overwrites the target path.
 #'
 #' Audit logs may contain sensitive source text, raw model output, or redacted
 #' findings depending on the workflow. Treat audit paths as sensitive storage in
@@ -88,9 +90,17 @@ write_audit_log <- function(audit, path, format = "jsonl") {
         next
       }
       for (finding in report$findings) {
+        metadata <- report$metadata %||% list()
+        context_row_index <- metadata$row_index %||% (
+          if (identical(stage, "context")) report_index else NA_integer_
+        )
         rows[[length(rows) + 1L]] <- data.frame(
           stage = stage,
-          context_row_index = if (identical(stage, "context")) report_index else NA_integer_,
+          context_row_index = context_row_index,
+          context_source = metadata$source %||% NA_character_,
+          tool_name = metadata$tool_name %||% NA_character_,
+          conversation_role = metadata$role %||% NA_character_,
+          reviewer_error_count = length(metadata$reviewer_errors %||% list()),
           report_index = report_index,
           action = report$action,
           risk_score = report$risk_score,
@@ -108,6 +118,10 @@ write_audit_log <- function(audit, path, format = "jsonl") {
     return(data.frame(
       stage = character(),
       context_row_index = integer(),
+      context_source = character(),
+      tool_name = character(),
+      conversation_role = character(),
+      reviewer_error_count = integer(),
       report_index = integer(),
       action = character(),
       risk_score = numeric(),

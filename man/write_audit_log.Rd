@@ -24,8 +24,10 @@ auditability across LLM workflows.
 JSON Lines is the preferred append-only format for production logs because
 each call writes one complete audit object as one line. CSV flattens findings
 into one row per finding, which is convenient for spreadsheets and simple
-dashboards but loses some nested structure. RDS preserves the R object
-exactly and overwrites the target path.
+dashboards but loses some nested structure. The CSV path preserves common
+metadata such as context row index, context source, tool name, conversation
+role, and reviewer error counts. RDS preserves the R object exactly and
+overwrites the target path.
 
 Audit logs may contain sensitive source text, raw model output, or redacted
 findings depending on the workflow. Treat audit paths as sensitive storage in
