@@ -2,6 +2,7 @@
 # llmshieldr 🛡️ <img src="man/figures/logo.png" alt="llmshieldr logo" align="right" width="140"/>
 
 <!-- README.md is generated from README.Rmd. Please edit README.Rmd. -->
+
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml)
@@ -19,6 +20,12 @@ model output before text crosses a trust boundary.
 meant to be pressure-tested against your own prompts, models, reviewer
 setup, logs, and risk tolerance.
 
+> **✨ Key highlights** — model-agnostic · OWASP LLM Top 10 mapped ·
+> regex + NLP + optional LLM review · 5 redaction strategies ·
+> structured audit logs · local-first with Ollama support
+
+------------------------------------------------------------------------
+
 ## 🚀 Install
 
 Install from CRAN, once available, with
@@ -29,12 +36,14 @@ Optional extras unlock local Ollama workflows, remote reviewers,
 tokenization, HTTP, model hash checks, and concurrency helpers:
 `install.packages(c("ellmer", "httr2", "tokenizers", "SnowballC", "processx", "filelock"))`.
 
+------------------------------------------------------------------------
+
 ## ⚡ Tiny Scan
 
 ``` r
 library(llmshieldr)
 
-pii <- scan_prompt("Contact neel@example.com about the outage.")
+pii <- scan_prompt("Contact indraneel@example.com about the outage.")
 data.frame(
   action = pii$action,
   text_clean = pii$text_clean
@@ -66,15 +75,21 @@ data.frame(
 #> 1  block          1
 ```
 
+------------------------------------------------------------------------
+
 ## 🧾 What You Get
 
 Scanner reports keep the receipts:
 
-- `action`: `allow`, `redact`, or `block`
-- `text_clean`: normalized and redacted text
-- `findings`: rule-level evidence
-- `risk_score`: deterministic severity score
-- `metadata`: stage-specific details
+| Field        | Description                              |
+|:-------------|:-----------------------------------------|
+| `action`     | `allow`, `redact`, or `block`            |
+| `text_clean` | normalized and redacted text             |
+| `findings`   | rule-level evidence with OWASP tags      |
+| `risk_score` | deterministic severity score (0–1)       |
+| `metadata`   | stage, scanner settings, reviewer errors |
+
+------------------------------------------------------------------------
 
 ## 🤖 Guard A Chat
 
@@ -115,6 +130,8 @@ data.frame(
 Blocked context rows are dropped from the assembled prompt. The audit
 keeps the prompt, context, output, risk summary, and findings together.
 
+------------------------------------------------------------------------
+
 ## 🦙 Ollama Mode
 
 Use `shield_ollama()` for the shortest local guarded chat path. It
@@ -150,11 +167,7 @@ ollama_surface[ollama_surface$helper %in% exports, ]
 #> 5  trust_boundary() check allowed model, host, or local model hash
 ```
 
-The semantic reviewer instruction is inspectable. Treat `reviewer_prompt()` as
-an inspection and audit helper, not as a mutable package setting. To customize
-reviewer behavior, wrap your reviewer function or chat object and prepend
-additive organization-specific context before delegating to the model. Keep
-llmshieldr's JSON finding schema intact so scanner results can still be parsed.
+The semantic reviewer instruction is inspectable:
 
 ``` r
 cat(substr(reviewer_prompt(), 1, 260), "...\n")
@@ -167,6 +180,8 @@ You can also pass an existing `ellmer::chat_ollama()` object to
 optional `processx` for local Ollama model manifest hash checks. See
 `vignette("ollama-usage", package = "llmshieldr")` for live examples
 that require a running Ollama service.
+
+------------------------------------------------------------------------
 
 ## 🎛️ Tune It
 
@@ -203,9 +218,9 @@ scanners <- scanner_options(
 )
 
 scanner_report <- scan_prompt(
-  "Email neel@example.com about unreleased earnings.",
+  "Email indraneel@example.com about unreleased earnings.",
   scanners = scanners,
-  redaction = redaction_strategy("hash")
+  redaction = redaction_strategy("mask")
 )
 
 data.frame(
@@ -216,40 +231,93 @@ data.frame(
 )
 #>   action risk_score findings
 #> 1  block        0.9        2
-#>                                             text_clean
-#> 1 Email [HASH:f9d68fb726ff] about unreleased earnings.
+#>                                               text_clean
+#> 1 Email ********************* about unreleased earnings.
 ```
+
+------------------------------------------------------------------------
 
 ## 🧠 Coverage Vibes
 
 Built-in policies include starter controls for:
 
-- 🧨 prompt injection and system-prompt extraction
-- 🔐 PII, PHI, secrets, tokens, passwords, and connection strings
-- 📚 risky retrieved context in RAG workflows
-- 🛠️ tool-call, tool-output, and streaming boundaries
-- 🧯 unsafe output handling and excessive agency language
-- 🧪 optional NLP checks and local or remote semantic review
+|     | Coverage Area                                                |
+|:----|:-------------------------------------------------------------|
+| 🧨  | prompt injection and system-prompt extraction                |
+| 🔐  | PII, PHI, secrets, tokens, passwords, and connection strings |
+| 📚  | risky retrieved context in RAG workflows                     |
+| 🛠️  | tool-call, tool-output, and streaming boundaries             |
+| 🧯  | unsafe output handling and excessive agency language         |
+| 🧪  | optional NLP checks and local or remote semantic review      |
 
 For high-impact or regulated work, pair `llmshieldr` with app
 authorization, sandboxing, escaping, review, logging, and your own eval
 corpus.
 
+<details>
+
+<summary>
+
+<strong>📋 OWASP LLM Top 10 mapping at a glance</strong>
+</summary>
+
+| OWASP | Risk Area | Package Surface |
+|:---|:---|:---|
+| LLM01 | Prompt injection | `scan_prompt()`, `scan_context()`, injection rules, NLP intent |
+| LLM02 | Sensitive disclosure | PII/PHI/secrets rules, 5 redaction operators |
+| LLM03 | Supply chain | `trust_boundary()` model/host allowlists, Ollama hash |
+| LLM04 | Data poisoning | `scan_context()` anomaly + source trust |
+| LLM05 | Output handling | `scan_output()`, `scan_tool_output()`, `scan_stream()` |
+| LLM06 | Excessive agency | Agency rules, `scan_tool_call()`, `policy_controls()` |
+| LLM07 | System prompt leak | Extraction rules, output markers |
+| LLM08 | Vector/embedding | Context anomaly, source allowlists |
+| LLM09 | Misinformation | Diagnosis claims, financial advice, topic bans |
+| LLM10 | Resource exhaustion | `rate_guard()`, token limits |
+
+*See `vignette("owasp-coverage")` for detector types, evidence levels,
+and known gaps.*
+
+</details>
+
+------------------------------------------------------------------------
+
 ## 📚 Learn More
 
-- `vignette("getting-started", package = "llmshieldr")`
-- `vignette("ollama-usage", package = "llmshieldr")`
-- `vignette("policy-design", package = "llmshieldr")`
-- `vignette("rag-pipeline", package = "llmshieldr")`
-- `vignette("owasp-coverage", package = "llmshieldr")`
-- `vignette("evaluation", package = "llmshieldr")`
-- `vignette("operations", package = "llmshieldr")`
+| Vignette | Topic |
+|:---|:---|
+| `vignette("getting-started")` | First scan, reports, and policies |
+| `vignette("ollama-usage")` | Local Ollama workflows and semantic review |
+| `vignette("policy-design")` | Rules, thresholds, controls, and custom policies |
+| `vignette("rag-pipeline")` | Context scanning and RAG trust boundaries |
+| `vignette("owasp-coverage")` | OWASP LLM Top 10 mapping and known gaps |
+| `vignette("evaluation")` | Security evaluation and adversarial testing |
+| `vignette("operations")` | Audit logging, rate guards, and deployment |
+
+------------------------------------------------------------------------
 
 ## 🤝 Contribute
 
-Rule changes should include one positive detection case and one clean
-example that stays allowed. Issues and PRs are welcome:
-<https://github.com/ineelhere/llmshieldr/issues>
+Contributions are welcome — whether it’s a bug report, a new rule, a
+better regex, a test case that breaks something, or documentation
+improvements.
+
+| How | What helps most |
+|:---|:---|
+| 🐛 **Report a bug** | Open an [issue](https://github.com/ineelhere/llmshieldr/issues) with a short reproducible example |
+| 🧪 **Add a test case** | Adversarial prompts, edge-case PII, multilingual injection — all valuable |
+| 📏 **Propose a rule** | Include one positive detection + one clean example that stays allowed |
+| 📖 **Improve docs** | Typos, unclear explanations, better vignette examples |
+| 💡 **Suggest a feature** | Open an issue describing the use case before writing code |
+
+> **Rule change policy:** every rule PR should include at least one test
+> where the risky text triggers the rule *and* one test where ordinary
+> text in the same domain is allowed. Document any known false-positive
+> tradeoffs.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development
+workflow, style expectations, and local check commands.
+
+------------------------------------------------------------------------
 
 ## ⚠️ Disclosure
 
@@ -263,6 +331,8 @@ created with LLM assistance and refined through human review. Do not
 treat the package as security, compliance, or regulated-use guidance
 without independent verification, testing, and expert review.
 
-## 📄 License
+------------------------------------------------------------------------
 
-Apache License 2.0.
+More updates to come. Happy coding! 🎉
+
+![](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajkzYnB2YXVld25ub3k1Zm90ZzE4Nnk4MjNtNHJ2b2NqemRmcG8zaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dAjHiHrn3yH6TSrxj6/giphy.gif)
