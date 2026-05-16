@@ -24,3 +24,4 @@
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
 ^app\.R$
+^README\.Rmd$
