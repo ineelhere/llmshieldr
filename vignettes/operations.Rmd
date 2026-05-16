@@ -1,0 +1,142 @@
+---
+title: "Operations and Audit Logs"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Operations and Audit Logs}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This article collects the operational guidance that matters once `llmshieldr`
+is part of an application. It is not a certification checklist and does not
+make a workflow production-ready by itself.
+
+## Before Deployment
+
+- Define the application threat model.
+- Identify sensitive data classes: PII, PHI, credentials, financial data,
+  customer records, intellectual property, and regulated text.
+- Choose a built-in policy as a starting point.
+- Add organization-specific rules and negative tests.
+- Decide whether semantic review is required and which reviewer model or
+  function is allowed.
+- Decide fail-open versus fail-closed behavior for reviewer failures.
+- Decide `policy_controls()` behavior for prompt blocks, context blocks,
+  output blocks, refusals, and human escalation.
+- Configure `scanner_options()` for token limits, URL host policy, topic bans,
+  and language policy when those controls matter.
+- Choose a redaction strategy for logs and user-visible text.
+- Evaluate detection and false-positive rates on representative data.
+- Review audit log contents and storage controls.
+- Confirm downstream systems still escape, validate, and authorize inputs.
+
+## Runtime Controls
+
+- Scan user prompts before model calls.
+- Scan retrieved context before prompt assembly.
+- Drop, refuse, or escalate blocked context rows according to policy.
+- Preserve source labels and row identifiers in prompt assembly and audit logs.
+- Scan model output before display, storage, or downstream tool use.
+- Validate tool-call names and arguments before execution.
+- Scan tool outputs before they re-enter model context.
+- Scan streaming output with rolling context when using streaming APIs.
+- Apply rate guards appropriate to the environment.
+- Use strict rate-guard reservation for shared or bursty workloads.
+- Record audit logs to sensitive storage.
+- Monitor warnings, blocked requests, reviewer parse errors, and escalation
+  counts.
+
+## Audit Log Sensitivity
+
+`llmshieldr` audit logs can contain sensitive prompts, retrieved context, model
+outputs, findings, and rule metadata. Treat audit output as sensitive
+application telemetry.
+
+Supported formats:
+
+- JSON Lines: append-only operational logs with nested audit structure.
+- CSV: one row per finding for spreadsheets and simple dashboards.
+- RDS: exact R object preservation for local debugging.
+
+## Example JSONL Shape
+
+```json
+{
+  "input_report": {
+    "action": "redact",
+    "risk_score": 0.3,
+    "policy": "enterprise_default",
+    "checks": "rules",
+    "findings": [
+      {
+        "rule_id": "llm02.pii.email",
+        "owasp": "llm02",
+        "severity": "medium",
+        "action": "redact",
+        "description": "Email address.",
+        "source": "rules"
+      }
+    ],
+    "metadata": {
+      "stage": "prompt",
+      "reviewer_errors": []
+    }
+  },
+  "output_report": null,
+  "context_reports": null,
+  "prompt_clean": "Contact [REDACTED] for details.",
+  "output_raw": null,
+  "elapsed_ms": 12,
+  "token_estimate": 8,
+  "action": "redact"
+}
+```
+
+## Example CSV Shape
+
+| stage | context_row_index | context_source | tool_name | conversation_role | reviewer_error_count | report_index | action | risk_score | rule_id | owasp | severity | source |
+| --- | ---: | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- | --- | --- |
+| input | NA | NA | NA | NA | 0 | 1 | redact | 0.3 | llm02.pii.email | llm02 | medium | rules |
+| context | 2 | unknown | NA | NA | 0 | 2 | block | 1.0 | llm01.injection.indirect | llm01 | critical | rules |
+| output | NA | NA | search_docs | tool | 1 | 1 | redact | 0.3 | llm02.pii.email | llm02 | medium | scanner |
+
+## Storage Checklist
+
+- Store audit logs outside public web roots.
+- Apply filesystem or object-storage access controls.
+- Encrypt logs at rest when they may contain sensitive data.
+- Define retention and deletion rules.
+- Avoid sending raw audit logs to third-party observability tools unless they
+  are approved for the data class.
+- Consider redacting or hashing prompts before long-term retention.
+- Include context row indexes and source identifiers when investigating RAG
+  incidents, but avoid storing full source documents unless required.
+- Review `reviewer_error_count` and nested `reviewer_errors` when semantic
+  checks are enabled; malformed reviewer JSON is a safety signal.
+- Treat hash-redacted findings as sensitive metadata because deterministic
+  hashes can still link repeated values across logs.
+
+## Operational Controls
+
+- Pin package versions.
+- Pin reviewer model versions where possible.
+- Keep policies under version control.
+- Review changes to built-in or custom rules.
+- Add regression tests for every production rule.
+- Review false positives and false negatives regularly.
+- Keep a manual override or human escalation path for high-impact workflows.
+
+## Do Not Rely On `llmshieldr` Alone For
+
+- Legal, medical, financial, or compliance decisions.
+- High-impact automated actions.
+- Tool calls that modify external systems.
+- Complete PII/PHI discovery.
+- Malware detection or sandboxing.
+- Full jailbreak resistance.
+- Distributed rate limiting.
+- Provider or infrastructure trust.

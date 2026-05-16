@@ -1,0 +1,199 @@
+---
+title: "Custom Rules"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Custom Rules}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+Policies are lists of `shieldr_rule` objects plus thresholds. You can start
+with a built-in policy and append domain-specific rules.
+
+```{r}
+library(llmshieldr)
+```
+
+For the source model behind the built-in policies, see
+`vignette("policy-design", package = "llmshieldr")`.
+
+## Rule Fields
+
+Every rule has the same shape:
+
+- `id`: unique rule identifier. The recommended convention is
+  `llmXX.category.name`, such as `llm02.ticket_id`.
+- `pattern`: regex pattern, or `NULL`
+- `fn`: R predicate function, or `NULL`
+- `owasp`: OWASP LLM category such as `llm02`
+- `severity`: `low`, `medium`, `high`, or `critical`
+- `action`: `allow`, `redact`, or `block`
+- `description`: human-readable explanation
+
+Exactly one of `pattern` or `fn` must be supplied. Regex rules produce match
+spans that can be redacted. Function rules are useful when the condition is
+easier to express in R.
+
+Function rules may return:
+
+- `TRUE` or `FALSE`
+- one finding list
+- a list of finding lists
+- a data frame of findings
+
+Finding lists can include `rule_id`, `owasp`, `severity`, `action`,
+`description`, `match`, `start`, `end`, and `source`. Include `start` and
+`end` when you want custom function findings to participate in redaction.
+
+## Numbers and Thresholds
+
+Severity maps to risk score contributions:
+
+| Severity | Contribution |
+| --- | ---: |
+| `low` | 0.1 |
+| `medium` | 0.3 |
+| `high` | 0.6 |
+| `critical` | 1.0 |
+
+Findings are deduplicated, overlapping spans from the same evidence are scored
+once, distinct findings are summed, and the total is capped at `1.0`.
+Synthetic context findings are capped separately. A policy's thresholds then
+decide the final action. Defaults are `redact_at = 0.4` and `block_at = 0.75`.
+
+```{r}
+guardrails <- policy()
+guardrails$thresholds
+```
+
+## Regex Rules
+
+Regex rules are the simplest way to redact or block recognizable text.
+
+```{r}
+guardrails <- add_rule(
+  guardrails,
+  id = "llm02.ticket_id",
+  pattern = "\\bTICKET-[0-9]{6}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Internal support ticket identifier."
+)
+
+scan_prompt("Summarize TICKET-123456 for the support team.", guardrails)
+```
+
+## Function Rules
+
+Function rules let you express checks that are easier to write in R than in a
+single regular expression.
+
+```{r}
+contains_student_address <- function(text) {
+  grepl("\\bstudent\\b", text, ignore.case = TRUE) &&
+    grepl("\\bhome address\\b", text, ignore.case = TRUE)
+}
+
+education <- policy("education_safe")
+education <- add_rule(
+  education,
+  id = "llm02.student.address",
+  fn = contains_student_address,
+  owasp = "llm02",
+  severity = "high",
+  action = "redact",
+  description = "Student home address reference."
+)
+
+scan_prompt("The student home address appears in the form.", education)
+```
+
+Function rules can also return span-aware findings:
+
+```{r}
+ticket_span_rule <- function(text) {
+  hit <- regexpr("\\bTICKET-[0-9]{6}\\b", text, perl = TRUE)
+  if (identical(as.integer(hit[[1]]), -1L)) {
+    return(FALSE)
+  }
+  start <- as.integer(hit[[1]])
+  end <- start + as.integer(attr(hit, "match.length")) - 1L
+  list(
+    rule_id = "llm02.ticket_id.fn",
+    owasp = "llm02",
+    severity = "medium",
+    action = "redact",
+    description = "Internal support ticket identifier.",
+    match = substr(text, start, end),
+    start = start,
+    end = end
+  )
+}
+```
+
+## Industry Examples
+
+Healthcare and life sciences often add identifiers beyond generic PII.
+
+```{r}
+pharma <- policy("pharma_gxp")
+pharma <- add_rule(
+  pharma,
+  id = "llm02.site_id",
+  pattern = "\\bSITE-[0-9]{3}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Clinical trial site identifier."
+)
+```
+
+Finance workflows often tighten language around recommendations and promises.
+
+```{r}
+finance <- policy("finance_strict")
+finance <- add_rule(
+  finance,
+  id = "llm09.promissory_return",
+  pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
+  owasp = "llm09",
+  severity = "critical",
+  action = "block",
+  description = "Promissory investment performance claim."
+)
+```
+
+## Rule Inventory
+
+Use `list_rules()` to inspect a policy before deployment.
+
+```{r}
+list_rules(guardrails)
+```
+
+The resulting table includes `has_pattern` and `has_fn`, which make it easy to
+audit whether a policy is mostly regex-based, function-based, or mixed.
+
+Custom rule ids that do not follow the `llmXX.` naming convention still work,
+but `shieldr_rule()` warns because OWASP risk summaries are clearest when rule
+ids carry the category prefix.
+
+## Rule Test Checklist
+
+For every new rule, keep at least:
+
+- one positive case that should trigger the rule,
+- one nearby negative case that should not trigger,
+- one redaction assertion when the rule should redact,
+- one policy-level assertion when the rule should block,
+- one domain-specific benign case if the rule targets clinical, finance,
+  education, developer, or other specialized text.
+
+The packaged evaluation corpus at `inst/extdata/security_eval_cases.csv` is a
+small starting point for these cases. Add application-specific corpora outside
+the package when examples contain real or sensitive data.

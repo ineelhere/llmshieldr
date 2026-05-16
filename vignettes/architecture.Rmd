@@ -1,0 +1,154 @@
+---
+title: "Architecture"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Architecture}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This article is a compact maintainer-oriented map of the package. It explains
+how safety decisions are produced without requiring a separate design document
+at the repository root.
+
+## Mental Model
+
+```text
+policy() creates rules, thresholds, controls, and optional rate guards
+scan_prompt() checks user input before it reaches a model
+scan_context() checks retrieved rows before prompt assembly
+scan_conversation() checks role-preserving chat histories
+scan_tool_call() and scan_tool_output() guard tool boundaries
+scan_stream() scans streamed output with rolling context
+scan_output() checks model text before display, storage, or downstream use
+secure_chat() orchestrates scanning, chat execution, output scanning, and audit
+write_audit_log() persists the end-to-end evidence trail
+```
+
+The package keeps the safety path inspectable. Every scanner result is based on
+explicit findings. Every finding has a rule id, severity, action, optional OWASP
+LLM category, and optional character span. Scanner reports resolve to `allow`,
+`redact`, or `block`; orchestration results may also use `refuse` or
+`escalate` when policy controls map a block to those outcomes.
+
+## Design Goals
+
+- Keep the first user path simple: choose a built-in policy name and call a
+  scanner.
+- Keep internals inspectable: policies are lists of explicit rules, not a
+  hidden classifier.
+- Support local-first safety workflows through deterministic rules, NLP checks,
+  and optional Ollama review.
+- Stay model-agnostic: any `ellmer` chat, object with `$chat()`, or plain R
+  function can be used.
+- Separate scanning from orchestration so prompt, context, output, tool, and
+  stream checks can be used independently.
+- Preserve auditability through scanner reports, final decisions, token
+  estimates, and risk summaries.
+- Make built-in controls extensible through custom policy objects and custom
+  rules.
+
+## Package Layers
+
+1. Rule, report, audit, and result constructors in `R/rules.R`.
+2. Built-in policy assembly and policy mutation helpers in `R/policy.R`.
+3. Prompt scanning, normalization, scoring, redaction, and reviewer parsing in
+   `R/scan_prompt.R`.
+4. Context scanning and RAG anomaly/source checks in `R/scan_context.R`.
+5. Output scanning in `R/scan_output.R`.
+6. Chat orchestration and token accounting in `R/secure_chat.R`.
+7. Optional surfaces: conversations, tools, streams, scanner options,
+   redaction strategies, audit writing, HTTP reviewers, Ollama, and trust
+   boundaries.
+
+## Object Model
+
+```text
+shieldr_rule
+    id             stable rule identifier
+    pattern        regex pattern, or NULL
+    fn             R predicate function, or NULL
+    owasp          OWASP LLM category
+    severity       low, medium, high, or critical
+    action         allow, redact, or block
+    description    human-readable explanation
+
+shieldr_policy
+    name             policy identifier stored in reports
+    rules            list of shieldr_rule objects
+    thresholds       redact_at and block_at numeric cutoffs
+    rate_guard       optional shieldr_rate_guard environment
+    trusted_sources  optional allowlist used by scan_context()
+    controls         secure_chat() block/refuse/escalate/drop behavior
+
+shieldr_report
+    action        scanner action
+    text_clean    normalized and possibly redacted text
+    findings      list of finding objects
+    risk_score    deterministic severity score
+    policy        policy name
+    checks        rules, nlp, llm, or both
+    metadata      surface-specific operational metadata
+```
+
+## Scoring and Actions
+
+Severity weights are:
+
+| Severity | Score |
+| --- | ---: |
+| `low` | 0.1 |
+| `medium` | 0.3 |
+| `high` | 0.6 |
+| `critical` | 1.0 |
+
+Findings are deduplicated before scoring. Overlapping span findings from the
+same source, OWASP category, and action count as the strongest single piece of
+evidence instead of stacking together. Distinct findings still accumulate, and
+the total score is capped at `1.0`. Synthetic scanner or context findings are
+tracked separately and capped before being added to normal rule evidence.
+
+Actions are resolved conservatively:
+
+```text
+if any finding is critical:
+    block
+else if any finding action is block:
+    block
+else if risk_score > block_at:
+    block
+else if any finding action is redact:
+    redact
+else if risk_score >= redact_at:
+    redact
+else:
+    allow
+```
+
+The strict greater-than comparison for `block_at` keeps a single high-severity
+redaction finding from escalating solely because its score equals a threshold.
+Explicit `block` rules and critical findings still block immediately.
+
+## Extension Points
+
+- Add deterministic regex or function rules with `shieldr_rule()` and
+  `add_rule()`.
+- Configure prompt, context, output, conversation, stream, and tool surfaces
+  independently.
+- Use `scanner_options()` for local scanners such as encoded payloads, URL host
+  policy, language allowlists, topic bans, and token limits.
+- Use `redaction_strategy()` for replace, mask, hash, drop, and keep behavior.
+- Use `policy_controls()` to choose refuse, escalate, drop, or keep-redacted
+  outcomes after scanner blocks.
+- Wrap local or remote reviewer models with `ollama_reviewer()` or
+  `remote_reviewer()`.
+
+## Release Hygiene
+
+Before release, regenerate documentation, run the test suite, run
+`R CMD check --as-cran`, review examples that require external services, and
+update `NEWS.md` and `cran-comments.md`.
