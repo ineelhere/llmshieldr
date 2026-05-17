@@ -25,3 +25,4 @@
 ^.*\.tar\.gz$
 ^app\.R$
 ^README\.Rmd$
+^others$

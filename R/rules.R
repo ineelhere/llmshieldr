@@ -10,13 +10,26 @@
 #'
 #' Returns the internal prompt used by the semantic reviewer path in
 #' [scan_prompt()], [scan_context()], [scan_output()], and [secure_chat()].
-#' Users who need custom reviewer instructions should wrap their reviewer
-#' function or chat object and prepend their own system context instead of
-#' patching this package constant.
+#' This helper is for inspection and auditability; the returned value is not a
+#' package option. Users who need custom reviewer instructions should wrap their
+#' reviewer function or chat object and prepend additive organization-specific
+#' context before delegating to the model, while preserving llmshieldr's JSON
+#' finding schema.
 #'
 #' @return A single prompt string.
 #' @examples
 #' reviewer_prompt()
+#'
+#' base_reviewer <- function(prompt) "[]"
+#' reviewer <- function(prompt) {
+#'   custom_context <- paste(
+#'     "Additional reviewer policy:",
+#'     "- Treat PHI leakage as high severity.",
+#'     "- Return [] when there are no findings.",
+#'     sep = "\n"
+#'   )
+#'   base_reviewer(paste(custom_context, prompt, sep = "\n\n"))
+#' }
 #' @export
 reviewer_prompt <- function() .shieldr_reviewer_prompt
 
@@ -688,7 +701,7 @@ rule_financial_advice <- function() {
 .rule_pii_usubjid <- function() {
   shieldr_rule(
     id = "llm02.pii.usubjid",
-    pattern = "\\bUSUSUBJID-[0-9]+\\b",
+    pattern = "(?i)\\b(?:USUBJID|USUSUBJID)[-\\s][A-Za-z0-9-]+\\b",
     owasp = "llm02",
     severity = "high",
     action = "redact",
