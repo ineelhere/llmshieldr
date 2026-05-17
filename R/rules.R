@@ -701,7 +701,7 @@ rule_financial_advice <- function() {
 .rule_pii_usubjid <- function() {
   shieldr_rule(
     id = "llm02.pii.usubjid",
-    pattern = "\\bUSUSUBJID-[0-9]+\\b",
+    pattern = "(?i)\\b(?:USUBJID|USUSUBJID)[-\\s][A-Za-z0-9-]+\\b",
     owasp = "llm02",
     severity = "high",
     action = "redact",
