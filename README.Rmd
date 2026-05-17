@@ -268,7 +268,7 @@ improvements.
 > text in the same domain is allowed. Document any known false-positive
 > tradeoffs.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development
+See [`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md) for the full development
 workflow, style expectations, and local check commands.
 
 ---

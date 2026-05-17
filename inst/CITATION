@@ -1,7 +1,7 @@
 bibentry(
   bibtype = "Manual",
   title = "llmshieldr: Security Scanning and Policy Enforcement for LLM Workflows",
-  author = personList(
+  author = c(
     person(
       given = "Indraneel",
       family = "Chakraborty",
