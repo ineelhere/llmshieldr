@@ -39,7 +39,14 @@
 #' @return A `shieldr_result`.
 #' @examples
 #' \dontrun{
-#' chat <- ellmer::chat_ollama(model = "gemma3:4b")
+#' model <- ellmer::models_ollama()$id[1]
+#' if (is.na(model)) {
+#'   stop(
+#'     "Check if you have any Ollama models available, ",
+#'     "or enter a specific name as a string for the model argument."
+#'   )
+#' }
+#' chat <- ellmer::chat_ollama(model = model)
 #' secure_chat("hello", chat, show_tokens = TRUE)
 #' }
 #' @export

@@ -8,7 +8,7 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 
 ```{css, echo = FALSE, eval = TRUE}
@@ -155,12 +155,17 @@ scan_prompt(
 
 ## Run a Guarded Chat
 
-Use `shield_ollama()` for the quickest local path, or pass an existing
-`ellmer` chat object to `secure_chat()`.
+Use `secure_chat()` to scan a prompt, call a chat function, scan the output, and
+return an audit trail.
 
 ```{r}
-result <- shield_ollama(
+chat <- function(prompt) {
+  paste("MODEL RESPONSE:", prompt)
+}
+
+result <- secure_chat(
   prompt = "Summarize this support issue in a short paragraph.",
+  chat = chat,
   policy = policy("baseline"),
   checks = "rules",
   show_tokens = TRUE
@@ -169,6 +174,23 @@ result <- shield_ollama(
 result$output
 result$action
 result$risk_summary
+```
+
+For the quickest local Ollama path, use `shield_ollama()`. This chunk is not
+evaluated during site builds because it requires a running Ollama service and a
+local model.
+
+```{r, eval = FALSE}
+ollama_result <- shield_ollama(
+  prompt = "Summarize this support issue in a short paragraph.",
+  policy = policy("baseline"),
+  checks = "rules",
+  show_tokens = TRUE
+)
+
+ollama_result$output
+ollama_result$action
+ollama_result$risk_summary
 ```
 
 If `secure_chat()` blocks retrieved context rows, those rows are excluded from
