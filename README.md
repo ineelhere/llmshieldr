@@ -8,6 +8,7 @@
 [![pkgdown](https://github.com/ineelhere/llmshieldr/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/ineelhere/llmshieldr/actions/workflows/pkgdown.yaml)
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fineelhere%2Fllmshieldr%2F&label=Visitors&countColor=%23263759&style=plastic)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2Fineelhere%2Fllmshieldr%2F)
 
 <!-- badges: end -->
 
