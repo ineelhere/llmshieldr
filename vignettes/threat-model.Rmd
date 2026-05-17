@@ -8,7 +8,29 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
+```
+
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
 ```
 
 `llmshieldr` is an application-level guardrail layer for R workflows that send
@@ -101,8 +123,10 @@ Use `llmshieldr` as one transparent layer in a broader safety design:
 - Add organization-specific rules and negative tests.
 - Run evaluations against your own application data before deployment.
 
+::: {.llmshieldr-info-box}
 ## Non-Goals
 
 Do not describe `llmshieldr` as guaranteeing safety, compliance, jailbreak
 resistance, or complete OWASP coverage. It is an R-native, transparent,
 testable guardrail package with starter controls and extension points.
+:::

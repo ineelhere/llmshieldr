@@ -8,7 +8,7 @@ shield_ollama(
   prompt,
   policy = "enterprise_default",
   checks = "both",
-  model = "gemma3:4b",
+  model = NULL,
   context = NULL,
   redaction = NULL,
   scanners = scanner_options(),
@@ -22,7 +22,8 @@ shield_ollama(
 
 \item{checks}{One of \code{"rules"}, \code{"nlp"}, \code{"llm"}, or \code{"both"}.}
 
-\item{model}{Ollama model name.}
+\item{model}{Ollama model name. When \code{NULL}, the first available model from
+\code{ellmer::models_ollama()$id} is used.}
 
 \item{context}{Optional data frame of retrieved context.}
 

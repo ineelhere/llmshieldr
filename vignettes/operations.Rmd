@@ -8,7 +8,29 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
+```
+
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
 ```
 
 This article collects the operational guidance that matters once `llmshieldr`
@@ -50,6 +72,7 @@ make a workflow production-ready by itself.
 - Monitor warnings, blocked requests, reviewer parse errors, and escalation
   counts.
 
+::: {.llmshieldr-info-box}
 ## Audit Log Sensitivity
 
 `llmshieldr` audit logs can contain sensitive prompts, retrieved context, model
@@ -61,6 +84,7 @@ Supported formats:
 - JSON Lines: append-only operational logs with nested audit structure.
 - CSV: one row per finding for spreadsheets and simple dashboards.
 - RDS: exact R object preservation for local debugging.
+:::
 
 ## Example JSONL Shape
 

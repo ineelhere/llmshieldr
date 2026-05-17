@@ -8,7 +8,29 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
+```
+
+```{css, echo = FALSE, eval = TRUE}
+.llmshieldr-info-box {
+  border-left: 4px solid #2f80ed;
+  background: #f3f8ff;
+  padding: 1rem 1.15rem;
+  margin: 1.5rem 0;
+  border-radius: 0.35rem;
+}
+
+.llmshieldr-info-box h2,
+.llmshieldr-info-box h3,
+.llmshieldr-info-box h4 {
+  margin-top: 0;
+}
+
+.llmshieldr-info-box p:last-child,
+.llmshieldr-info-box ul:last-child,
+.llmshieldr-info-box ol:last-child {
+  margin-bottom: 0;
+}
 ```
 
 This vignette explains how `llmshieldr` policies are assembled, what sources
@@ -165,9 +187,14 @@ Scanners can run different layers depending on the workflow:
   or your own reviewer function.
 - `checks = "both"` runs policy rules and the supplied reviewer.
 
+::: {.llmshieldr-info-box}
+### Semantic Reviewer Contract
+
 The semantic reviewer prompt is inspectable with `reviewer_prompt()`. If you
-need different reviewer instructions, wrap the reviewer function or chat object
-and prepend your own context before delegating to the model.
+need additional reviewer instructions, wrap the reviewer function or chat
+object and prepend additive organization-specific context before delegating to
+the model. Treat `reviewer_prompt()` as an audit/inspection helper, not as a
+mutable package setting, and preserve the JSON contract below.
 
 Reviewer output may be either an array of finding objects or an object with a
 `findings` array. Each finding can include:
@@ -186,6 +213,7 @@ span                 optional start/end offsets for redaction
 Malformed JSON and schema issues are soft failures. The scanner warns, keeps
 deterministic findings, and stores structured reviewer errors in
 `report$metadata$reviewer_errors`.
+:::
 
 ## Scoring
 

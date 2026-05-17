@@ -310,6 +310,9 @@ preflight_check <- function(text,
 #' two-element numeric vector or an object with `start` and `end`. The reviewer
 #' can be a function or an object with `$chat()`. Malformed JSON is treated as a
 #' soft failure because deterministic rule findings should still be usable.
+#' Custom reviewer instructions should be added by wrapping the reviewer and
+#' prepending context before delegating to the model, while keeping this JSON
+#' schema intact.
 #' Structured parse and schema errors are attached to the report metadata by the
 #' public scanner wrappers.
 #'
