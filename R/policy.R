@@ -454,7 +454,7 @@ remove_rule <- function(policy, id) {
 #' @export
 list_rules <- function(policy) {
   policy <- .as_policy(policy)
-  out <- data.frame(
+  data.frame(
     id = vapply(policy$rules, `[[`, character(1), "id"),
     owasp = vapply(policy$rules, function(rule) rule$owasp %||% NA_character_, character(1)),
     severity = vapply(policy$rules, `[[`, character(1), "severity"),
@@ -463,11 +463,6 @@ list_rules <- function(policy) {
     has_fn = vapply(policy$rules, function(rule) !is.null(rule$fn), logical(1)),
     stringsAsFactors = FALSE
   )
-  cli::cli_text("{.strong {policy$name}}: {nrow(out)} rule{?s}")
-  if (nrow(out) > 0L) {
-    print(out, row.names = FALSE)
-  }
-  out
 }
 
 `%||%` <- function(x, y) {

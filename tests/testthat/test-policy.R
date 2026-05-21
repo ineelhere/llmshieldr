@@ -49,8 +49,8 @@ test_that("add_rule, remove_rule, and list_rules work", {
   expect_equal(length(policy$rules), 1)
   expect_error(add_rule(policy, "llm01.demo.block", pattern = "BLOCK"), "already exists")
 
-  listed <- suppressMessages(capture.output(rules <- list_rules(policy)))
-  expect_gt(length(listed), 0)
+  listed <- capture.output(rules <- list_rules(policy))
+  expect_length(listed, 0)
   expect_named(rules, c("id", "owasp", "severity", "action", "has_pattern", "has_fn"))
 
   policy <- remove_rule(policy, "llm01.demo.block")
