@@ -6,8 +6,11 @@
 
 [![R-CMD-check](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ineelhere/llmshieldr/actions/workflows/R-CMD-check.yaml)
 [![pkgdown](https://github.com/ineelhere/llmshieldr/actions/workflows/pkgdown.yaml/badge.svg)](https://github.com/ineelhere/llmshieldr/actions/workflows/pkgdown.yaml)
+[![CRAN status](https://www.r-pkg.org/badges/version/llmshieldr)](https://CRAN.R-project.org/package=llmshieldr)
+[![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/llmshieldr)](https://CRAN.R-project.org/package=llmshieldr)
 [![Lifecycle:
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2Fineelhere%2Fllmshieldr%2F&label=Visitors&countColor=%23263759&style=plastic)](https://visitorbadge.io/status?path=https%3A%2F%2Fgithub.com%2Fineelhere%2Fllmshieldr%2F)
 
 <!-- badges: end -->
 
@@ -351,7 +354,7 @@ improvements.
 > text in the same domain is allowed. Document any known false-positive
 > tradeoffs.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development
+See [`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md) for the full development
 workflow, style expectations, and local check commands.
 
 ------------------------------------------------------------------------

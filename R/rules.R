@@ -185,14 +185,13 @@ shieldr_policy <- function(name,
 #' @export
 print.shieldr_policy <- function(x, ...) {
   .check_policy(x)
-  cli::cli_h1("llmshieldr policy")
-  cli::cli_text("{.field name}: {x$name}")
-  cli::cli_text("{.field rules}: {length(x$rules)}")
-  table <- data.frame(
-    threshold = c("redact_at", "block_at"),
-    value = c(x$thresholds$redact_at, x$thresholds$block_at)
-  )
-  print(table, row.names = FALSE)
+  cli::cli_inform(c(
+    "llmshieldr policy",
+    "name: {x$name}",
+    "rules: {length(x$rules)}",
+    "redact_at: {x$thresholds$redact_at}",
+    "block_at: {x$thresholds$block_at}"
+  ))
   invisible(x)
 }
 
@@ -274,19 +273,16 @@ shieldr_report <- function(action,
 #' @export
 print.shieldr_report <- function(x, ...) {
   .check_report(x, allow_null = FALSE)
-  colour <- switch(
-    x$action,
-    allow = cli::col_green,
-    redact = cli::col_yellow,
-    block = cli::col_red
+  lines <- c(
+    "llmshieldr report",
+    "action: {x$action}",
+    "risk_score: {format(round(x$risk_score, 3), nsmall = 3)}",
+    "findings: {length(x$findings)}"
   )
-  cli::cli_h1("llmshieldr report")
-  cli::cli_text("{.field action}: {colour(x$action)}")
-  cli::cli_text("{.field risk_score}: {format(round(x$risk_score, 3), nsmall = 3)}")
-  cli::cli_text("{.field findings}: {length(x$findings)}")
   if (!is.null(x$tokens)) {
-    cli::cli_text("{.field tokens}: {x$tokens}")
+    lines <- c(lines, "tokens: {x$tokens}")
   }
+  cli::cli_inform(lines)
   invisible(x)
 }
 

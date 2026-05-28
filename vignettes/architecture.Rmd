@@ -172,7 +172,7 @@ Explicit `block` rules and critical findings still block immediately.
 ::: {.llmshieldr-info-box}
 ## Release Hygiene
 
-Before release, regenerate documentation, run the test suite, run
+For future CRAN releases, regenerate documentation, run the test suite, run
 `R CMD check --as-cran`, review examples that require external services, and
-update `NEWS.md` and `cran-comments.md`.
+update `NEWS.md` with user-facing changes.
 :::
