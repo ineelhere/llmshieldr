@@ -4,14 +4,16 @@
 \name{llmshieldr-package}
 \alias{llmshieldr}
 \alias{llmshieldr-package}
-\title{llmshieldr: Safety Guardrails for LLM Workflows in R}
+\title{llmshieldr: Safety Guardrails for Large Language Model Workflows}
 \description{
-A model-agnostic safety layer for R developers building with large
-language models. The package maps starter controls to the OWASP LLM Top 10
-(2025) risk categories through composable policies, deterministic rules,
-optional semantic review, lightweight NLP intent checks, conversation,
-tool-call, streaming-output, RAG-context, and output scanning, local Ollama
-helpers, rate guards, and audit logs.
+A model-agnostic safety layer for 'R' developers building with large language
+model applications. The package maps starter controls to the Open
+Worldwide Application Security Project Top 10 for Large Language
+Model Applications 2025 risk categories through composable policies,
+deterministic rules, optional semantic review, lightweight natural language
+processing intent checks, conversation, tool-call, streaming-output,
+retrieval-augmented generation context, and output scanning,
+workflows with the 'Ollama' local web service, rate guards, and audit logs.
 }
 \seealso{
 Useful links:
