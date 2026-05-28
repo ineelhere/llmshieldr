@@ -10,16 +10,22 @@ development:
 
 home:
   title: llmshieldr
-  description: Safety guardrails for LLM workflows in R.
+  description: Safety guardrails for LLM workflows in R, now on CRAN.
+  links:
+  - text: View CRAN release
+    href: https://CRAN.R-project.org/package=llmshieldr
 
 navbar:
   structure:
     left: [intro, reference, articles]
-    right: [search, github, lightswitch]
+    right: [search, cran, github, lightswitch]
   components:
     intro:
       text: Get Started
       href: articles/getting-started.html
+    cran:
+      text: CRAN
+      href: https://CRAN.R-project.org/package=llmshieldr
     github:
       icon: fa-github
       href: https://github.com/ineelhere/llmshieldr

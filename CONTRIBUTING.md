@@ -10,10 +10,12 @@ Thanks for considering a contribution.
 
 ## Development Workflow
 
-1. Install development dependencies.
-2. Make the change in `R/`, `tests/`, and the relevant documentation files.
-3. Run package checks locally.
-4. Open a pull request with a short description of the problem, the approach, and any follow-up work.
+1. Install the released package from CRAN with `install.packages("llmshieldr")`
+   if you want a reference version for comparison.
+2. Install development dependencies.
+3. Make the change in `R/`, `tests/`, and the relevant documentation files.
+4. Run package checks locally.
+5. Open a pull request with a short description of the problem, the approach, and any follow-up work.
 
 Typical local commands:
 
@@ -45,7 +47,7 @@ Rule changes need both detection and overblocking evidence.
 
 - Keep `README.md` focused on quick onboarding.
 - Put longer walkthroughs in `vignettes/`.
-- Record noteworthy package changes in `NEWS.md`.
+- Record user-facing changes in `NEWS.md` before a CRAN or GitHub release.
 
 ## Questions
 
