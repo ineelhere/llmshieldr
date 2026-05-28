@@ -14,13 +14,16 @@ experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](h
 
 <!-- badges: end -->
 
-`llmshieldr` is a quick safety vibe check for R + LLM workflows. It
-scans prompts, retrieved context, conversations, tool I/O, streams, and
-model output before text crosses a trust boundary.
+`llmshieldr` is a model-agnostic guardrail layer for R developers
+building large language model (LLM) workflows. It scans prompts,
+retrieved context, conversations, tool inputs and outputs, streaming
+chunks, and model responses before text crosses a trust boundary.
 
-`llmshieldr` is experimental by design: transparent, inspectable, and
-meant to be pressure-tested against your own prompts, models, reviewer
-setup, logs, and risk tolerance.
+The package is now available on
+[CRAN](https://CRAN.R-project.org/package=llmshieldr). It remains
+experimental by design: transparent, inspectable, and meant to be
+pressure-tested against your own prompts, models, reviewer setup, logs,
+and risk tolerance before production use.
 
 > **✨ Key highlights** — model-agnostic · OWASP LLM Top 10 mapped ·
 > regex + NLP + optional LLM review · 5 redaction strategies ·
@@ -30,13 +33,27 @@ setup, logs, and risk tolerance.
 
 ## 🚀 Install
 
-Install from CRAN, once available, with
-`install.packages("llmshieldr")`. For the development build, use
-`remotes::install_github("ineelhere/llmshieldr")`.
+Install the released package from CRAN:
+
+``` r
+install.packages("llmshieldr")
+```
+
+Install the development version from GitHub when you want unreleased
+changes:
+
+``` r
+remotes::install_github("ineelhere/llmshieldr")
+```
 
 Optional extras unlock local Ollama workflows, remote reviewers,
 tokenization, HTTP, model hash checks, and concurrency helpers:
-`install.packages(c("ellmer", "httr2", "tokenizers", "SnowballC", "processx", "filelock"))`.
+
+``` r
+install.packages(c(
+  "ellmer", "httr2", "tokenizers", "SnowballC", "processx", "filelock"
+))
+```
 
 ------------------------------------------------------------------------
 
