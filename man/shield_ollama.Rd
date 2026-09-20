@@ -12,7 +12,9 @@ shield_ollama(
   context = NULL,
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  audit_content = c("metadata", "full"),
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -32,6 +34,11 @@ shield_ollama(
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{audit_content}{Passed to \code{\link[=secure_chat]{secure_chat()}}; defaults to metadata-only
+audit content.}
+
+\item{show_stats}{Show execution statistics as messages.}
 }
 \value{
 A \code{shieldr_result}.

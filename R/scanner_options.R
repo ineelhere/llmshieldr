@@ -225,7 +225,7 @@ scanner_options <- function(invisible_text = TRUE,
     if (isTRUE(scanners$malicious_urls) && (blocked || outside_allowlist)) {
       out[[length(out) + 1L]] <- .scanner_finding(
         rule_id = "llm05.scanner.url.host",
-        owasp = "llm05",
+        owasp = "llm02",
         severity = "high",
         action = "block",
         description = "URL host is blocked or outside the configured allowlist.",
@@ -270,7 +270,7 @@ scanner_options <- function(invisible_text = TRUE,
   }
   list(.scanner_finding(
     rule_id = "llm10.scanner.token_limit",
-    owasp = "llm10",
+    owasp = "llm06",
     severity = "critical",
     action = "block",
     description = "Text exceeds the configured scanner token limit.",
@@ -289,7 +289,7 @@ scanner_options <- function(invisible_text = TRUE,
   }
   list(.scanner_finding(
     rule_id = "llm09.scanner.language",
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "medium",
     action = "block",
     description = "Detected language is outside the configured allowlist.",
@@ -320,7 +320,7 @@ scanner_options <- function(invisible_text = TRUE,
     topic <- topic_names[[i]]
     out[[length(out) + 1L]] <- .scanner_finding(
       rule_id = "llm09.scanner.topic_ban",
-      owasp = "llm09",
+      owasp = "llm07",
       severity = "high",
       action = "block",
       description = paste0("Text matches blocked topic pattern: ", topic),

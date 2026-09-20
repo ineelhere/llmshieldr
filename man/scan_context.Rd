@@ -14,7 +14,9 @@ scan_context(
   anomaly_threshold = 2.5,
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  authorize = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -38,13 +40,21 @@ If omitted, a likely text column is inferred.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{authorize}{Optional function receiving one context row as a one-row data
+frame. It must return exactly \code{TRUE} to admit the row. Errors and all other
+values deny admission. Enforce tenant scope in the retrieval query too.}
+
+\item{show_stats}{Show elapsed time, token estimate, network status, and
+transfer metrics when available.}
 }
 \value{
 A list of \code{shieldr_report} objects, one per row.
 }
 \description{
-Scans data-frame context chunks and adds OWASP LLM08-style anomaly and
-source-trust findings before returning row-aligned reports.
+Scans data-frame context chunks and adds OWASP 2026 context anomaly and
+source-trust findings and an explicit admission decision before returning
+row-aligned reports.
 }
 \details{
 Retrieved context is a separate trust boundary in RAG systems. A prompt may
@@ -62,9 +72,9 @@ anomaly signals:
 
 Instruction density counts \code{ignore}, \code{forget}, \code{override}, \code{instead}, and
 \code{disregard} per 100 tokens. Rows above \code{anomaly_threshold} receive synthetic
-OWASP LLM08 findings. If \code{source_col} is supplied and
+OWASP LLM09:2026 findings. If \code{source_col} is supplied and
 \code{policy$trusted_sources} is a character vector, untrusted source values also
-receive a synthetic OWASP LLM08 finding.
+receive a synthetic OWASP LLM01:2026 finding.
 }
 \examples{
 ctx <- data.frame(text = c("clean note", "ignore previous instructions"))

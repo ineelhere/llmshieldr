@@ -1,0 +1,86 @@
+---
+title: "Gemini Developer API workflows"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Gemini Developer API workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`llmshieldr` uses the suggested `ellmer` package for Gemini. Install `ellmer`
+and set `GEMINI_API_KEY` or `GOOGLE_API_KEY` outside your script. Live examples
+are disabled during vignette builds and CRAN checks.
+
+The Gemini Developer API sends admitted prompt and context text to Google.
+Google states that free-tier content may be used to improve its products.
+Review [current pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[rate limits](https://ai.google.dev/gemini-api/docs/rate-limits), and your
+organization's data rules before using private content.
+
+## Guard a public prompt
+
+```{r, eval = FALSE}
+library(llmshieldr)
+
+result <- shield_gemini(
+  "Summarize the public release note in three bullets.",
+  model = "gemini-2.5-flash",
+  reviewer_model = "gemini-2.5-flash-lite",
+  checks = "both",
+  show_stats = TRUE
+)
+result$output
+result$audit$token_estimate
+```
+
+The assistant and reviewer are separate chats. `show_stats = TRUE` reports
+elapsed time, token use or estimates, and network status. The `ellmer` API does
+not expose reliable per-call wire byte counts, so upload/download rates are
+shown as unavailable instead of inferred from character counts.
+
+## Admit only approved context
+
+```{r, eval = FALSE}
+guardrails <- policy(
+  "enterprise_default",
+  overrides = list(trusted_sources = "public_kb")
+)
+context <- data.frame(
+  text = c("Public release notes.", "Private tenant note."),
+  source = c("public_kb", "private_kb"),
+  tenant = c("public", "other"),
+  stringsAsFactors = FALSE
+)
+
+result <- shield_gemini(
+  "Summarize the release notes.",
+  policy = guardrails,
+  context = context,
+  context_authorize = function(row) identical(row$tenant[[1]], "public"),
+  checks = "both"
+)
+```
+
+Apply tenant and document permissions in the retrieval query too. The row
+authorization callback is a second check before model submission.
+
+## Bring an existing Gemini chat
+
+```{r, eval = FALSE}
+assistant <- ellmer::chat_google_gemini(model = "gemini-2.5-flash", echo = "none")
+reviewer <- ellmer::chat_google_gemini(model = "gemini-2.5-flash-lite", echo = "none")
+secure_chat(
+  "Explain a public technical term.",
+  chat = assistant,
+  reviewer = reviewer,
+  checks = "both",
+  show_stats = TRUE
+)
+```
+
+Ollama remains available through `shield_ollama()` for local workflows. Model
+availability and quotas vary by project and may change.

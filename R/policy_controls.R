@@ -17,6 +17,9 @@
 #'   before the chat call.
 #' - `on_output_block`: applied when model output is blocked after the chat
 #'   call.
+#' - `on_reviewer_error`: applied when requested semantic review fails or
+#'   returns invalid findings. `"block"` is the default; `"rules_only"` opts
+#'   into continuing with deterministic findings.
 #'
 #' `refuse` returns `refusal_message` as the result output. `escalate` returns
 #' no output and records the final action as `"escalate"` for downstream
@@ -26,6 +29,7 @@
 #' @param on_context_block One of `"drop"`, `"keep_redacted"`, `"block"`,
 #'   `"refuse"`, or `"escalate"`.
 #' @param on_output_block One of `"block"`, `"refuse"`, or `"escalate"`.
+#' @param on_reviewer_error One of `"block"` or `"rules_only"`.
 #' @param refusal_message Message returned as `result$output` when a control
 #'   maps a block to `refuse`.
 #' @param escalation_message Optional human-readable reason stored in policy
@@ -47,10 +51,12 @@ policy_controls <- function(on_prompt_block = "block",
                             on_context_block = "drop",
                             on_output_block = "block",
                             refusal_message = "I can't safely complete that request.",
-                            escalation_message = "Human review requested by llmshieldr policy.") {
+                            escalation_message = "Human review requested by llmshieldr policy.",
+                            on_reviewer_error = "block") {
   .check_choice(on_prompt_block, "on_prompt_block", c("block", "refuse", "escalate"))
   .check_choice(on_context_block, "on_context_block", c("drop", "keep_redacted", "block", "refuse", "escalate"))
   .check_choice(on_output_block, "on_output_block", c("block", "refuse", "escalate"))
+  .check_choice(on_reviewer_error, "on_reviewer_error", c("block", "rules_only"))
   .check_string(refusal_message, "refusal_message", allow_empty = TRUE)
   .check_string(escalation_message, "escalation_message", allow_empty = TRUE)
 
@@ -58,6 +64,7 @@ policy_controls <- function(on_prompt_block = "block",
     on_prompt_block = on_prompt_block,
     on_context_block = on_context_block,
     on_output_block = on_output_block,
+    on_reviewer_error = on_reviewer_error,
     refusal_message = refusal_message,
     escalation_message = escalation_message
   )
@@ -76,6 +83,7 @@ policy_controls <- function(on_prompt_block = "block",
     on_prompt_block = controls$on_prompt_block,
     on_context_block = controls$on_context_block,
     on_output_block = controls$on_output_block,
+    on_reviewer_error = controls$on_reviewer_error,
     refusal_message = controls$refusal_message,
     escalation_message = controls$escalation_message
   )

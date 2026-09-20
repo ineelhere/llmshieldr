@@ -4,7 +4,7 @@
 \alias{write_audit_log}
 \title{Write an audit log}
 \usage{
-write_audit_log(audit, path, format = "jsonl")
+write_audit_log(audit, path, format = "jsonl", include_content = FALSE)
 }
 \arguments{
 \item{audit}{A \code{shieldr_audit} object.}
@@ -12,6 +12,9 @@ write_audit_log(audit, path, format = "jsonl")
 \item{path}{Output file path.}
 
 \item{format}{One of \code{"jsonl"}, \code{"csv"}, or \code{"rds"}.}
+
+\item{include_content}{Whether to write raw text and finding excerpts from
+a full-content audit. Defaults to \code{FALSE}.}
 }
 \value{
 The path, invisibly.
@@ -29,9 +32,10 @@ metadata such as context row index, context source, tool name, conversation
 role, and reviewer error counts. RDS preserves the R object exactly and
 overwrites the target path.
 
-Audit logs may contain sensitive source text, raw model output, or redacted
-findings depending on the workflow. Treat audit paths as sensitive storage in
-regulated or internal environments.
+By default, content is stripped again before writing, including when an
+older or explicitly full-content audit object is supplied. To persist raw
+content, the caller must set \code{include_content = TRUE} explicitly and protect
+the destination path.
 }
 \examples{
 audit <- shieldr_audit(NULL, NULL, NULL, "hello", NULL, 0, 1L, "allow")

@@ -27,6 +27,7 @@
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show execution statistics as messages.
 #'
 #' @return A list of `shieldr_report` objects, one per message.
 #' @examples
@@ -46,7 +47,10 @@ scan_conversation <- function(messages,
                               checks = "rules",
                               redaction = NULL,
                               scanners = scanner_options(),
-                              show_tokens = FALSE) {
+                              show_tokens = FALSE,
+                              show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_conversation")
+  on.exit(.stats_end(stats), add = TRUE)
   data <- .conversation_to_data_frame(messages)
   .check_string(role_col, "role_col")
   if (!role_col %in% names(data)) {
@@ -66,6 +70,8 @@ scan_conversation <- function(messages,
   roles[is.na(roles) | !nzchar(roles)] <- "user"
   content <- as.character(data[[content_name]])
   content[is.na(content)] <- ""
+  .stats_text_tokens(stats, paste(content, collapse = "\n"))
+  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
 
   reports <- vector("list", length(content))
   for (i in seq_along(content)) {

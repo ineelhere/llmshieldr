@@ -75,4 +75,25 @@ test_that("semantic reviewer parse errors are structured metadata", {
 
   expect_length(report$metadata$reviewer_errors, 1)
   expect_equal(report$metadata$reviewer_errors[[1]]$type, "malformed_json")
+  expect_equal(report$action, "block")
+})
+
+test_that("reviewer failure can use an explicit rules-only fallback", {
+  guardrails <- policy("enterprise_default", overrides = list(
+    controls = policy_controls(on_reviewer_error = "rules_only")
+  ))
+  expect_warning(
+    report <- scan_prompt("hello", policy = guardrails,
+                          reviewer = function(prompt) "broken", checks = "both"),
+    "malformed JSON"
+  )
+  expect_equal(report$action, "allow")
+  expect_length(report$metadata$reviewer_errors, 1L)
+})
+
+test_that("invalid reviewer schemas fail closed", {
+  reviewer <- function(prompt) '[{"severity":["high","low"],"rule_id":"bad id","owasp":"llm99"}]'
+  report <- scan_prompt("hello", reviewer = reviewer, checks = "llm")
+  expect_equal(report$action, "block")
+  expect_true(length(report$metadata$reviewer_errors) >= 2L)
 })

@@ -12,13 +12,16 @@
 #' role, and reviewer error counts. RDS preserves the R object exactly and
 #' overwrites the target path.
 #'
-#' Audit logs may contain sensitive source text, raw model output, or redacted
-#' findings depending on the workflow. Treat audit paths as sensitive storage in
-#' regulated or internal environments.
+#' By default, content is stripped again before writing, including when an
+#' older or explicitly full-content audit object is supplied. To persist raw
+#' content, the caller must set `include_content = TRUE` explicitly and protect
+#' the destination path.
 #'
 #' @param audit A `shieldr_audit` object.
 #' @param path Output file path.
 #' @param format One of `"jsonl"`, `"csv"`, or `"rds"`.
+#' @param include_content Whether to write raw text and finding excerpts from
+#'   a full-content audit. Defaults to `FALSE`.
 #'
 #' @return The path, invisibly.
 #' @examples
@@ -26,12 +29,14 @@
 #' path <- tempfile(fileext = ".jsonl")
 #' write_audit_log(audit, path)
 #' @export
-write_audit_log <- function(audit, path, format = "jsonl") {
+write_audit_log <- function(audit, path, format = "jsonl", include_content = FALSE) {
   if (!inherits(audit, "shieldr_audit")) {
     cli::cli_abort("{.arg audit} must be a {.cls shieldr_audit}.")
   }
   .check_string(path, "path")
   .check_choice(format, "format", c("jsonl", "csv", "rds"))
+  .validate_flag(include_content, "include_content")
+  audit <- .audit_for_storage(audit, include_content)
 
   dir <- dirname(path)
   if (!dir.exists(dir)) {
@@ -70,6 +75,21 @@ write_audit_log <- function(audit, path, format = "jsonl") {
   invisible(path)
 }
 
+.audit_for_storage <- function(audit, include_content = FALSE) {
+  if (isTRUE(include_content)) {
+    return(audit)
+  }
+  audit$input_report <- .audit_metadata_report(audit$input_report)
+  audit$output_report <- .audit_metadata_report(audit$output_report)
+  if (!is.null(audit$context_reports)) {
+    audit$context_reports <- lapply(audit$context_reports, .audit_metadata_report)
+  }
+  audit$prompt_clean <- NULL
+  audit$output_raw <- NULL
+  audit$content_mode <- "metadata"
+  audit
+}
+
 .flatten_audit_findings <- function(audit) {
   reports <- .collect_reports(list(
     input = audit$input_report,
@@ -100,7 +120,7 @@ write_audit_log <- function(audit, path, format = "jsonl") {
           context_source = metadata$source %||% NA_character_,
           tool_name = metadata$tool_name %||% NA_character_,
           conversation_role = metadata$role %||% NA_character_,
-          reviewer_error_count = length(metadata$reviewer_errors %||% list()),
+          reviewer_error_count = length(metadata$reviewer_error_types %||% metadata$reviewer_errors %||% list()),
           report_index = report_index,
           action = report$action,
           risk_score = report$risk_score,

@@ -12,7 +12,8 @@ shieldr_audit(
   output_raw = NULL,
   elapsed_ms,
   token_estimate,
-  action
+  action,
+  content_mode = c("metadata", "full")
 )
 }
 \arguments{
@@ -32,6 +33,12 @@ shieldr_audit(
 
 \item{action}{Final action. \code{secure_chat()} may return \code{"refuse"} or
 \code{"escalate"} when policy controls map a blocked report to those outcomes.}
+
+\item{content_mode}{\code{"metadata"} (default) removes prompt/output text,
+finding excerpts, and reviewer error details from the audit object.
+\code{"full"} retains them and should only be used in explicitly protected
+storage. \code{\link[=write_audit_log]{write_audit_log()}} still requires \code{include_content = TRUE} to
+persist the full content.}
 }
 \value{
 A \code{shieldr_audit} S3 object.

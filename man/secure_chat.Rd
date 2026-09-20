@@ -14,6 +14,10 @@ secure_chat(
   redaction = NULL,
   scanners = scanner_options(),
   show_tokens = FALSE,
+  context_authorize = NULL,
+  audit_content = c("metadata", "full"),
+  allowed_tools = character(),
+  show_stats = FALSE,
   ...
 )
 }
@@ -35,6 +39,21 @@ secure_chat(
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{context_authorize}{Optional function passed to \code{\link[=scan_context]{scan_context()}} to
+authorize each retrieved row before it is included in the model prompt.}
+
+\item{audit_content}{\code{"metadata"} (default) omits prompt, output, finding
+excerpts and reviewer details from the audit. \code{"full"} retains them in
+memory; \code{\link[=write_audit_log]{write_audit_log()}} requires a separate explicit opt-in to write
+them.}
+
+\item{allowed_tools}{Explicit names of registered \code{ellmer} tools allowed
+during this call. The default empty vector denies tool-enabled chats before
+calling the model. Allowed calls are scanned before tool execution.}
+
+\item{show_stats}{Show elapsed time, token use, network status, and
+transfer metrics when available.}
 
 \item{...}{Reserved for backwards-compatible aliases.}
 }

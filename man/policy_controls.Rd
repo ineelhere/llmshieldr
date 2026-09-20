@@ -9,7 +9,8 @@ policy_controls(
   on_context_block = "drop",
   on_output_block = "block",
   refusal_message = "I can't safely complete that request.",
-  escalation_message = "Human review requested by llmshieldr policy."
+  escalation_message = "Human review requested by llmshieldr policy.",
+  on_reviewer_error = "block"
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ maps a block to \code{refuse}.}
 
 \item{escalation_message}{Optional human-readable reason stored in policy
 metadata when a control maps a block to \code{escalate}.}
+
+\item{on_reviewer_error}{One of \code{"block"} or \code{"rules_only"}.}
 }
 \value{
 A list of policy controls.
@@ -47,6 +50,9 @@ includes their redacted text. \code{"block"}, \code{"refuse"}, and \code{"escala
 before the chat call.
 \item \code{on_output_block}: applied when model output is blocked after the chat
 call.
+\item \code{on_reviewer_error}: applied when requested semantic review fails or
+returns invalid findings. \code{"block"} is the default; \code{"rules_only"} opts
+into continuing with deterministic findings.
 }
 
 \code{refuse} returns \code{refusal_message} as the result output. \code{escalate} returns

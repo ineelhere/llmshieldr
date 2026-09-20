@@ -2,7 +2,11 @@
 #'
 #' `scan_stream()` scans character chunks as they arrive from a streaming model
 #' API. Each scan uses the current chunk plus a configurable overlap from the
-#' previous text so rules can catch phrases split across chunk boundaries.
+#' previous text so rules can catch phrases split across chunk boundaries. The
+#' returned `text` is scanned again as a whole and contains only releasable
+#' text: a blocked result has an empty string and a redacted result contains
+#' the cleaned text. This helper accepts chunks after they have been received;
+#' callers must not forward raw chunks before the final decision.
 #'
 #' @details
 #' This helper is intentionally transport-agnostic: pass the text chunks you
@@ -25,6 +29,9 @@
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show execution statistics as messages.
+#' @param report_content `"metadata"` (default) strips text and evidence from
+#'   per-window reports; `"full"` retains them in memory.
 #'
 #' @return A `shieldr_stream_result` list with `action`, `text`, and `reports`.
 #' @examples
@@ -42,7 +49,12 @@ scan_stream <- function(chunks,
                         on_block = c("stop", "return"),
                         redaction = NULL,
                         scanners = scanner_options(),
-                        show_tokens = FALSE) {
+                        show_tokens = FALSE,
+                        show_stats = FALSE,
+                        report_content = c("metadata", "full")) {
+  stats <- .stats_begin(show_stats, "scan_stream")
+  on.exit(.stats_end(stats), add = TRUE)
+  report_content <- match.arg(report_content)
   if (!is.character(chunks)) {
     cli::cli_abort("{.arg chunks} must be a character vector.")
   }
@@ -51,6 +63,8 @@ scan_stream <- function(chunks,
   on_block <- match.arg(on_block)
 
   chunks <- chunks[!is.na(chunks)]
+  .stats_text_tokens(stats, paste(chunks, collapse = ""))
+  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
   if (length(chunks) == 1L && nchar(chunks, type = "chars") > chunk_size) {
     chunks <- .split_stream_text(chunks, as.integer(chunk_size))
   }
@@ -93,12 +107,36 @@ scan_stream <- function(chunks,
   }
 
   actions <- vapply(reports, function(report) report$action, character(1))
-  action <- .combine_actions(actions)
+  final_report <- scan_output(
+    accumulated,
+    policy = policy,
+    reviewer = reviewer,
+    checks = checks,
+    redaction = redaction,
+    scanners = scanners,
+    show_tokens = show_tokens
+  )
+  action <- .combine_actions(c(actions, final_report$action))
+  if (identical(action, "block") && identical(on_block, "stop")) {
+    cli::cli_abort("Streaming output blocked by llmshieldr after final scan.")
+  }
+  safe_text <- if (identical(action, "block")) {
+    ""
+  } else if (identical(action, "redact") && identical(final_report$text_clean, accumulated)) {
+    # A window identified content that a full scan did not clean. Release none.
+    ""
+  } else {
+    final_report$text_clean
+  }
   structure(
     list(
       action = action,
-      text = accumulated,
-      reports = reports
+      text = safe_text,
+      reports = if (identical(report_content, "metadata")) {
+        lapply(reports, .audit_metadata_report)
+      } else {
+        reports
+      }
     ),
     class = "shieldr_stream_result"
   )

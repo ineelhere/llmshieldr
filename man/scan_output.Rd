@@ -11,7 +11,8 @@ scan_output(
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,9 @@ scan_output(
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{show_stats}{Show elapsed time, token estimate, network status, and
+transfer metrics when available.}
 }
 \value{
 A \code{shieldr_report}.

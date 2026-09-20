@@ -2,6 +2,7 @@
   "You are a security reviewer for llmshieldr. ",
   "Return only JSON: an array of objects with rule_id, owasp, severity, description, ",
   "and optional confidence, evidence, recommended_action, and span. ",
+  "Use OWASP LLM Top 10 2026 category ids llm01 through llm10. ",
   "Use severity values low, medium, high, or critical. ",
   "Use recommended_action values allow, redact, or block when supplied."
 )
@@ -128,7 +129,7 @@ shieldr_rule <- function(id,
 #' `trusted_sources` is used by [scan_context()] only. If it is `NULL`, all
 #' sources are treated as trusted. If it is a character vector and `source_col`
 #' is supplied to [scan_context()], rows with source values outside the allowlist
-#' receive an OWASP LLM08 finding.
+#' receive an OWASP LLM01:2026 finding.
 #'
 #' `controls` is used by [secure_chat()] after scanner reports have already
 #' resolved to `allow`, `redact`, or `block`. Use [policy_controls()] to decide
@@ -247,6 +248,13 @@ shieldr_report <- function(action,
   if (!is.list(metadata)) {
     cli::cli_abort("{.arg metadata} must be a list.")
   }
+  metadata$taxonomy_version <- metadata$taxonomy_version %||% "OWASP-LLM-Top-10-2026"
+  findings <- lapply(findings, function(finding) {
+    if (is.list(finding) && !is.null(finding$owasp) && !is.na(finding$owasp)) {
+      finding$taxonomy_version <- finding$taxonomy_version %||% metadata$taxonomy_version
+    }
+    finding
+  })
 
   structure(
     list(
@@ -307,6 +315,11 @@ print.shieldr_report <- function(x, ...) {
 #' @param token_estimate Integer token estimate.
 #' @param action Final action. `secure_chat()` may return `"refuse"` or
 #'   `"escalate"` when policy controls map a blocked report to those outcomes.
+#' @param content_mode `"metadata"` (default) removes prompt/output text,
+#'   finding excerpts, and reviewer error details from the audit object.
+#'   `"full"` retains them and should only be used in explicitly protected
+#'   storage. [write_audit_log()] still requires `include_content = TRUE` to
+#'   persist the full content.
 #'
 #' @return A `shieldr_audit` S3 object.
 #' @examples
@@ -319,7 +332,9 @@ shieldr_audit <- function(input_report = NULL,
                           output_raw = NULL,
                           elapsed_ms,
                           token_estimate,
-                          action) {
+                          action,
+                          content_mode = c("metadata", "full")) {
+  content_mode <- match.arg(content_mode)
   .check_report(input_report, allow_null = TRUE)
   .check_report(output_report, allow_null = TRUE)
   if (!is.null(context_reports)) {
@@ -335,6 +350,16 @@ shieldr_audit <- function(input_report = NULL,
   }
   .check_choice(action, "action", .shieldr_final_actions())
 
+  if (identical(content_mode, "metadata")) {
+    input_report <- .audit_metadata_report(input_report)
+    output_report <- .audit_metadata_report(output_report)
+    if (!is.null(context_reports)) {
+      context_reports <- lapply(context_reports, .audit_metadata_report)
+    }
+    prompt_clean <- NULL
+    output_raw <- NULL
+  }
+
   structure(
     list(
       input_report = input_report,
@@ -344,10 +369,41 @@ shieldr_audit <- function(input_report = NULL,
       output_raw = output_raw,
       elapsed_ms = elapsed_ms,
       token_estimate = as.integer(token_estimate),
-      action = action
+      action = action,
+      content_mode = content_mode
     ),
     class = "shieldr_audit"
   )
+}
+
+.audit_metadata_report <- function(report) {
+  if (is.null(report)) {
+    return(NULL)
+  }
+  report$text_clean <- ""
+  report$findings <- lapply(report$findings, function(finding) {
+    keep <- intersect(
+      c("rule_id", "owasp", "taxonomy_version", "severity", "action",
+        "start", "end", "source", "synthetic", "confidence"),
+      names(finding)
+    )
+    finding[keep]
+  })
+  metadata <- report$metadata %||% list()
+  keep <- intersect(
+    c("stage", "row_index", "chunk_index", "overlap", "role", "tool_name",
+      "allowed", "admission", "admission_reason", "taxonomy_version"),
+    names(metadata)
+  )
+  report$metadata <- metadata[keep]
+  if (!is.null(metadata$reviewer_errors)) {
+    report$metadata$reviewer_error_types <- vapply(
+      metadata$reviewer_errors,
+      function(error) as.character(error$type %||% "unknown"),
+      character(1)
+    )
+  }
+  report
 }
 
 #' Construct a `shieldr_result`
@@ -609,7 +665,7 @@ rule_agency_language <- function() {
       "\\bI\\s+am\\s+granting\\b|\\bproceeding\\s+to\\b|\\bexecuting\\b",
       sep = ""
     ),
-    owasp = "llm06",
+    owasp = "llm03",
     severity = "critical",
     action = "block",
     description = "Model claims or proposes autonomous agency."
@@ -627,7 +683,7 @@ rule_system_prompt_leak <- function() {
       "what\\s+are\\s+your\\s+(system\\s+)?instructions",
       sep = ""
     ),
-    owasp = "llm07",
+    owasp = "llm08",
     severity = "critical",
     action = "block",
     description = "System prompt extraction attempt."
@@ -646,7 +702,7 @@ rule_diagnosis_claim <- function() {
       "\\bthe\\s+only\\s+treatment\\b|\\b100%\\s+accurate\\b|\\bproven\\s+to\\b",
       sep = ""
     ),
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "critical",
     action = "block",
     description = "High-confidence diagnosis, treatment, or misinformation claim."
@@ -665,7 +721,7 @@ rule_financial_advice <- function() {
       "\\bthis\\s+is\\s+financial\\s+advice\\b",
       sep = ""
     ),
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "high",
     action = "redact",
     description = "Financial advice or investment claim."
@@ -715,7 +771,7 @@ rule_financial_advice <- function() {
       "DROP\\s+TABLE|DELETE\\s+FROM\\s+.+WHERE\\s+1\\s*=\\s*1",
       sep = ""
     ),
-    owasp = "llm05",
+    owasp = "llm10",
     severity = "critical",
     action = "block",
     description = "Unsafe code or command pattern."
@@ -737,7 +793,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm06.investment_advice.action",
     pattern = "(?i)\\bI\\s+will\\s+(buy|sell|trade|invest)\\b|\\bplacing\\s+the\\s+order\\b",
-    owasp = "llm06",
+    owasp = "llm03",
     severity = "critical",
     action = "block",
     description = "Autonomous investment-action language."
@@ -770,7 +826,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm07.system_prompt.marker",
     pattern = "(?i)(^|\\s)#\\s*System\\b|\\bYou\\s+are\\s+an\\s+AI\\b|\\bYour\\s+instructions\\b|\\b(system|developer)\\s*:",
-    owasp = "llm07",
+    owasp = "llm08",
     severity = "critical",
     action = "block",
     description = "System-prompt structural marker in model output."
@@ -781,7 +837,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm09.misinformation.marker",
     pattern = "(?i)\\b(guaranteed|definitely\\s+cures|the\\s+only\\s+treatment|100%\\s+accurate|proven\\s+to)\\b",
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "critical",
     action = "block",
     description = "High-confidence medical or financial misinformation marker."
@@ -844,7 +900,7 @@ rule_financial_advice <- function() {
   if (has(harmful_action_terms) && has(harmful_content_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm05.nlp.harmful_intent",
-      owasp = "llm05",
+      owasp = "llm10",
       severity = "critical",
       action = "block",
       description = "NLP signal: harmful content word appears with an action verb.",

@@ -3,7 +3,7 @@
 #' `scan_tool_call()` validates tool-call intent and arguments before an
 #' application executes the tool. It serializes the tool name and arguments,
 #' scans that text with [scan_prompt()], and adds an explicit finding when the
-#' tool is outside an allowlist.
+#' tool is outside an allowlist. The default empty allowlist denies every tool.
 #'
 #' @details
 #' This helper does not execute tools. It is designed to sit immediately before
@@ -17,13 +17,15 @@
 #' @param tool_name Tool name requested by a model or orchestrator.
 #' @param arguments Tool arguments as a list, data frame, character string, or
 #'   other JSON-serializable value.
-#' @param allowed_tools Optional character vector of approved tool names.
+#' @param allowed_tools Character vector of approved tool names. The default
+#'   empty vector denies every tool; `NULL` explicitly disables the allowlist.
 #' @param policy A `shieldr_policy` or built-in policy name.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show execution statistics as messages.
 #'
 #' @return A `shieldr_report`.
 #' @examples
@@ -37,13 +39,16 @@
 #' @export
 scan_tool_call <- function(tool_name,
                            arguments = list(),
-                           allowed_tools = NULL,
+                           allowed_tools = character(),
                            policy = "enterprise_default",
                            reviewer = NULL,
                            checks = "rules",
                            redaction = NULL,
                            scanners = scanner_options(),
-                           show_tokens = FALSE) {
+                           show_tokens = FALSE,
+                           show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_tool_call")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_string(tool_name, "tool_name")
   if (!is.null(allowed_tools) && !is.character(allowed_tools)) {
     cli::cli_abort("{.arg allowed_tools} must be a character vector or {.code NULL}.")
@@ -51,6 +56,8 @@ scan_tool_call <- function(tool_name,
 
   policy_obj <- .as_policy(policy)
   payload <- .tool_call_text(tool_name, arguments)
+  .stats_text_tokens(stats, payload)
+  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
   report <- scan_prompt(
     payload,
     policy = policy_obj,
@@ -66,7 +73,7 @@ scan_tool_call <- function(tool_name,
   if (!allowed) {
     extra[[1L]] <- .synthetic_finding(
       "llm06.tool.unapproved",
-      "llm06",
+      "llm03",
       "critical",
       "Tool call targets a tool outside the configured allowlist.",
       action = "block"
@@ -119,9 +126,14 @@ scan_tool_output <- function(tool_name,
                              checks = "rules",
                              redaction = NULL,
                              scanners = scanner_options(),
-                             show_tokens = FALSE) {
+                             show_tokens = FALSE,
+                             show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_tool_output")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_string(tool_name, "tool_name")
   text <- paste(as.character(output), collapse = "\n")
+  .stats_text_tokens(stats, text)
+  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
   report <- scan_output(
     text,
     policy = policy,

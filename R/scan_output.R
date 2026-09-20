@@ -24,6 +24,8 @@
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show elapsed time, token estimate, network status, and
+#'   transfer metrics when available.
 #'
 #' @return A `shieldr_report`.
 #' @examples
@@ -36,7 +38,12 @@ scan_output <- function(text,
                         checks = "rules",
                         redaction = NULL,
                         scanners = scanner_options(),
-                        show_tokens = FALSE) {
+                        show_tokens = FALSE,
+                        show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_output")
+  on.exit(.stats_end(stats), add = TRUE)
+  .stats_text_tokens(stats, text)
+  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
@@ -77,6 +84,10 @@ scan_output <- function(text,
     reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
     findings <- c(findings, semantic)
   }
+  if (length(reviewer_errors) > 0L &&
+      identical(policy$controls$on_reviewer_error, "block")) {
+    findings <- c(findings, list(.reviewer_failure_finding()))
+  }
 
   findings <- .dedupe_findings(findings)
   risk_score <- .score_findings(findings)
@@ -113,7 +124,8 @@ scan_output <- function(text,
     rules = c(policy$rules, intrinsic),
     thresholds = policy$thresholds,
     rate_guard = policy$rate_guard,
-    trusted_sources = policy$trusted_sources
+    trusted_sources = policy$trusted_sources,
+    controls = policy$controls
   )
 }
 

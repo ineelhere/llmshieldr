@@ -12,7 +12,8 @@ scan_prompt(
   redact = TRUE,
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -32,6 +33,9 @@ Ignored when \code{redact = FALSE}.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{show_stats}{Show elapsed time, token estimate, network status, and
+transfer metrics when available.}
 }
 \value{
 A \code{shieldr_report}.
@@ -53,8 +57,8 @@ regular expressions and an NLP intent rule. \code{checks = "nlp"} runs only NLP
 intent checks, using \code{tokenizers} for word tokenization and \code{SnowballC} for
 stemming when those optional packages are installed. \code{checks = "llm"} uses
 only the semantic reviewer when one is supplied. \code{checks = "both"} combines
-policy rules with semantic review. If LLM review returns malformed JSON, the
-function warns and continues with the findings it already has.
+policy rules with semantic review. Reviewer failures block by default;
+\code{policy_controls(on_reviewer_error = "rules_only")} allows a rules-only fallback.
 
 Redaction replaces matched spans with \verb{[REDACTED]}. Function-based findings
 can influence score and action even when they do not provide exact spans.
