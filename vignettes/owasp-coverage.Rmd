@@ -84,7 +84,7 @@ quality, and application-specific evaluation.
 | --- | --- | --- | --- | --- | --- |
 | LLM01:2026 | Prompt injection | `scan_prompt()`, context admission, injection rules, NLP intent | Regex, NLP, optional reviewer | Unit tests | Needs broader adversarial and multilingual evaluation |
 | LLM02:2026 | Sensitive information disclosure | PII, PHI, and secret rules, metadata-only audits | Regex and redaction | Unit tests | Limited entity coverage and no comprehensive data classification |
-| LLM03:2026 | Excessive agency | `scan_tool_call()`, guarded `secure_chat()` tool hooks | Allowlist and tool argument scans | Mock hook tests | No user permission, tool schema, or side-effect budget |
+| LLM03:2026 | Excessive agency | `scan_output()` agency phrases, `scan_tool_call()`, guarded `secure_chat()` tool hooks | Lexical pattern, allowlist, and tool argument scans | Output regression and mock hook tests | Lexical patterns miss paraphrases; no user permission, tool schema, or side-effect budget |
 | LLM04:2026 | Supply chain | `trust_boundary()` model/host checks and optional Ollama hash | Allowlist and local hash | Limited tests | No dependency or remote model attestation |
 | LLM05:2026 | Data and model poisoning | Context admission and source checks | Source allowlist and anomaly heuristic | Context tests | No corpus provenance or poisoning benchmark |
 | LLM06:2026 | Unbounded consumption | `rate_guard()`, token limit scanner | Per-process counters and estimates | Rate tests | No distributed quota or guaranteed pre-call response budget |

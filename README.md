@@ -86,6 +86,13 @@ report_summary(agency)
 #> 1  block          1        1
 ```
 
+With the default `checks = "rules"`, excessive-agency detection uses known
+phrases and action verbs. It also catches first-person commitments such as
+“I will go ahead and delete the unblinded randomization file,” regardless of
+the object name. It is not a semantic guarantee; for broader paraphrases, use
+`checks = "both"` with a separately configured reviewer and evaluate it on
+your own data.
+
 ------------------------------------------------------------------------
 
 ## What You Get

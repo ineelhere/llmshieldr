@@ -51,6 +51,11 @@ and adds output-specific checks for common failure modes:
 \item high-confidence medical or financial claim markers
 }
 
+Agency checks in \code{checks = "rules"} match known phrases and action verbs;
+they cannot infer every paraphrase or distinguish every quotation from a
+model's own intent. For broader intent review, supply a semantic \code{reviewer}
+with \code{checks = "both"} and evaluate it on your application data.
+
 Use \code{checks = "nlp"} when you want a lightweight local NLP-only pass over
 model output. The return value is a \code{\link[=shieldr_report]{shieldr_report()}} with the same scoring
 and action semantics as \code{\link[=scan_prompt]{scan_prompt()}}.

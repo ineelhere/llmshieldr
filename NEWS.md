@@ -1,5 +1,10 @@
 # llmshieldr (development version)
 
+- `explain_findings()` now accepts a report directly and returns text
+  explanations invisibly after printing them once.
+- Expanded the excessive-agency output rule to catch first-person commitments
+  to side-effecting actions such as “I will go ahead and delete,” independently
+  of the object name; documented its lexical limits.
 - Added context source admission and per-row authorization before retrieved
   text can enter a model prompt.
 - Made audits metadata-only by default; writing full content requires separate

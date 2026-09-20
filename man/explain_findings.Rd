@@ -7,14 +7,15 @@
 explain_findings(findings, format = "text", show_stats = FALSE)
 }
 \arguments{
-\item{findings}{A list of finding lists, usually from a \code{shieldr_report}.}
+\item{findings}{A \code{shieldr_report} or a list of its finding lists.}
 
 \item{format}{One of \code{"text"}, \code{"markdown"}, or \code{"html"}.}
 
 \item{show_stats}{Show formatting time and available usage metrics.}
 }
 \value{
-A character vector of formatted finding explanations.
+A character vector of formatted finding explanations. For
+\code{format = "text"}, the value is returned invisibly after printing bullets.
 }
 \description{
 Formats scanner findings for console, Markdown, or HTML presentation.
@@ -24,9 +25,10 @@ Formats scanner findings for console, Markdown, or HTML presentation.
 reclassify findings; it formats the finding metadata already present in a
 \code{\link[=shieldr_report]{shieldr_report()}}. Console output uses severity-colored bullets. Markdown
 and HTML outputs return character vectors suitable for reports, notebooks,
-or lightweight dashboards.
+or lightweight dashboards. Text output prints one set of bullets and returns
+the character vector invisibly, so an interactive call does not repeat it.
 }
 \examples{
 report <- scan_prompt("email me at neel@example.com", policy("enterprise_default"))
-explain_findings(report$findings)
+explain_findings(report)
 }

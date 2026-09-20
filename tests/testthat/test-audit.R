@@ -50,3 +50,19 @@ test_that("explain_findings returns character output", {
   expect_type(html, "character")
   expect_match(html[[1]], "<div")
 })
+
+test_that("explain_findings prints report text once and returns it invisibly", {
+  report <- scan_output("I WILL DELETE", policy = "comprehensive")
+  messages <- capture.output(
+    result <- withVisible(explain_findings(report)),
+    type = "message"
+  )
+
+  expect_false(result$visible)
+  expect_type(result$value, "character")
+  expect_equal(sum(grepl("llm06.agency.language", messages, fixed = TRUE)), 1L)
+  expect_equal(explain_findings(report, format = "markdown"),
+               explain_findings(report$findings, format = "markdown"))
+  expect_error(explain_findings(c("not a finding")),
+               "list of finding lists")
+})

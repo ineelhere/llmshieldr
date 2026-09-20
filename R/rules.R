@@ -754,6 +754,11 @@ rule_agency_language <- function(show_stats = FALSE) {
     id = "llm06.agency.language",
     pattern = paste(
       "(?i)",
+      "\\bI(?:\\s+will|'ll|\\s+am\\s+going\\s+to|'m\\s+going\\s+to)\\s+",
+      "(?:(?:go\\s+ahead\\s+and|now|immediately)\\s+)*",
+      "(?:delete|erase|remove|purge|wipe|destroy|overwrite|drop|",
+      "modify|update|alter|grant|revoke|send|submit|notify|",
+      "transfer|publish|upload|export|buy|sell|unblind)\\b|",
       "\\bI\\s+will\\s+now\\b|\\bI\\s+have\\s+(sent|deleted|modified|notified|submitted)\\b|",
       "\\bI\\s+am\\s+granting\\b|\\bproceeding\\s+to\\b|\\bexecuting\\b",
       sep = ""

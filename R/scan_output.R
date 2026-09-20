@@ -13,6 +13,11 @@
 #' - system-prompt structural markers such as "# System" or role declarations
 #' - high-confidence medical or financial claim markers
 #'
+#' Agency checks in `checks = "rules"` match known phrases and action verbs;
+#' they cannot infer every paraphrase or distinguish every quotation from a
+#' model's own intent. For broader intent review, supply a semantic `reviewer`
+#' with `checks = "both"` and evaluate it on your application data.
+#'
 #' Use `checks = "nlp"` when you want a lightweight local NLP-only pass over
 #' model output. The return value is a [shieldr_report()] with the same scoring
 #' and action semantics as [scan_prompt()].

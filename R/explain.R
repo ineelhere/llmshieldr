@@ -7,26 +7,33 @@
 #' reclassify findings; it formats the finding metadata already present in a
 #' [shieldr_report()]. Console output uses severity-colored bullets. Markdown
 #' and HTML outputs return character vectors suitable for reports, notebooks,
-#' or lightweight dashboards.
+#' or lightweight dashboards. Text output prints one set of bullets and returns
+#' the character vector invisibly, so an interactive call does not repeat it.
 #'
-#' @param findings A list of finding lists, usually from a `shieldr_report`.
+#' @param findings A `shieldr_report` or a list of its finding lists.
 #' @param format One of `"text"`, `"markdown"`, or `"html"`.
 #' @param show_stats Show formatting time and available usage metrics.
 #'
-#' @return A character vector of formatted finding explanations.
+#' @return A character vector of formatted finding explanations. For
+#'   `format = "text"`, the value is returned invisibly after printing bullets.
 #' @examples
 #' report <- scan_prompt("email me at neel@example.com", policy("enterprise_default"))
-#' explain_findings(report$findings)
+#' explain_findings(report)
 #' @export
 explain_findings <- function(findings, format = "text", show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "explain_findings")
   on.exit(.stats_end(stats), add = TRUE)
-  if (!is.list(findings)) {
-    cli::cli_abort("{.arg findings} must be a list.")
+  if (inherits(findings, "shieldr_report")) {
+    findings <- findings$findings
+  }
+  if (!is.list(findings) ||
+      !all(vapply(findings, is.list, logical(1)))) {
+    cli::cli_abort("{.arg findings} must be a {.cls shieldr_report} or a list of finding lists.")
   }
   .check_choice(format, "format", c("text", "markdown", "html"))
 
   if (length(findings) == 0L) {
+    if (identical(format, "text")) return(invisible(character()))
     return(character())
   }
 
@@ -35,7 +42,7 @@ explain_findings <- function(findings, format = "text", show_stats = FALSE) {
     coloured <- mapply(.colour_by_severity, lines, findings, USE.NAMES = FALSE)
     bullets <- stats::setNames(as.character(coloured), rep("*", length(coloured)))
     cli::cli_bullets(bullets)
-    return(as.character(lines))
+    return(invisible(as.character(lines)))
   }
 
   if (identical(format, "markdown")) {
