@@ -2,7 +2,7 @@
 #'
 #' `build_policy()` combines validated `shieldr_rule` objects with threshold
 #' settings for the scanner layer. OWASP LLM Top 10 references are preserved on
-#' each rule; see <https://genai.owasp.org/llm-top-10/>.
+#' each rule; see <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
 #'
 #' @details
 #' A policy is intentionally small and inspectable. It contains a policy name,
@@ -32,6 +32,7 @@
 #' @param rate_guard Optional `shieldr_rate_guard`. When present, [secure_chat()]
 #'   checks the guard before chat calls and updates it after successful calls.
 #' @param controls Optional controls from [policy_controls()].
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_policy`.
 #' @examples
@@ -42,7 +43,10 @@ build_policy <- function(name = "custom",
                          rules = list(),
                          thresholds = list(),
                          rate_guard = NULL,
-                         controls = NULL) {
+                         controls = NULL,
+                         show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "build_policy")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_string(name, "name")
   .check_rule_list(rules, "rules")
   defaults <- list(redact_at = 0.4, block_at = 0.75)
@@ -237,13 +241,17 @@ build_policy <- function(name = "custom",
 #' @param overrides Optional list with `rules`, `thresholds`, `rate_guard`, or
 #'   `trusted_sources` entries. `controls` may be supplied with
 #'   [policy_controls()] to tune orchestration behavior in [secure_chat()].
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_policy`.
 #' @examples
 #' policy()
 #' policy("open_research", overrides = list(thresholds = list(redact_at = 0.7)))
 #' @export
-policy <- function(name = "enterprise_default", overrides = list()) {
+policy <- function(name = "enterprise_default", overrides = list(),
+                   show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "policy")
+  on.exit(.stats_end(stats), add = TRUE)
   .built_in_policy(name, overrides)
 }
 
@@ -281,6 +289,7 @@ policy <- function(name = "enterprise_default", overrides = list()) {
 #'
 #' @param selected Optional policy name or `shieldr_policy` to mark in the
 #'   returned table.
+#' @param show_stats Show lookup time and available usage metrics.
 #'
 #' @return A data frame with policy names, descriptions, rule counts,
 #' thresholds, rate-guard availability, and a `selected` column when requested.
@@ -289,7 +298,9 @@ policy <- function(name = "enterprise_default", overrides = list()) {
 #' available_policies("comprehensive")
 #' scan_prompt("hello", policy = "enterprise_default")
 #' @export
-available_policies <- function(selected = NULL) {
+available_policies <- function(selected = NULL, show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "available_policies")
+  on.exit(.stats_end(stats), add = TRUE)
   info <- .built_in_policy_info()
   policies <- lapply(info$name, .built_in_policy)
   info$rules <- vapply(policies, function(policy) length(policy$rules), integer(1))
@@ -377,6 +388,7 @@ available_policies <- function(selected = NULL) {
 #' @param description Rule description.
 #'
 #' @return The modified `shieldr_policy`, invisibly.
+#' @param show_stats Show update time and available usage metrics.
 #' @examples
 #' policy <- build_policy()
 #' policy <- add_rule(policy, "demo.secret", pattern = "SECRET", owasp = "llm02")
@@ -388,7 +400,10 @@ add_rule <- function(policy,
                      owasp = NULL,
                      severity = "medium",
                      action = "redact",
-                     description = "") {
+                     description = "",
+                     show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "add_rule")
+  on.exit(.stats_end(stats), add = TRUE)
   policy <- .as_policy(policy)
   .check_string(id, "id")
   ids <- vapply(policy$rules, `[[`, character(1), "id")
@@ -416,13 +431,16 @@ add_rule <- function(policy,
 #'
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param id Rule identifier to remove.
+#' @param show_stats Show update time and available usage metrics.
 #'
 #' @return The modified `shieldr_policy`, invisibly.
 #' @examples
 #' policy <- build_policy(rules = list(rule_pii_email()))
 #' policy <- remove_rule(policy, "llm02.pii.email")
 #' @export
-remove_rule <- function(policy, id) {
+remove_rule <- function(policy, id, show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "remove_rule")
+  on.exit(.stats_end(stats), add = TRUE)
   policy <- .as_policy(policy)
   .check_string(id, "id")
   ids <- vapply(policy$rules, `[[`, character(1), "id")
@@ -446,13 +464,16 @@ remove_rule <- function(policy, id) {
 #' returns span metadata.
 #'
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
+#' @param show_stats Show listing time and available usage metrics.
 #'
 #' @return A data frame with columns `id`, `owasp`, `severity`, `action`,
 #'   `has_pattern`, and `has_fn`.
 #' @examples
 #' list_rules(policy("custom"))
 #' @export
-list_rules <- function(policy) {
+list_rules <- function(policy, show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "list_rules")
+  on.exit(.stats_end(stats), add = TRUE)
   policy <- .as_policy(policy)
   data.frame(
     id = vapply(policy$rules, `[[`, character(1), "id"),

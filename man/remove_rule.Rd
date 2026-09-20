@@ -4,12 +4,14 @@
 \alias{remove_rule}
 \title{Remove a rule from a policy}
 \usage{
-remove_rule(policy, id)
+remove_rule(policy, id, show_stats = FALSE)
 }
 \arguments{
 \item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
 \item{id}{Rule identifier to remove.}
+
+\item{show_stats}{Show update time and available usage metrics.}
 }
 \value{
 The modified \code{shieldr_policy}, invisibly.

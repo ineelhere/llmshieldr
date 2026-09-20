@@ -4,7 +4,13 @@
 \alias{write_audit_log}
 \title{Write an audit log}
 \usage{
-write_audit_log(audit, path, format = "jsonl", include_content = FALSE)
+write_audit_log(
+  audit,
+  path,
+  format = "jsonl",
+  include_content = FALSE,
+  show_stats = FALSE
+)
 }
 \arguments{
 \item{audit}{A \code{shieldr_audit} object.}
@@ -15,6 +21,9 @@ write_audit_log(audit, path, format = "jsonl", include_content = FALSE)
 
 \item{include_content}{Whether to write raw text and finding excerpts from
 a full-content audit. Defaults to \code{FALSE}.}
+
+\item{show_stats}{Show file-writing time, token estimate, and network status
+as messages.}
 }
 \value{
 The path, invisibly.

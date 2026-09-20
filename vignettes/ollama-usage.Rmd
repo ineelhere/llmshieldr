@@ -312,7 +312,7 @@ shell command string.
 
 For an API, scan before dispatching work in a `plumber` handler.
 
-```{r}
+```{r, eval = FALSE}
 # plumber.R
 library(plumber)
 library(llmshieldr)

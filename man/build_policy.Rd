@@ -9,7 +9,8 @@ build_policy(
   rules = list(),
   thresholds = list(),
   rate_guard = NULL,
-  controls = NULL
+  controls = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ build_policy(
 checks the guard before chat calls and updates it after successful calls.}
 
 \item{controls}{Optional controls from \code{\link[=policy_controls]{policy_controls()}}.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_policy}.
@@ -31,7 +34,7 @@ A \code{shieldr_policy}.
 \description{
 \code{build_policy()} combines validated \code{shieldr_rule} objects with threshold
 settings for the scanner layer. OWASP LLM Top 10 references are preserved on
-each rule; see \url{https://genai.owasp.org/llm-top-10/}.
+each rule; see \url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
 }
 \details{
 A policy is intentionally small and inspectable. It contains a policy name,

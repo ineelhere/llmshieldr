@@ -4,12 +4,14 @@
 \alias{print.shieldr_policy}
 \title{Print a \code{shieldr_policy}}
 \usage{
-\method{print}{shieldr_policy}(x, ...)
+\method{print}{shieldr_policy}(x, ..., show_stats = FALSE)
 }
 \arguments{
 \item{x}{A \code{shieldr_policy}.}
 
 \item{...}{Unused.}
+
+\item{show_stats}{Show formatting time and network status as messages.}
 }
 \value{
 The policy, invisibly.

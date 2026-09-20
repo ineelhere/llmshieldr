@@ -1,8 +1,8 @@
 #' Create or check a rate guard
 #'
 #' Rate guards are explicit stateful environments used to cap token and request
-#' budgets for LLM workflows. Resource exhaustion is covered by OWASP LLM10; see
-#' <https://genai.owasp.org/llm-top-10/>.
+#' budgets for LLM workflows. Unbounded consumption is OWASP LLM06:2026; see
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
 #'
 #' @details
 #' Calling `rate_guard()` with limits creates a new `shieldr_rate_guard`
@@ -50,6 +50,8 @@
 #'   before calling the model.
 #' @param concurrent Whether to protect `$usage()` and `$update()` with a
 #'   file-based lock from the suggested `filelock` package.
+#' @param show_stats Show construction or check time and available usage
+#'   metrics as messages.
 #'
 #' @return When creating a guard, a `shieldr_rate_guard` environment. When
 #'   checking a guard, `TRUE` if usage is within limits.
@@ -62,16 +64,19 @@ rate_guard <- function(max_tokens = NULL,
                        max_requests = NULL,
                        window_seconds = 3600L,
                        strict = FALSE,
-                       concurrent = FALSE) {
+                       concurrent = FALSE,
+                       show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rate_guard")
+  on.exit(.stats_end(stats), add = TRUE)
   if (inherits(max_tokens, "shieldr_rate_guard")) {
     session <- max_tokens
     usage <- session$usage()
 
     if (!is.null(usage$max_tokens) && usage$tokens_used > usage$max_tokens) {
-      cli::cli_abort("LLM10 rate guard exceeded: token usage {usage$tokens_used} is above limit {usage$max_tokens}.")
+      cli::cli_abort("LLM06:2026 rate guard exceeded: token usage {usage$tokens_used} is above limit {usage$max_tokens}.")
     }
     if (!is.null(usage$max_requests) && usage$requests_made > usage$max_requests) {
-      cli::cli_abort("LLM10 rate guard exceeded: request count {usage$requests_made} is above limit {usage$max_requests}.")
+      cli::cli_abort("LLM06:2026 rate guard exceeded: request count {usage$requests_made} is above limit {usage$max_requests}.")
     }
 
     return(TRUE)
@@ -140,12 +145,12 @@ rate_guard <- function(max_tokens = NULL,
 
   if (!is.null(session$.max_tokens) && projected_tokens > session$.max_tokens) {
     cli::cli_abort(
-      "LLM10 rate guard would exceed token limit: projected usage {projected_tokens} is above limit {session$.max_tokens}."
+      "LLM06:2026 rate guard would exceed token limit: projected usage {projected_tokens} is above limit {session$.max_tokens}."
     )
   }
   if (!is.null(session$.max_requests) && projected_requests > session$.max_requests) {
     cli::cli_abort(
-      "LLM10 rate guard would exceed request limit: projected count {projected_requests} is above limit {session$.max_requests}."
+      "LLM06:2026 rate guard would exceed request limit: projected count {projected_requests} is above limit {session$.max_requests}."
     )
   }
 

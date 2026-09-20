@@ -11,7 +11,8 @@ shieldr_rule(
   owasp = NULL,
   severity = "medium",
   action = "redact",
-  description = ""
+  description = "",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -28,13 +29,16 @@ shieldr_rule(
 \item{action}{One of \code{"allow"}, \code{"redact"}, or \code{"block"}.}
 
 \item{description}{Human-readable rule description.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_rule} S3 object.
 }
 \description{
 Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
-LLM Top 10 categories where possible; see \url{https://genai.owasp.org/llm-top-10/}.
+LLM Top 10:2026 categories where possible; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
 }
 \details{
 A rule is the atomic unit of a policy. Each rule either supplies a regular

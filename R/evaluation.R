@@ -24,6 +24,8 @@
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
+#' @param show_stats Show total evaluation time, token estimate, and network
+#'   status as messages.
 #'
 #' @return A data frame with case metadata, expected and actual actions,
 #'   `matched`, `latency_ms`, and `n_findings`.
@@ -38,14 +40,20 @@ evaluate_security_cases <- function(cases = NULL,
                                     reviewer = NULL,
                                     checks = "rules",
                                     redaction = NULL,
-                                    scanners = scanner_options()) {
+                                    scanners = scanner_options(),
+                                    show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "evaluate_security_cases")
+  on.exit(.stats_end(stats), add = TRUE)
+  .stats_track_reviewer(stats, reviewer, checks)
   if (is.null(cases)) {
     path <- system.file("extdata", "security_eval_cases.csv", package = "llmshieldr")
-    cases <- utils::read.csv(path, stringsAsFactors = FALSE)
+    cases <- utils::read.csv(path, stringsAsFactors = FALSE,
+                             fileEncoding = "UTF-8")
   }
   if (!is.data.frame(cases)) {
     cli::cli_abort("{.arg cases} must be a data frame or {.code NULL}.")
   }
+  .stats_text_tokens(stats, paste(as.character(cases$text), collapse = "\n"))
   required <- c("stage", "text", "expected_action")
   missing <- setdiff(required, names(cases))
   if (length(missing) > 0L) {

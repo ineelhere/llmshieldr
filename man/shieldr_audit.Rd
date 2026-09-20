@@ -13,7 +13,9 @@ shieldr_audit(
   elapsed_ms,
   token_estimate,
   action,
-  content_mode = c("metadata", "full")
+  content_mode = c("metadata", "full"),
+  tool_reports = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -39,6 +41,10 @@ finding excerpts, and reviewer error details from the audit object.
 \code{"full"} retains them and should only be used in explicitly protected
 storage. \code{\link[=write_audit_log]{write_audit_log()}} still requires \code{include_content = TRUE} to
 persist the full content.}
+
+\item{tool_reports}{Optional list of tool-request and tool-output reports.}
+
+\item{show_stats}{Show construction time and audit token estimate.}
 }
 \value{
 A \code{shieldr_audit} S3 object.

@@ -11,7 +11,7 @@ test_that("rate_guard creates and updates usage", {
 
 test_that("rate_guard errors when a limit is exceeded", {
   guard <- rate_guard(max_tokens = 1)
-  expect_error(guard$reserve(tokens = 10), "LLM10")
+  expect_error(guard$reserve(tokens = 10), "LLM06:2026")
   expect_equal(guard$usage()$tokens_used, 0)
 })
 
@@ -38,6 +38,6 @@ test_that("rate_guard blocks projected request limits", {
   guard <- rate_guard(max_requests = 1)
   guard$reserve(tokens = 0, requests = 1)
 
-  expect_error(guard$reserve(tokens = 0, requests = 1), "LLM10")
+  expect_error(guard$reserve(tokens = 0, requests = 1), "LLM06:2026")
   expect_equal(guard$usage()$requests_made, 1)
 })

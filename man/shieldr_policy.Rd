@@ -10,7 +10,8 @@ shieldr_policy(
   thresholds,
   rate_guard = NULL,
   trusted_sources = NULL,
-  controls = NULL
+  controls = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -26,6 +27,8 @@ values between 0 and 1.}
 \item{trusted_sources}{Optional character vector of trusted context sources.}
 
 \item{controls}{Optional list from \code{\link[=policy_controls]{policy_controls()}}.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_policy} S3 object.

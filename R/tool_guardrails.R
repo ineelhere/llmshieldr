@@ -57,7 +57,7 @@ scan_tool_call <- function(tool_name,
   policy_obj <- .as_policy(policy)
   payload <- .tool_call_text(tool_name, arguments)
   .stats_text_tokens(stats, payload)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   report <- scan_prompt(
     payload,
     policy = policy_obj,
@@ -131,9 +131,9 @@ scan_tool_output <- function(tool_name,
   stats <- .stats_begin(show_stats, "scan_tool_output")
   on.exit(.stats_end(stats), add = TRUE)
   .check_string(tool_name, "tool_name")
-  text <- paste(as.character(output), collapse = "\n")
+  text <- .tool_output_text(output)
   .stats_text_tokens(stats, text)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   report <- scan_output(
     text,
     policy = policy,
@@ -148,6 +148,20 @@ scan_tool_output <- function(tool_name,
     .report_metadata(stage = "tool_output", tool_name = tool_name)
   )
   report
+}
+
+.tool_output_text <- function(output) {
+  if (is.character(output) || is.atomic(output)) {
+    return(paste(as.character(output), collapse = "\n"))
+  }
+  if (is.list(output) && !is.object(output)) {
+    return(paste(vapply(output, .tool_output_text, character(1)), collapse = "\n"))
+  }
+  if (requireNamespace("S7", quietly = TRUE)) {
+    text <- tryCatch(S7::prop(output, "text"), error = function(e) NULL)
+    if (is.character(text) && length(text) == 1L && !is.na(text)) return(text)
+  }
+  cli::cli_abort("Tool output type is not safely scannable as text.")
 }
 
 .tool_call_text <- function(tool_name, arguments) {

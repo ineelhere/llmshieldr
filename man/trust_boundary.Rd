@@ -9,6 +9,7 @@ trust_boundary(
   allowed_models = NULL,
   allowed_hosts = NULL,
   require_hash = NULL,
+  show_stats = FALSE,
   ...
 )
 }
@@ -22,6 +23,8 @@ trust_boundary(
 \item{require_hash}{Optional expected SHA-256 hash for an Ollama modelfile
 manifest.}
 
+\item{show_stats}{Show per-call execution statistics as messages.}
+
 \item{...}{Reserved for backwards-compatible aliases.}
 }
 \value{
@@ -29,20 +32,20 @@ A callable chat wrapper.
 }
 \description{
 Validates chat identity before calls cross into an LLM service. This
-covers supply-chain and model-integrity concerns related to OWASP LLM03; see
-\url{https://genai.owasp.org/llm-top-10/}.
+covers supply-chain and model-integrity concerns related to OWASP LLM04:2026; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
 }
 \details{
 \code{trust_boundary()} returns a chat wrapper. The wrapper validates the chat on
 creation and again on each call when \code{require_hash} is supplied. Plain
-functions are passed through without model or host checks because a function
-has no standard model metadata. Chat objects with a \verb{$chat()} method may
+functions have no standard model or host metadata; requesting either
+allowlist for one fails closed. Chat objects with a \verb{$chat()} method may
 expose model and host fields through common ellmer-style internals or
 attributes.
 
 \code{allowed_models} and \code{allowed_hosts} are allowlists. If the chat exposes a
 model or host and it is outside the allowlist, the wrapper raises an OWASP
-LLM03 error. \code{require_hash} is intended for local Ollama workflows where the
+LLM04:2026 error. \code{require_hash} is intended for local Ollama workflows where the
 model manifest can be checked with \verb{ollama show --modelfile}.
 
 This function is not a network firewall. It is an application-level

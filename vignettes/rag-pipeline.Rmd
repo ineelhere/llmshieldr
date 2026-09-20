@@ -57,7 +57,7 @@ guardrails <- policy(
 
 This policy keeps the normal `enterprise_default` rules and adds an allowlist
 used only by `scan_context()`. Sources not in `trusted_sources` are not
-automatically blocked, but they receive a medium-severity OWASP LLM08 finding.
+admitted: they receive a critical OWASP LLM01:2026 finding and are dropped.
 
 For vector-store workflows, keep retrieval output in a data frame before prompt
 assembly. Typical columns are `text`, `source`, `document_id`, `chunk_id`, and
@@ -67,8 +67,8 @@ columns makes blocked rows traceable in application logs.
 ## Scan Retrieved Rows
 
 `scan_context()` returns one `shieldr_report` per row. It runs normal prompt
-rules and adds synthetic OWASP LLM08 findings for anomalous length,
-instruction-word density, and untrusted sources.
+rules and adds synthetic OWASP LLM09:2026 findings for anomalous length and
+instruction-word density. Untrusted sources map to LLM01:2026.
 
 The anomaly checks are numeric:
 

@@ -10,6 +10,8 @@
   state$upload_bytes <- NA_real_
   state$download_bytes <- NA_real_
   state$network_elapsed_s <- NA_real_
+  state$upload_note <- "wire bytes not exposed"
+  state$download_note <- "wire bytes not exposed"
   state
 }
 
@@ -29,11 +31,27 @@
       "unavailable"
     }
   }
-  cli::cli_inform(c(
+  reviewer_tokens <- NULL
+  if (!is.null(state$reviewer)) {
+    reviewer_delta <- .ellmer_usage_delta(
+      state$reviewer_before,
+      .ellmer_usage_snapshot(state$reviewer)
+    )
+    reviewer_tokens <- if (is.null(reviewer_delta)) {
+      "unavailable"
+    } else {
+      paste0(format(reviewer_delta, trim = TRUE), " (provider)")
+    }
+  }
+  messages <- c(
     "llmshieldr {.val {state$operation}}: {elapsed_ms} ms",
     "i" = "network: {state$network}; tokens: {tokens}",
-    "i" = "upload: {fmt_bytes(state$upload_bytes)} ({fmt_rate(state$upload_bytes)}); download: {fmt_bytes(state$download_bytes)} ({fmt_rate(state$download_bytes)})"
-  ))
+    "i" = "upload: {fmt_bytes(state$upload_bytes)} ({fmt_rate(state$upload_bytes)}; {state$upload_note}); download: {fmt_bytes(state$download_bytes)} ({fmt_rate(state$download_bytes)}; {state$download_note})"
+  )
+  if (!is.null(reviewer_tokens)) {
+    messages <- c(messages, "i" = "reviewer tokens: {reviewer_tokens}")
+  }
+  cli::cli_inform(messages)
   invisible(NULL)
 }
 
@@ -48,12 +66,22 @@
 .stats_network_from_chat <- function(state, chat) {
   if (is.null(state)) return(invisible(NULL))
   if (is.function(chat)) {
-    state$network <- "unknown"
+    state$network <- attr(chat, "llmshieldr_network", exact = TRUE) %||% "unknown"
   } else if (is.function(tryCatch(chat$get_provider, error = function(e) NULL))) {
     # Every ellmer provider uses an HTTP transport, including local Ollama.
     state$network <- "yes"
   } else {
     state$network <- "unknown"
   }
+  invisible(NULL)
+}
+
+.stats_track_reviewer <- function(state, reviewer, checks) {
+  if (is.null(state) || is.null(reviewer) || !checks %in% c("llm", "both")) {
+    return(invisible(NULL))
+  }
+  state$reviewer <- reviewer
+  state$reviewer_before <- .ellmer_usage_snapshot(reviewer)
+  .stats_network_from_chat(state, reviewer)
   invisible(NULL)
 }

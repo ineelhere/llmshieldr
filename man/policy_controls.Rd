@@ -10,7 +10,8 @@ policy_controls(
   on_output_block = "block",
   refusal_message = "I can't safely complete that request.",
   escalation_message = "Human review requested by llmshieldr policy.",
-  on_reviewer_error = "block"
+  on_reviewer_error = "block",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ maps a block to \code{refuse}.}
 metadata when a control maps a block to \code{escalate}.}
 
 \item{on_reviewer_error}{One of \code{"block"} or \code{"rules_only"}.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A list of policy controls.

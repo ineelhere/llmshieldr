@@ -38,7 +38,8 @@ result$audit$token_estimate
 ```
 
 The assistant and reviewer are separate chats. `show_stats = TRUE` reports
-elapsed time, token use or estimates, and network status. The `ellmer` API does
+elapsed time, assistant and reviewer token use where `ellmer` exposes it,
+estimated scanned-text tokens otherwise, and network status. The `ellmer` API does
 not expose reliable per-call wire byte counts, so upload/download rates are
 shown as unavailable instead of inferred from character counts.
 

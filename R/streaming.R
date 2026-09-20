@@ -64,7 +64,7 @@ scan_stream <- function(chunks,
 
   chunks <- chunks[!is.na(chunks)]
   .stats_text_tokens(stats, paste(chunks, collapse = ""))
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   if (length(chunks) == 1L && nchar(chunks, type = "chars") > chunk_size) {
     chunks <- .split_stream_text(chunks, as.integer(chunk_size))
   }

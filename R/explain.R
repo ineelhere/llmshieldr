@@ -11,13 +11,16 @@
 #'
 #' @param findings A list of finding lists, usually from a `shieldr_report`.
 #' @param format One of `"text"`, `"markdown"`, or `"html"`.
+#' @param show_stats Show formatting time and available usage metrics.
 #'
 #' @return A character vector of formatted finding explanations.
 #' @examples
 #' report <- scan_prompt("email me at neel@example.com", policy("enterprise_default"))
 #' explain_findings(report$findings)
 #' @export
-explain_findings <- function(findings, format = "text") {
+explain_findings <- function(findings, format = "text", show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "explain_findings")
+  on.exit(.stats_end(stats), add = TRUE)
   if (!is.list(findings)) {
     cli::cli_abort("{.arg findings} must be a list.")
   }

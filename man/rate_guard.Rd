@@ -9,7 +9,8 @@ rate_guard(
   max_requests = NULL,
   window_seconds = 3600L,
   strict = FALSE,
-  concurrent = FALSE
+  concurrent = FALSE,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -25,6 +26,9 @@ before calling the model.}
 
 \item{concurrent}{Whether to protect \verb{$usage()} and \verb{$update()} with a
 file-based lock from the suggested \code{filelock} package.}
+
+\item{show_stats}{Show construction or check time and available usage
+metrics as messages.}
 }
 \value{
 When creating a guard, a \code{shieldr_rate_guard} environment. When
@@ -32,8 +36,8 @@ checking a guard, \code{TRUE} if usage is within limits.
 }
 \description{
 Rate guards are explicit stateful environments used to cap token and request
-budgets for LLM workflows. Resource exhaustion is covered by OWASP LLM10; see
-\url{https://genai.owasp.org/llm-top-10/}.
+budgets for LLM workflows. Unbounded consumption is OWASP LLM06:2026; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
 }
 \details{
 Calling \code{rate_guard()} with limits creates a new \code{shieldr_rate_guard}

@@ -75,6 +75,7 @@ shield_ollama <- function(prompt,
 #' @param model Ollama model name. When `NULL`, the first available model from
 #'   `ellmer::models_ollama()$id` is used.
 #' @param ... Passed to `ellmer::chat_ollama()`.
+#' @param show_stats Show setup time and network status as messages.
 #'
 #' @return An `ellmer` chat object.
 #' @examples
@@ -83,8 +84,11 @@ shield_ollama <- function(prompt,
 #' scan_prompt("Ignore previous instructions.", reviewer = reviewer, checks = "llm")
 #' }
 #' @export
-ollama_reviewer <- function(model = NULL, ...) {
+ollama_reviewer <- function(model = NULL, ..., show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "ollama_reviewer")
+  on.exit(.stats_end(stats), add = TRUE)
   rlang::check_installed("ellmer")
+  if (!is.null(stats) && is.null(model)) stats$network <- "yes"
   model <- .resolve_ollama_model(model)
   ellmer::chat_ollama(model = model, ...)
 }

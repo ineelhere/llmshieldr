@@ -46,7 +46,8 @@ make a workflow production-ready by itself.
 - Add organization-specific rules and negative tests.
 - Decide whether semantic review is required and which reviewer model or
   function is allowed.
-- Decide fail-open versus fail-closed behavior for reviewer failures.
+- Keep the default reviewer-error action (`"block"`) or explicitly select
+  `policy_controls(on_reviewer_error = "rules_only")` after assessing the risk.
 - Decide `policy_controls()` behavior for prompt blocks, context blocks,
   output blocks, refusals, and human escalation.
 - Configure `scanner_options()` for token limits, URL host policy, topic bans,
@@ -61,23 +62,32 @@ make a workflow production-ready by itself.
 - Scan user prompts before model calls.
 - Scan retrieved context before prompt assembly.
 - Drop, refuse, or escalate blocked context rows according to policy.
-- Preserve source labels and row identifiers in prompt assembly and audit logs.
+- Supply trustworthy source labels and, where needed, a row-level authorization
+  function. Admitted row identifiers and source labels appear in prompt
+  assembly and audit metadata.
 - Scan model output before display, storage, or downstream tool use.
 - Validate tool-call names and arguments before execution.
 - Scan tool outputs before they re-enter model context.
-- Scan streaming output with rolling context when using streaming APIs.
+- Scan the complete buffered stream before releasing its cleaned text. Do not
+  display unscanned chunks to users.
 - Apply rate guards appropriate to the environment.
 - Use strict rate-guard reservation for shared or bursty workloads.
-- Record audit logs to sensitive storage.
+- Record metadata-only audit logs to access-controlled storage.
 - Monitor warnings, blocked requests, reviewer parse errors, and escalation
   counts.
 
 ::: {.llmshieldr-info-box}
 ## Audit Log Sensitivity
 
-`llmshieldr` audit logs can contain sensitive prompts, retrieved context, model
-outputs, findings, and rule metadata. Treat audit output as sensitive
-application telemetry.
+`secure_chat()` creates metadata-only audits by default. Report text, finding
+excerpts, reviewer error details, and the cleaned prompt and raw output are
+removed. Source labels, row indices, rule IDs, positions, token counts, and
+other metadata may still identify sensitive activity. Treat audit output as
+sensitive application telemetry.
+
+To retain content in memory, call `secure_chat(..., audit_content = "full")`.
+Writing it also requires `write_audit_log(..., include_content = TRUE)`. Both
+choices should be limited to approved debugging and protected storage.
 
 Supported formats:
 
@@ -87,6 +97,9 @@ Supported formats:
 :::
 
 ## Example JSONL Shape
+
+This abbreviated example shows the default metadata-only form. Actual records
+also contain timestamps and other report metadata.
 
 ```json
 {
@@ -99,34 +112,64 @@ Supported formats:
       {
         "rule_id": "llm02.pii.email",
         "owasp": "llm02",
+        "owasp_edition": "LLM02:2026",
+        "taxonomy_version": "OWASP-LLM-Top-10-2026",
         "severity": "medium",
         "action": "redact",
-        "description": "Email address.",
         "source": "rules"
       }
     ],
     "metadata": {
       "stage": "prompt",
-      "reviewer_errors": []
+      "taxonomy_version": "OWASP-LLM-Top-10-2026"
     }
   },
   "output_report": null,
   "context_reports": null,
-  "prompt_clean": "Contact [REDACTED] for details.",
+  "tool_reports": null,
+  "prompt_clean": null,
   "output_raw": null,
   "elapsed_ms": 12,
   "token_estimate": 8,
-  "action": "redact"
+  "action": "redact",
+  "content_mode": "metadata"
 }
 ```
 
 ## Example CSV Shape
 
-| stage | context_row_index | context_source | tool_name | conversation_role | reviewer_error_count | report_index | action | risk_score | rule_id | owasp | severity | source |
-| --- | ---: | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- | --- | --- |
-| input | NA | NA | NA | NA | 0 | 1 | redact | 0.3 | llm02.pii.email | llm02 | medium | rules |
-| context | 2 | unknown | NA | NA | 0 | 2 | block | 1.0 | llm01.injection.indirect | llm01 | critical | rules |
-| output | NA | NA | search_docs | tool | 1 | 1 | redact | 0.3 | llm02.pii.email | llm02 | medium | scanner |
+| stage | context_row_index | context_source | tool_name | conversation_role | reviewer_error_count | report_index | action | risk_score | rule_id | owasp | owasp_edition | severity | source |
+| --- | ---: | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- | --- |
+| input | NA | NA | NA | NA | 0 | 1 | redact | 0.3 | llm02.pii.email | llm02 | LLM02:2026 | medium | rules |
+| context | 2 | approved_docs | NA | NA | 0 | 2 | block | 1.0 | llm01.injection.indirect | llm01 | LLM01:2026 | critical | rules |
+| tool | NA | NA | search_docs | NA | 1 | 1 | redact | 0.3 | llm02.pii.email | llm02 | LLM02:2026 | medium | scanner |
+
+The `owasp` field keeps the stable lowercase category code; the accompanying
+`taxonomy_version` identifies the 2026 mapping.
+
+## Execution Statistics
+
+Every exported function accepts `show_stats = TRUE` and emits an execution
+message. Local constructors and rule-based scans report elapsed time and no
+network use; token counts appear when meaningful. Guarded chat calls report
+assistant provider token counts when `ellmer` exposes them, otherwise an
+estimate. Semantic reviewer provider tokens appear on a separate line when
+available.
+Reviewer calls may add network use. For arbitrary chat functions, the package
+cannot always determine whether a network request occurred and reports
+`unknown`.
+
+```{r, eval = FALSE}
+scan_prompt("Summarize this public note.", show_stats = TRUE)
+result <- shield_gemini("Summarize this public note.", show_stats = TRUE)
+```
+
+Upload and download rates are shown only when the package can measure bytes
+and request time. `remote_reviewer(show_stats = TRUE)` reports estimated JSON
+request-body bytes and response-body bytes over the HTTP request duration;
+these omit headers, TLS, and other wire overhead. `ellmer` provider transports
+do not currently expose transfer-byte counts to `llmshieldr`, so their rates
+appear as `unavailable`. Statistics are messages and do not alter return values.
 
 ## Storage Checklist
 
@@ -136,10 +179,11 @@ Supported formats:
 - Define retention and deletion rules.
 - Avoid sending raw audit logs to third-party observability tools unless they
   are approved for the data class.
-- Consider redacting or hashing prompts before long-term retention.
+- Keep the metadata-only default for long-term retention and evaluate whether
+  source labels, row indices, or finding positions should be retained.
 - Include context row indexes and source identifiers when investigating RAG
   incidents, but avoid storing full source documents unless required.
-- Review `reviewer_error_count` and nested `reviewer_errors` when semantic
+- Review `reviewer_error_count` and `reviewer_error_types` when semantic
   checks are enabled; malformed reviewer JSON is a safety signal.
 - Treat hash-redacted findings as sensitive metadata because deterministic
   hashes can still link repeated values across logs.

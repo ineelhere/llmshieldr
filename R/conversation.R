@@ -71,7 +71,7 @@ scan_conversation <- function(messages,
   content <- as.character(data[[content_name]])
   content[is.na(content)] <- ""
   .stats_text_tokens(stats, paste(content, collapse = "\n"))
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
 
   reports <- vector("list", length(content))
   for (i in seq_along(content)) {

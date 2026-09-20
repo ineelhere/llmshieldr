@@ -13,7 +13,8 @@ shieldr_report(
   checks,
   timestamp = .now_iso(),
   tokens = NULL,
-  metadata = list()
+  metadata = list(),
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ shieldr_report(
 \item{tokens}{Optional token count for the original text.}
 
 \item{metadata}{Optional list of operational metadata.}
+
+\item{show_stats}{Show construction time and available token count.}
 }
 \value{
 A \code{shieldr_report} S3 object.
@@ -50,6 +53,9 @@ records whether the report came from deterministic rules, NLP checks, an LLM
 reviewer, or a combined mode. \code{metadata} carries optional operational
 details such as semantic reviewer parse errors, scanner settings, context row
 indexes, source labels, tool names, or conversation roles.
+Findings with a 2026 OWASP category retain the stable lowercase \code{owasp}
+code and add an edition-qualified \code{owasp_edition} value such as
+\code{"LLM02:2026"}.
 }
 \examples{
 shieldr_report("allow", "hello", list(), 0, "custom", "rules")

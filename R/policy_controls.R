@@ -34,6 +34,7 @@
 #'   maps a block to `refuse`.
 #' @param escalation_message Optional human-readable reason stored in policy
 #'   metadata when a control maps a block to `escalate`.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A list of policy controls.
 #' @examples
@@ -52,7 +53,10 @@ policy_controls <- function(on_prompt_block = "block",
                             on_output_block = "block",
                             refusal_message = "I can't safely complete that request.",
                             escalation_message = "Human review requested by llmshieldr policy.",
-                            on_reviewer_error = "block") {
+                            on_reviewer_error = "block",
+                            show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "policy_controls")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_choice(on_prompt_block, "on_prompt_block", c("block", "refuse", "escalate"))
   .check_choice(on_context_block, "on_context_block", c("drop", "keep_redacted", "block", "refuse", "escalate"))
   .check_choice(on_output_block, "on_output_block", c("block", "refuse", "escalate"))

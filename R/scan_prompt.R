@@ -1,8 +1,8 @@
 #' Scan a prompt
 #'
 #' Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
-#' Findings retain OWASP LLM Top 10 categories when known; see
-#' <https://genai.owasp.org/llm-top-10/>.
+#' Findings retain OWASP LLM Top 10:2026 categories when known; see
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
 #'
 #' @details
 #' `scan_prompt()` is usually the first guardrail in a workflow. It normalizes
@@ -53,9 +53,7 @@ scan_prompt <- function(text,
   stats <- .stats_begin(show_stats, "scan_prompt")
   on.exit(.stats_end(stats), add = TRUE)
   .stats_text_tokens(stats, text)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) {
-    stats$network <- "unknown"
-  }
+  .stats_track_reviewer(stats, reviewer, checks)
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
@@ -140,7 +138,7 @@ preflight_check <- function(text,
   stats <- .stats_begin(show_stats, "preflight_check")
   on.exit(.stats_end(stats), add = TRUE)
   .stats_text_tokens(stats, text)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   scan_prompt(
     text = text,
     policy = policy,

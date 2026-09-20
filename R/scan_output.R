@@ -43,7 +43,7 @@ scan_output <- function(text,
   stats <- .stats_begin(show_stats, "scan_output")
   on.exit(.stats_end(stats), add = TRUE)
   .stats_text_tokens(stats, text)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)

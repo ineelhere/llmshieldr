@@ -22,6 +22,8 @@
 #' @param format One of `"jsonl"`, `"csv"`, or `"rds"`.
 #' @param include_content Whether to write raw text and finding excerpts from
 #'   a full-content audit. Defaults to `FALSE`.
+#' @param show_stats Show file-writing time, token estimate, and network status
+#'   as messages.
 #'
 #' @return The path, invisibly.
 #' @examples
@@ -29,13 +31,20 @@
 #' path <- tempfile(fileext = ".jsonl")
 #' write_audit_log(audit, path)
 #' @export
-write_audit_log <- function(audit, path, format = "jsonl", include_content = FALSE) {
+write_audit_log <- function(audit, path, format = "jsonl", include_content = FALSE,
+                            show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "write_audit_log")
+  on.exit(.stats_end(stats), add = TRUE)
   if (!inherits(audit, "shieldr_audit")) {
     cli::cli_abort("{.arg audit} must be a {.cls shieldr_audit}.")
   }
   .check_string(path, "path")
   .check_choice(format, "format", c("jsonl", "csv", "rds"))
   .validate_flag(include_content, "include_content")
+  if (!is.null(stats)) {
+    stats$tokens <- audit$token_estimate %||% NA_real_
+    stats$token_source <- "audit estimate"
+  }
   audit <- .audit_for_storage(audit, include_content)
 
   dir <- dirname(path)
@@ -84,6 +93,9 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
   if (!is.null(audit$context_reports)) {
     audit$context_reports <- lapply(audit$context_reports, .audit_metadata_report)
   }
+  if (!is.null(audit$tool_reports)) {
+    audit$tool_reports <- lapply(audit$tool_reports, .audit_metadata_report)
+  }
   audit$prompt_clean <- NULL
   audit$output_raw <- NULL
   audit$content_mode <- "metadata"
@@ -97,12 +109,13 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
     context = audit$context_reports
   ))
   rows <- list()
-  for (stage in c("input", "output", "context")) {
+  for (stage in c("input", "output", "context", "tool")) {
     stage_reports <- switch(
       stage,
       input = if (inherits(audit$input_report, "shieldr_report")) list(audit$input_report) else list(),
       output = if (inherits(audit$output_report, "shieldr_report")) list(audit$output_report) else list(),
-      context = audit$context_reports %||% list()
+      context = audit$context_reports %||% list(),
+      tool = audit$tool_reports %||% list()
     )
     for (report_index in seq_along(stage_reports)) {
       report <- stage_reports[[report_index]]
@@ -126,6 +139,7 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
           risk_score = report$risk_score,
           rule_id = finding$rule_id %||% NA_character_,
           owasp = finding$owasp %||% NA_character_,
+          owasp_edition = finding$owasp_edition %||% NA_character_,
           severity = finding$severity %||% NA_character_,
           description = finding$description %||% NA_character_,
           source = finding$source %||% NA_character_,
@@ -147,6 +161,7 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
       risk_score = numeric(),
       rule_id = character(),
       owasp = character(),
+      owasp_edition = character(),
       severity = character(),
       description = character(),
       source = character(),

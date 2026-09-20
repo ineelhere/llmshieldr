@@ -4,10 +4,12 @@
 \alias{list_rules}
 \title{List policy rules}
 \usage{
-list_rules(policy)
+list_rules(policy, show_stats = FALSE)
 }
 \arguments{
 \item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
+
+\item{show_stats}{Show listing time and available usage metrics.}
 }
 \value{
 A data frame with columns \code{id}, \code{owasp}, \code{severity}, \code{action},

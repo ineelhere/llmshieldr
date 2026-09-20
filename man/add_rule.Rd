@@ -12,7 +12,8 @@ add_rule(
   owasp = NULL,
   severity = "medium",
   action = "redact",
-  description = ""
+  description = "",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ add_rule(
 \item{action}{One of \code{"allow"}, \code{"redact"}, or \code{"block"}.}
 
 \item{description}{Rule description.}
+
+\item{show_stats}{Show update time and available usage metrics.}
 }
 \value{
 The modified \code{shieldr_policy}, invisibly.

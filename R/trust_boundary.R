@@ -1,20 +1,20 @@
 #' Wrap a chat object in a trust boundary
 #'
 #' Validates chat identity before calls cross into an LLM service. This
-#' covers supply-chain and model-integrity concerns related to OWASP LLM03; see
-#' <https://genai.owasp.org/llm-top-10/>.
+#' covers supply-chain and model-integrity concerns related to OWASP LLM04:2026; see
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
 #'
 #' @details
 #' `trust_boundary()` returns a chat wrapper. The wrapper validates the chat on
 #' creation and again on each call when `require_hash` is supplied. Plain
-#' functions are passed through without model or host checks because a function
-#' has no standard model metadata. Chat objects with a `$chat()` method may
+#' functions have no standard model or host metadata; requesting either
+#' allowlist for one fails closed. Chat objects with a `$chat()` method may
 #' expose model and host fields through common ellmer-style internals or
 #' attributes.
 #'
 #' `allowed_models` and `allowed_hosts` are allowlists. If the chat exposes a
 #' model or host and it is outside the allowlist, the wrapper raises an OWASP
-#' LLM03 error. `require_hash` is intended for local Ollama workflows where the
+#' LLM04:2026 error. `require_hash` is intended for local Ollama workflows where the
 #' model manifest can be checked with `ollama show --modelfile`.
 #'
 #' This function is not a network firewall. It is an application-level
@@ -26,6 +26,7 @@
 #' @param allowed_hosts Optional character vector of allowed hosts or base URLs.
 #' @param require_hash Optional expected SHA-256 hash for an Ollama modelfile
 #'   manifest.
+#' @param show_stats Show per-call execution statistics as messages.
 #' @param ... Reserved for backwards-compatible aliases.
 #'
 #' @return A callable chat wrapper.
@@ -38,7 +39,9 @@ trust_boundary <- function(chat = NULL,
                            allowed_models = NULL,
                            allowed_hosts = NULL,
                            require_hash = NULL,
+                           show_stats = FALSE,
                            ...) {
+  .validate_flag(show_stats, "show_stats")
   chat <- .resolve_chat_arg(chat, list(...))
   .validate_chat(chat)
   if (!is.null(allowed_models) && !is.character(allowed_models)) {
@@ -57,10 +60,13 @@ trust_boundary <- function(chat = NULL,
     model <- .chat_model(chat)
     host <- .chat_host(chat)
 
+    if (plain_function && (!is.null(allowed_models) || !is.null(allowed_hosts))) {
+      cli::cli_abort("Model and host allowlists require a chat object with verifiable metadata.")
+    }
     if (!plain_function && !is.null(allowed_models)) {
       if (is.null(model) || !model %in% allowed_models) {
         cli::cli_abort(
-          "OWASP LLM03 trust boundary failed: model {.val {model %||% '<unknown>'}} is not in the allowed model list."
+          "OWASP LLM04:2026 trust boundary failed: model {.val {model %||% '<unknown>'}} is not in the allowed model list."
         )
       }
     }
@@ -68,7 +74,7 @@ trust_boundary <- function(chat = NULL,
     if (!plain_function && !is.null(allowed_hosts)) {
       if (is.null(host) || !.host_allowed(host, allowed_hosts)) {
         cli::cli_abort(
-          "OWASP LLM03 trust boundary failed: host {.val {host %||% '<unknown>'}} is not in the allowed host list."
+          "OWASP LLM04:2026 trust boundary failed: host {.val {host %||% '<unknown>'}} is not in the allowed host list."
         )
       }
     }
@@ -76,7 +82,7 @@ trust_boundary <- function(chat = NULL,
     if (!is.null(require_hash)) {
       actual_hash <- .ollama_modelfile_hash(model)
       if (!identical(tolower(actual_hash), tolower(require_hash))) {
-        cli::cli_abort("OWASP LLM03 trust boundary failed: Ollama model hash did not match {.arg require_hash}.")
+        cli::cli_abort("OWASP LLM04:2026 trust boundary failed: Ollama model hash did not match {.arg require_hash}.")
       }
     }
 
@@ -87,12 +93,20 @@ trust_boundary <- function(chat = NULL,
   validate()
 
   function(...) {
+    stats <- .stats_begin(show_stats, "trust_boundary call")
+    on.exit(.stats_end(stats), add = TRUE)
     if (!validated || !is.null(require_hash)) {
       validate()
     }
     args <- list(...)
     if (length(args) == 0L) {
       return(chat)
+    }
+    .stats_network_from_chat(stats, chat)
+    if (!is.null(stats)) {
+      request_text <- tryCatch(paste(as.character(args), collapse = " "),
+                               error = function(e) "")
+      .stats_text_tokens(stats, request_text)
     }
     if (is.function(chat)) {
       return(chat(...))
@@ -155,17 +169,17 @@ trust_boundary <- function(chat = NULL,
 
 .ollama_modelfile_hash <- function(model) {
   if (is.null(model)) {
-    cli::cli_abort("OWASP LLM03 trust boundary failed: cannot verify a hash without a model name.")
+    cli::cli_abort("OWASP LLM04:2026 trust boundary failed: cannot verify a hash without a model name.")
   }
   .check_processx()
   result <- tryCatch(
     processx::run("ollama", c("show", "--modelfile", model), error_on_status = FALSE),
     error = function(e) {
-      cli::cli_abort("OWASP LLM03 trust boundary failed: could not call {.code ollama show --modelfile}.")
+      cli::cli_abort("OWASP LLM04:2026 trust boundary failed: could not call {.code ollama show --modelfile}.")
     }
   )
   if (!identical(result$status, 0L)) {
-    cli::cli_abort("OWASP LLM03 trust boundary failed: Ollama returned a non-zero status.")
+    cli::cli_abort("OWASP LLM04:2026 trust boundary failed: Ollama returned a non-zero status.")
   }
   digest::digest(result$stdout, algo = "sha256", serialize = FALSE)
 }

@@ -1,8 +1,8 @@
 #' Example prompts
 #'
 #' Returns example prompts spanning clean, injection, PII, secret, agency, and
-#' misinformation cases, with at least one example touching each OWASP LLM Top
-#' 10 category.
+#' misinformation cases. Feature labels use the OWASP LLM Top 10:2026
+#' category where a direct mapping is meaningful.
 #'
 #' @details
 #' The example data is a small teaching and testing corpus. It is not a
@@ -13,28 +13,31 @@
 #'
 #' @return A data frame with columns `feature`, `type`, `policy`, `prompt`, and
 #'   `expected_action`.
+#' @param show_stats Show construction time and available usage metrics.
 #' @examples
 #' examples <- example_prompts()
 #' head(examples)
 #' @export
-example_prompts <- function() {
+example_prompts <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "example_prompts")
+  on.exit(.stats_end(stats), add = TRUE)
   data.frame(
     feature = c(
-      "LLM01 direct prompt injection",
-      "LLM01 academic integrity injection",
-      "LLM02 email PII",
-      "LLM02 bearer secret",
-      "LLM03 model trust boundary note",
-      "LLM04 clean documentation request",
-      "LLM05 unsafe generated code",
-      "LLM06 autonomous agency claim",
-      "LLM06 investment action claim",
-      "LLM07 system prompt extraction",
-      "LLM08 poisoned context instruction",
-      "LLM08 untrusted source reminder",
-      "LLM09 diagnosis misinformation",
-      "LLM09 financial misinformation",
-      "LLM10 resource exhaustion request",
+      "LLM01:2026 direct prompt injection",
+      "LLM01:2026 academic integrity injection",
+      "LLM02:2026 email PII",
+      "LLM02:2026 bearer secret",
+      "LLM04:2026 model trust boundary note",
+      "Clean documentation request",
+      "LLM10:2026 unsafe generated code",
+      "LLM03:2026 autonomous agency claim",
+      "LLM03:2026 investment action claim",
+      "LLM08:2026 system prompt extraction",
+      "LLM01:2026 poisoned context instruction",
+      "LLM05:2026 untrusted source reminder",
+      "LLM07:2026 diagnosis misinformation",
+      "LLM07:2026 financial misinformation",
+      "LLM06:2026 resource exhaustion request",
       "Clean summarisation",
       "Clean classification",
       "PII phone number",

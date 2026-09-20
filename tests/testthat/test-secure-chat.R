@@ -84,7 +84,7 @@ test_that("secure_chat enforces rate guard on later calls", {
   chat <- function(prompt) "a safe but nonempty answer"
 
   expect_s3_class(secure_chat("hello", chat, policy), "shieldr_result")
-  expect_error(secure_chat("hello", chat, policy), "LLM10")
+  expect_error(secure_chat("hello", chat, policy), "LLM06:2026")
 })
 
 test_that("secure_chat rolls back strict reservation when chat fails", {
@@ -161,6 +161,9 @@ test_that("tool hooks scan calls and results within a guarded chat", {
   )
   result <- secure_chat("hello", chat, allowed_tools = "search_docs")
   expect_equal(result$action, "allow")
+  expect_length(result$audit$tool_reports, 2L)
+  expect_equal(result$audit$tool_reports[[1]]$metadata$stage, "tool_call")
+  expect_equal(result$audit$tool_reports[[2]]$metadata$stage, "tool_output")
   expect_true(event$executed)
   expect_null(event$request)
   expect_null(event$result)

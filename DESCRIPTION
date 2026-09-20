@@ -28,9 +28,11 @@ Imports:
     cli,
     rlang,
     digest,
-    stringi
+    stringi,
+    methods
 Suggests:
     ellmer,
+    S7,
     httr2,
     processx,
     filelock,
@@ -50,5 +52,5 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-URL: https://www.indraneelchakraborty.com/llmshieldr/, https://github.com/ineelhere/llmshieldr, https://genai.owasp.org/llm-top-10/
+URL: https://www.indraneelchakraborty.com/llmshieldr/, https://github.com/ineelhere/llmshieldr, https://github.com/GenAI-Security-Project/GenAI-LLM-Top10
 BugReports: https://github.com/ineelhere/llmshieldr/issues

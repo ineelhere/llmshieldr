@@ -9,7 +9,8 @@ remote_reviewer(
   headers = list(),
   body_field = "prompt",
   response_path = NULL,
-  timeout = 30
+  timeout = 30,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -23,6 +24,9 @@ remote_reviewer(
 response, such as \code{c("data", "findings")}.}
 
 \item{timeout}{Request timeout in seconds.}
+
+\item{show_stats}{Show per-request time, token estimate, network status,
+and HTTP body transfer rates as messages.}
 }
 \value{
 A reviewer function suitable for \verb{reviewer =} in \code{\link[=scan_prompt]{scan_prompt()}},

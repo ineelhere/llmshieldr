@@ -27,6 +27,8 @@
 #' @param response_path Optional character vector path to extract from a JSON
 #'   response, such as `c("data", "findings")`.
 #' @param timeout Request timeout in seconds.
+#' @param show_stats Show per-request time, token estimate, network status,
+#'   and HTTP body transfer rates as messages.
 #'
 #' @return A reviewer function suitable for `reviewer =` in [scan_prompt()],
 #'   [scan_output()], [scan_context()], or [secure_chat()].
@@ -44,7 +46,9 @@ remote_reviewer <- function(url,
                             headers = list(),
                             body_field = "prompt",
                             response_path = NULL,
-                            timeout = 30) {
+                            timeout = 30,
+                            show_stats = FALSE) {
+  .validate_flag(show_stats, "show_stats")
   .check_httr2()
   .check_string(url, "url")
   .check_string(body_field, "body_field")
@@ -64,10 +68,18 @@ remote_reviewer <- function(url,
   force(body_field)
   force(response_path)
   force(timeout)
+  force(show_stats)
 
-  function(prompt) {
+  reviewer_fn <- function(prompt) {
+    stats <- .stats_begin(show_stats, "remote_reviewer")
+    on.exit(.stats_end(stats), add = TRUE)
+    .stats_text_tokens(stats, prompt)
     .check_string(prompt, "prompt", allow_empty = TRUE)
     body <- stats::setNames(list(prompt), body_field)
+    if (!is.null(stats)) {
+      stats$upload_bytes <- nchar(as.character(jsonlite::toJSON(body, auto_unbox = TRUE)), type = "bytes")
+      stats$upload_note <- "estimated JSON body"
+    }
     req <- httr2::request(url)
     if (length(headers) > 0L) {
       header_args <- c(list(req), as.list(as.character(headers)))
@@ -76,7 +88,14 @@ remote_reviewer <- function(url,
     }
     req <- httr2::req_body_json(req, body)
     req <- httr2::req_timeout(req, timeout)
+    network_start <- proc.time()[["elapsed"]]
+    if (!is.null(stats)) stats$network <- "yes"
     resp <- httr2::req_perform(req)
+    if (!is.null(stats)) {
+      stats$network_elapsed_s <- proc.time()[["elapsed"]] - network_start
+      stats$download_bytes <- length(httr2::resp_body_raw(resp))
+      stats$download_note <- "response body"
+    }
     parsed <- tryCatch(httr2::resp_body_json(resp, simplifyVector = FALSE), error = function(e) NULL)
     if (!is.null(parsed)) {
       value <- .pluck_path(parsed, response_path)
@@ -84,6 +103,8 @@ remote_reviewer <- function(url,
     }
     httr2::resp_body_string(resp)
   }
+  attr(reviewer_fn, "llmshieldr_network") <- "yes"
+  reviewer_fn
 }
 
 .pluck_path <- function(x, path) {

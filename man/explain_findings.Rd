@@ -4,12 +4,14 @@
 \alias{explain_findings}
 \title{Explain findings}
 \usage{
-explain_findings(findings, format = "text")
+explain_findings(findings, format = "text", show_stats = FALSE)
 }
 \arguments{
 \item{findings}{A list of finding lists, usually from a \code{shieldr_report}.}
 
 \item{format}{One of \code{"text"}, \code{"markdown"}, or \code{"html"}.}
+
+\item{show_stats}{Show formatting time and available usage metrics.}
 }
 \value{
 A character vector of formatted finding explanations.

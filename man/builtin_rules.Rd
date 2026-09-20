@@ -19,35 +19,39 @@
 \alias{rule_financial_advice}
 \title{Built-in rule helpers}
 \usage{
-rule_injection_basic()
+rule_injection_basic(show_stats = FALSE)
 
-rule_injection_indirect()
+rule_injection_indirect(show_stats = FALSE)
 
-rule_nlp_intent()
+rule_nlp_intent(show_stats = FALSE)
 
-rule_pii_email()
+rule_pii_email(show_stats = FALSE)
 
-rule_pii_phone()
+rule_pii_phone(show_stats = FALSE)
 
-rule_pii_ssn()
+rule_pii_ssn(show_stats = FALSE)
 
-rule_secrets_api_key()
+rule_secrets_api_key(show_stats = FALSE)
 
-rule_secrets_bearer()
+rule_secrets_bearer(show_stats = FALSE)
 
-rule_secrets_aws()
+rule_secrets_aws(show_stats = FALSE)
 
-rule_secrets_password()
+rule_secrets_password(show_stats = FALSE)
 
-rule_phi_condition()
+rule_phi_condition(show_stats = FALSE)
 
-rule_agency_language()
+rule_agency_language(show_stats = FALSE)
 
-rule_system_prompt_leak()
+rule_system_prompt_leak(show_stats = FALSE)
 
-rule_diagnosis_claim()
+rule_diagnosis_claim(show_stats = FALSE)
 
-rule_financial_advice()
+rule_financial_advice(show_stats = FALSE)
+}
+\arguments{
+\item{show_stats}{Show construction time, network status, and available
+usage metrics as messages.}
 }
 \value{
 A \code{shieldr_rule}.

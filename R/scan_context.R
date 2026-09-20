@@ -60,7 +60,7 @@ scan_context <- function(data,
                          show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "scan_context")
   on.exit(.stats_end(stats), add = TRUE)
-  if (!is.null(stats) && !is.null(reviewer) && checks %in% c("llm", "both")) stats$network <- "unknown"
+  .stats_track_reviewer(stats, reviewer, checks)
   if (!is.data.frame(data)) {
     cli::cli_abort("{.arg data} must be a data frame.")
   }

@@ -4,7 +4,7 @@
 \alias{shieldr_result}
 \title{Construct a \code{shieldr_result}}
 \usage{
-shieldr_result(output = NULL, audit, risk_summary, action)
+shieldr_result(output = NULL, audit, risk_summary, action, show_stats = FALSE)
 }
 \arguments{
 \item{output}{Cleaned model output, or \code{NULL}.}
@@ -15,6 +15,8 @@ shieldr_result(output = NULL, audit, risk_summary, action)
 
 \item{action}{Final action. May be \code{"allow"}, \code{"redact"}, \code{"block"},
 \code{"refuse"}, or \code{"escalate"}.}
+
+\item{show_stats}{Show construction time and audit token estimate.}
 }
 \value{
 A \code{shieldr_result} S3 object.

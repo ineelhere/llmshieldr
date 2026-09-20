@@ -80,7 +80,7 @@ The built-in rules are sourced from a small number of security and governance
 concerns that recur across LLM applications:
 
 - OWASP GenAI / LLM Top 10:
-  <https://genai.owasp.org/llm-top-10/>
+  <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>
 - Prompt-injection patterns: direct override language, hidden instructions,
   role confusion, and system-prompt extraction attempts
 - NLP intent signals: token and stem patterns for override, secret exposure,
@@ -369,13 +369,14 @@ ignore, forget, override, instead, disregard
 ```
 
 Rows above `anomaly_threshold`, default `2.5`, receive high-severity OWASP
-LLM08 findings. If `source_col` is supplied and the policy has
-`trusted_sources`, rows from outside that allowlist receive a medium-severity
-OWASP LLM08 finding.
+LLM09:2026 findings. If the policy has `trusted_sources`, rows whose source is
+missing or outside that allowlist receive a critical OWASP LLM01:2026 finding
+and an admission decision of `drop`. Use `authorize` for row-level permission
+checks.
 
 These RAG-specific findings are marked as synthetic. Their combined
 contribution is capped at `0.3` per row before being added to normal rule
-findings.
+findings; an explicit critical block action still blocks the row.
 
 When context is passed through `secure_chat()`, included rows are assembled
 with explicit `context row` labels, source labels when available, and separator

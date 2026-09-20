@@ -26,7 +26,7 @@
 #' @param malicious_urls Whether to flag URLs whose hosts are explicitly
 #'   blocked or fall outside `allowed_url_hosts`.
 #' @param max_tokens Optional maximum estimated tokens for a single scanned
-#'   text. Exceeding the limit creates an OWASP LLM10 block finding.
+#'   text. Exceeding the limit creates an OWASP LLM06:2026 block finding.
 #' @param allowed_languages Optional language allowlist. Uses `language_fn`
 #'   when supplied, otherwise a minimal ASCII/non-Latin heuristic.
 #' @param language_fn Optional function that receives text and returns a single
@@ -36,6 +36,7 @@
 #' @param blocked_url_hosts Optional character vector of blocked URL hosts.
 #' @param allowed_url_hosts Optional character vector of allowed URL hosts. When
 #'   supplied, URL hosts outside the allowlist are flagged.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_scanner_options` object.
 #' @examples
@@ -55,7 +56,10 @@ scanner_options <- function(invisible_text = TRUE,
                             language_fn = NULL,
                             blocked_topics = NULL,
                             blocked_url_hosts = NULL,
-                            allowed_url_hosts = NULL) {
+                            allowed_url_hosts = NULL,
+                            show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scanner_options")
+  on.exit(.stats_end(stats), add = TRUE)
   .validate_flag(invisible_text, "invisible_text")
   .validate_flag(encoded_payloads, "encoded_payloads")
   .validate_flag(urls, "urls")

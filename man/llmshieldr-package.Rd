@@ -9,18 +9,19 @@
 A model-agnostic safety layer for 'R' developers building with large language
 model applications. The package maps starter controls to the Open
 Worldwide Application Security Project Top 10 for Large Language
-Model Applications 2025 risk categories through composable policies,
+Model Applications 2026 risk categories through composable policies,
 deterministic rules, optional semantic review, lightweight natural language
 processing intent checks, conversation, tool-call, streaming-output,
 retrieval-augmented generation context, and output scanning,
-workflows with the 'Ollama' local web service, rate guards, and audit logs.
+workflows with the 'Ollama' local web service or the Gemini Developer API,
+rate guards, and audit logs.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://www.indraneelchakraborty.com/llmshieldr/}
   \item \url{https://github.com/ineelhere/llmshieldr}
-  \item \url{https://genai.owasp.org/llm-top-10/}
+  \item \url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}
   \item Report bugs at \url{https://github.com/ineelhere/llmshieldr/issues}
 }
 
