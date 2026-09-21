@@ -102,7 +102,10 @@ provider-specific constructor options through \code{provider_args}. It creates a
 separate semantic-review chat when review is requested; that chat may use a
 different provider, model, and argument list. You can instead supply an
 existing \code{ellmer} chat object, another object with a \verb{$chat()} method, or a
-function through \code{chat}. The function executes these steps:
+function through \code{chat}. Provider-created assistant chats are initialized
+only after prompt and context checks permit a model call. A provider-created
+semantic reviewer is initialized earlier when \code{checks} requires it. The
+function executes these steps:
 \enumerate{
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
 \item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.

@@ -10,7 +10,10 @@
 #' separate semantic-review chat when review is requested; that chat may use a
 #' different provider, model, and argument list. You can instead supply an
 #' existing `ellmer` chat object, another object with a `$chat()` method, or a
-#' function through `chat`. The function executes these steps:
+#' function through `chat`. Provider-created assistant chats are initialized
+#' only after prompt and context checks permit a model call. A provider-created
+#' semantic reviewer is initialized earlier when `checks` requires it. The
+#' function executes these steps:
 #'
 #' 1. Scan the prompt with [scan_prompt()].
 #' 2. If the prompt is blocked, return a [shieldr_result()] without calling the chat.
@@ -153,16 +156,17 @@ secure_chat <- function(prompt,
   if (!is.character(allowed_tools) || anyNA(allowed_tools)) {
     cli::cli_abort("{.arg allowed_tools} must be a character vector without missing values.")
   }
-  if (!is.null(provider)) {
+  if (is.null(provider)) {
+    .validate_chat(chat)
+  } else if (is.null(reviewer) && checks %in% c("llm", "both")) {
     provider_chats <- .create_provider_chats(
       provider, model, reviewer_model, provider_args,
       reviewer_provider, reviewer_provider_args, checks,
-      create_reviewer = is.null(reviewer)
+      create_chat = FALSE,
+      create_reviewer = TRUE
     )
-    chat <- provider_chats$chat
-    if (is.null(reviewer)) reviewer <- provider_chats$reviewer
+    reviewer <- provider_chats$reviewer
   }
-  .validate_chat(chat)
   .validate_reviewer_for_checks(reviewer, checks)
   .stats_track_reviewer(stats, reviewer, checks)
   if (!is.null(context) && !is.data.frame(context)) {
@@ -272,6 +276,17 @@ secure_chat <- function(prompt,
         keep = safe_idx
       )
     }
+  }
+
+  if (!is.null(provider)) {
+    provider_chats <- .create_provider_chats(
+      provider, model, reviewer_model, provider_args,
+      reviewer_provider, reviewer_provider_args, checks,
+      create_chat = TRUE,
+      create_reviewer = FALSE
+    )
+    chat <- provider_chats$chat
+    .validate_chat(chat)
   }
 
   tool_guard <- .guard_chat_tools(chat, allowed_tools, policy, reviewer,
@@ -453,6 +468,7 @@ secure_chat <- function(prompt,
 .create_provider_chats <- function(provider, model, reviewer_model,
                                    provider_args, reviewer_provider,
                                    reviewer_provider_args, checks,
+                                   create_chat = TRUE,
                                    create_reviewer = TRUE) {
   needs_reviewer <- isTRUE(create_reviewer) && checks %in% c("llm", "both")
   assistant_name <- .ellmer_chat_name(provider, model, "model")
@@ -479,7 +495,9 @@ secure_chat <- function(prompt,
     }
   }
   list(
-    chat = .call_ellmer_chat(assistant_name, provider_args),
+    chat = if (isTRUE(create_chat)) {
+      .call_ellmer_chat(assistant_name, provider_args)
+    } else NULL,
     reviewer = if (needs_reviewer) {
       .call_ellmer_chat(reviewer_name, reviewer_provider_args)
     } else NULL

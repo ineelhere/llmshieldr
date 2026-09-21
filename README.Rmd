@@ -255,7 +255,9 @@ result <- secure_chat(
 
 Use ellmer's provider name (the suffix from its `chat_*()` constructor), or
 the `"provider/model"` form. Authentication and provider availability remain
-ellmer concerns.
+ellmer concerns. The assistant provider is not initialized until prompt and
+context checks permit a model call; semantic-review providers are initialized
+earlier only when `checks` requires them.
 
 ---
 

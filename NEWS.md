@@ -21,7 +21,9 @@
   the Ollama path.
 - Extended `secure_chat()` to accept every provider supported by
   `ellmer::chat()`, including provider-specific arguments and separate
-  assistant and reviewer provider/model selection.
+  assistant and reviewer provider/model selection. Assistant chats are created
+  only after prompt and context checks pass, so blocked requests do not probe
+  or initialize their provider.
 - Added opt-in `show_stats` messages to every exported function, including
   scanning, guarded chat, and HTTP reviewer workflows. Transfer rates are
   reported where body bytes and request duration are measurable.
