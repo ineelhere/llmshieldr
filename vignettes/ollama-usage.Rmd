@@ -225,6 +225,18 @@ shield_ollama(
 )
 ```
 
+The common provider interface accepts an explicit Ollama model and creates a
+separate reviewer chat when semantic checks are enabled:
+
+```{r, eval = FALSE}
+secure_chat(
+  prompt = "Summarize this support issue safely.",
+  provider = "ollama",
+  model = "llama3.2",
+  checks = "both"
+)
+```
+
 ## Existing Chat Objects
 
 If you already have an `ellmer` chat object, pass it directly to

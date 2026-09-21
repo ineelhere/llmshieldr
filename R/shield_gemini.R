@@ -47,22 +47,9 @@ shield_gemini <- function(prompt,
                           show_tokens = FALSE,
                           show_stats = FALSE,
                           audit_content = c("metadata", "full")) {
-  rlang::check_installed("ellmer")
-  .check_string(model, "model")
-  .check_string(reviewer_model, "reviewer_model")
-  checks <- .validate_checks(checks)
-  if (!nzchar(Sys.getenv("GEMINI_API_KEY")) &&
-      !nzchar(Sys.getenv("GOOGLE_API_KEY"))) {
-    cli::cli_abort("Set {.envvar GEMINI_API_KEY} or {.envvar GOOGLE_API_KEY} before using the Gemini Developer API.")
-  }
-  assistant <- ellmer::chat_google_gemini(model = model, echo = "none")
-  reviewer <- if (checks %in% c("llm", "both")) {
-    ellmer::chat_google_gemini(model = reviewer_model, echo = "none")
-  } else {
-    NULL
-  }
   secure_chat(
-    prompt, assistant, policy, reviewer = reviewer, checks = checks,
+    prompt = prompt, provider = "gemini", policy = policy, checks = checks,
+    model = model, reviewer_model = reviewer_model,
     context = context, context_authorize = context_authorize,
     redaction = redaction, scanners = scanners, show_tokens = show_tokens,
     show_stats = show_stats, audit_content = audit_content

@@ -4,10 +4,13 @@
 #' output scanning, rate guarding, and audit creation.
 #'
 #' @details
-#' `secure_chat()` is the main end-to-end workflow when you already have an
-#' `ellmer` chat object or another object with a `$chat()` method. Plain
-#' functions are also accepted for small tests. The function executes these
-#' steps:
+#' `secure_chat()` accepts any provider supported by `ellmer::chat()`. Set
+#' `provider` to an ellmer provider name, optionally supply `model`, and pass
+#' provider-specific constructor options through `provider_args`. It creates a
+#' separate semantic-review chat when review is requested; that chat may use a
+#' different provider, model, and argument list. You can instead supply an
+#' existing `ellmer` chat object, another object with a `$chat()` method, or a
+#' function through `chat`. The function executes these steps:
 #'
 #' 1. Scan the prompt with [scan_prompt()].
 #' 2. If the prompt is blocked, return a [shieldr_result()] without calling the chat.
@@ -26,7 +29,8 @@
 #' reports to final actions of `refuse` or `escalate`.
 #'
 #' @param prompt User prompt.
-#' @param chat An `ellmer` chat object, an object with `$chat()`, or a function.
+#' @param chat An existing `ellmer` chat object, an object with `$chat()`, or a
+#'   function. Supply either `chat` or a provider name, not both.
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
@@ -45,6 +49,24 @@
 #'   calling the model. Allowed calls are scanned before tool execution.
 #' @param show_stats Show elapsed time, token use, network status, and
 #'   transfer metrics when available.
+#' @param provider Any provider name supported by `ellmer::chat()`, optionally
+#'   in ellmer's `"provider/model"` form. `"gemini"` is accepted as an alias
+#'   for `"google_gemini"`. An existing chat object passed as `provider` is
+#'   still accepted as a legacy alias for `chat`.
+#' @param model Optional assistant model name. Do not supply it when `provider`
+#'   already contains a model. With Ollama, `NULL` discovers the first local
+#'   model.
+#' @param reviewer_model Model for the separate semantic reviewer, created only
+#'   when `checks = "llm"` or `"both"` and `reviewer` is `NULL`. `NULL` uses the
+#'   assistant provider and model.
+#' @param provider_args Named list of additional arguments passed to
+#'   `ellmer::chat()` and then to the selected assistant provider constructor.
+#' @param reviewer_provider Optional ellmer provider name for the semantic
+#'   reviewer. `NULL` uses the assistant provider.
+#' @param reviewer_provider_args Named list of provider arguments for the
+#'   reviewer. When the reviewer uses the assistant provider, `NULL` reuses
+#'   `provider_args`; otherwise it passes no additional arguments. Use `list()`
+#'   to explicitly pass none.
 #' @param ... Reserved for backwards-compatible aliases.
 #'
 #' @return A `shieldr_result`.
@@ -59,6 +81,8 @@
 #' }
 #' chat <- ellmer::chat_ollama(model = model)
 #' secure_chat("hello", chat, show_tokens = TRUE)
+#' secure_chat("hello", provider = "ollama", model = model, checks = "rules")
+#' secure_chat("hello", provider = "anthropic", checks = "rules")
 #' }
 #' @export
 secure_chat <- function(prompt,
@@ -74,12 +98,52 @@ secure_chat <- function(prompt,
                         audit_content = c("metadata", "full"),
                         allowed_tools = character(),
                         show_stats = FALSE,
+                        provider = NULL,
+                        model = NULL,
+                        reviewer_model = NULL,
+                        provider_args = list(),
+                        reviewer_provider = NULL,
+                        reviewer_provider_args = NULL,
                         ...) {
   stats <- .stats_begin(show_stats, "secure_chat")
   on.exit(.stats_end(stats), add = TRUE)
   .check_string(prompt, "prompt", allow_empty = TRUE)
-  chat <- .resolve_chat_arg(chat, list(...))
-  .validate_chat(chat)
+  if (length(list(...)) > 0L) {
+    cli::cli_abort("Unexpected arguments in {.arg ...}.")
+  }
+  if (!is.null(provider) && !is.character(provider) &&
+      (is.function(provider) || .has_chat_method(provider))) {
+    if (!is.null(chat)) cli::cli_abort("Use {.arg chat} only once.")
+    chat <- provider
+    provider <- NULL
+  }
+  if (is.null(provider)) {
+    provider_options <- list(
+      model = model,
+      reviewer_model = reviewer_model,
+      reviewer_provider = reviewer_provider,
+      provider_args = if (length(provider_args) > 0L) provider_args else NULL,
+      reviewer_provider_args = reviewer_provider_args
+    )
+    if (any(!vapply(provider_options, is.null, logical(1)))) {
+      cli::cli_abort("Provider models, providers, and argument lists require {.arg provider}.")
+    }
+    chat <- .resolve_chat_arg(chat, list())
+  } else {
+    .check_string(provider, "provider")
+    if (!is.null(model)) .check_string(model, "model")
+    if (!is.null(reviewer_model)) .check_string(reviewer_model, "reviewer_model")
+    if (!is.null(chat)) {
+      cli::cli_abort("Supply either {.arg chat} or {.arg provider}, not both.")
+    }
+  }
+  .validate_provider_args(provider_args, "provider_args")
+  if (!is.null(reviewer_provider_args)) {
+    .validate_provider_args(reviewer_provider_args, "reviewer_provider_args")
+  }
+  if (!is.null(reviewer_provider)) {
+    .check_string(reviewer_provider, "reviewer_provider")
+  }
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
   redaction <- .validate_redaction_strategy(redaction)
@@ -89,6 +153,16 @@ secure_chat <- function(prompt,
   if (!is.character(allowed_tools) || anyNA(allowed_tools)) {
     cli::cli_abort("{.arg allowed_tools} must be a character vector without missing values.")
   }
+  if (!is.null(provider)) {
+    provider_chats <- .create_provider_chats(
+      provider, model, reviewer_model, provider_args,
+      reviewer_provider, reviewer_provider_args, checks,
+      create_reviewer = is.null(reviewer)
+    )
+    chat <- provider_chats$chat
+    if (is.null(reviewer)) reviewer <- provider_chats$reviewer
+  }
+  .validate_chat(chat)
   .validate_reviewer_for_checks(reviewer, checks)
   .stats_track_reviewer(stats, reviewer, checks)
   if (!is.null(context) && !is.data.frame(context)) {
@@ -374,6 +448,92 @@ secure_chat <- function(prompt,
     },
     reports = function() state$reports
   )
+}
+
+.create_provider_chats <- function(provider, model, reviewer_model,
+                                   provider_args, reviewer_provider,
+                                   reviewer_provider_args, checks,
+                                   create_reviewer = TRUE) {
+  needs_reviewer <- isTRUE(create_reviewer) && checks %in% c("llm", "both")
+  assistant_name <- .ellmer_chat_name(provider, model, "model")
+  if (is.null(reviewer_provider_args)) {
+    same_provider <- is.null(reviewer_provider) || identical(
+      .ellmer_provider(.normalize_ellmer_provider(reviewer_provider)),
+      .ellmer_provider(assistant_name)
+    )
+    reviewer_provider_args <- if (same_provider) {
+      provider_args
+    } else {
+      list()
+    }
+  }
+  reviewer_name <- NULL
+  if (needs_reviewer) {
+    if (is.null(reviewer_provider) && is.null(reviewer_model)) {
+      reviewer_name <- assistant_name
+    } else {
+      reviewer_provider <- reviewer_provider %||% .ellmer_provider(assistant_name)
+      reviewer_name <- .ellmer_chat_name(
+        reviewer_provider, reviewer_model, "reviewer_model"
+      )
+    }
+  }
+  list(
+    chat = .call_ellmer_chat(assistant_name, provider_args),
+    reviewer = if (needs_reviewer) {
+      .call_ellmer_chat(reviewer_name, reviewer_provider_args)
+    } else NULL
+  )
+}
+
+.ellmer_chat_name <- function(provider, model = NULL, model_arg = "model") {
+  .check_string(provider, "provider")
+  provider <- .normalize_ellmer_provider(provider)
+  if (!is.null(model)) {
+    .check_string(model, model_arg)
+    if (grepl("/", provider, fixed = TRUE)) {
+      cli::cli_abort(
+        "{.arg provider} already contains a model; do not also supply {.arg {model_arg}}."
+      )
+    }
+    provider <- paste0(provider, "/", model)
+  }
+  if (identical(provider, "ollama")) {
+    provider <- paste0("ollama/", .resolve_ollama_model())
+  }
+  provider
+}
+
+.normalize_ellmer_provider <- function(provider) {
+  sub("^gemini(?=/|$)", "google_gemini", provider, perl = TRUE)
+}
+
+.ellmer_provider <- function(name) {
+  strsplit(name, "/", fixed = TRUE)[[1L]][[1L]]
+}
+
+.validate_provider_args <- function(x, arg) {
+  if (!is.list(x)) {
+    cli::cli_abort("{.arg {arg}} must be a named list.")
+  }
+  if (length(x) == 0L) return(invisible(TRUE))
+  nms <- names(x)
+  if (is.null(nms) || any(!nzchar(nms)) || anyDuplicated(nms)) {
+    cli::cli_abort("{.arg {arg}} must have unique, non-empty names.")
+  }
+  reserved <- intersect(nms, c("name", "model"))
+  if (length(reserved) > 0L) {
+    cli::cli_abort(
+      "{.arg {arg}} cannot contain reserved entries: {.field {reserved}}."
+    )
+  }
+  invisible(TRUE)
+}
+
+.call_ellmer_chat <- function(name, args = list()) {
+  rlang::check_installed("ellmer", version = "0.3.0")
+  if (!"echo" %in% names(args)) args$echo <- "none"
+  do.call(ellmer::chat, c(list(name = name), args))
 }
 
 .tool_event_field <- function(x, field) {

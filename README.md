@@ -217,10 +217,40 @@ result <- shield_gemini(
   show_stats = TRUE
 )
 result$output
+
+# Or use the common provider interface.
+result <- secure_chat(
+  "Summarize this public note.",
+  provider = "gemini",
+  model = "gemini-2.5-flash",
+  reviewer_model = "gemini-2.5-flash-lite",
+  checks = "both"
+)
 ```
 
 For tenant-scoped RAG, pass `context_authorize` and configure
 `trusted_sources` in the policy. See `vignette("gemini-usage")`.
+
+`secure_chat()` does not maintain its own provider allowlist. Any
+provider accepted by `ellmer::chat()` can be named directly, and
+provider-specific constructor options can be supplied through
+`provider_args`:
+
+``` r
+result <- secure_chat(
+  "Summarize this public note.",
+  provider = "openai_compatible",
+  model = "your-model-name",
+  provider_args = list(base_url = "https://llm-gateway.example.com/v1"),
+  reviewer_provider = "openai",
+  reviewer_model = "your-reviewer-model",
+  checks = "both"
+)
+```
+
+Use ellmer’s provider name (the suffix from its `chat_*()` constructor),
+or the `"provider/model"` form. Authentication and provider availability
+remain ellmer concerns.
 
 ------------------------------------------------------------------------
 

@@ -48,7 +48,7 @@ evaluate_security_cases <- function(cases = NULL,
   if (is.null(cases)) {
     path <- system.file("extdata", "security_eval_cases.csv", package = "llmshieldr")
     cases <- utils::read.csv(path, stringsAsFactors = FALSE,
-                             fileEncoding = "UTF-8")
+                             encoding = "UTF-8")
   }
   if (!is.data.frame(cases)) {
     cli::cli_abort("{.arg cases} must be a data frame or {.code NULL}.")

@@ -176,6 +176,22 @@ result$action
 result$risk_summary
 ```
 
+To let `ellmer` construct the chat, supply any provider name it supports.
+Provider-specific options are forwarded without a llmshieldr allowlist.
+
+```{r, eval = FALSE}
+provider_result <- secure_chat(
+  prompt = "Summarize this support issue in a short paragraph.",
+  provider = "anthropic",
+  model = "your-model-name",
+  provider_args = list(),
+  checks = "rules"
+)
+```
+
+Use `reviewer_provider`, `reviewer_model`, and `reviewer_provider_args` when the
+semantic reviewer should use a different ellmer provider configuration.
+
 For the quickest local Ollama path, use `shield_ollama()`. This chunk is not
 evaluated during site builds because it requires a running Ollama service and a
 local model.

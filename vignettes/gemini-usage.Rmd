@@ -37,6 +37,22 @@ result$output
 result$audit$token_estimate
 ```
 
+The same workflow is available through the common provider interface:
+
+```{r, eval = FALSE}
+result <- secure_chat(
+  "Summarize the public release note in three bullets.",
+  provider = "gemini",
+  model = "gemini-2.5-flash",
+  reviewer_model = "gemini-2.5-flash-lite",
+  checks = "both"
+)
+```
+
+That interface is not limited to Gemini and Ollama: `provider` accepts any
+name supported by `ellmer::chat()`. The `"gemini"` spelling above is retained
+as a convenience alias for ellmer's `"google_gemini"` provider name.
+
 The assistant and reviewer are separate chats. `show_stats = TRUE` reports
 elapsed time, assistant and reviewer token use where `ellmer` exposes it,
 estimated scanned-text tokens otherwise, and network status. The `ellmer` API does

@@ -18,13 +18,20 @@ secure_chat(
   audit_content = c("metadata", "full"),
   allowed_tools = character(),
   show_stats = FALSE,
+  provider = NULL,
+  model = NULL,
+  reviewer_model = NULL,
+  provider_args = list(),
+  reviewer_provider = NULL,
+  reviewer_provider_args = NULL,
   ...
 )
 }
 \arguments{
 \item{prompt}{User prompt.}
 
-\item{chat}{An \code{ellmer} chat object, an object with \verb{$chat()}, or a function.}
+\item{chat}{An existing \code{ellmer} chat object, an object with \verb{$chat()}, or a
+function. Supply either \code{chat} or a provider name, not both.}
 
 \item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
@@ -55,6 +62,30 @@ calling the model. Allowed calls are scanned before tool execution.}
 \item{show_stats}{Show elapsed time, token use, network status, and
 transfer metrics when available.}
 
+\item{provider}{Any provider name supported by \code{ellmer::chat()}, optionally
+in ellmer's \code{"provider/model"} form. \code{"gemini"} is accepted as an alias
+for \code{"google_gemini"}. An existing chat object passed as \code{provider} is
+still accepted as a legacy alias for \code{chat}.}
+
+\item{model}{Optional assistant model name. Do not supply it when \code{provider}
+already contains a model. With Ollama, \code{NULL} discovers the first local
+model.}
+
+\item{reviewer_model}{Model for the separate semantic reviewer, created only
+when \code{checks = "llm"} or \code{"both"} and \code{reviewer} is \code{NULL}. \code{NULL} uses the
+assistant provider and model.}
+
+\item{provider_args}{Named list of additional arguments passed to
+\code{ellmer::chat()} and then to the selected assistant provider constructor.}
+
+\item{reviewer_provider}{Optional ellmer provider name for the semantic
+reviewer. \code{NULL} uses the assistant provider.}
+
+\item{reviewer_provider_args}{Named list of provider arguments for the
+reviewer. When the reviewer uses the assistant provider, \code{NULL} reuses
+\code{provider_args}; otherwise it passes no additional arguments. Use \code{list()}
+to explicitly pass none.}
+
 \item{...}{Reserved for backwards-compatible aliases.}
 }
 \value{
@@ -65,10 +96,13 @@ Orchestrates prompt scanning, optional context scanning, chat execution,
 output scanning, rate guarding, and audit creation.
 }
 \details{
-\code{secure_chat()} is the main end-to-end workflow when you already have an
-\code{ellmer} chat object or another object with a \verb{$chat()} method. Plain
-functions are also accepted for small tests. The function executes these
-steps:
+\code{secure_chat()} accepts any provider supported by \code{ellmer::chat()}. Set
+\code{provider} to an ellmer provider name, optionally supply \code{model}, and pass
+provider-specific constructor options through \code{provider_args}. It creates a
+separate semantic-review chat when review is requested; that chat may use a
+different provider, model, and argument list. You can instead supply an
+existing \code{ellmer} chat object, another object with a \verb{$chat()} method, or a
+function through \code{chat}. The function executes these steps:
 \enumerate{
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
 \item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.
@@ -98,5 +132,7 @@ if (is.na(model)) {
 }
 chat <- ellmer::chat_ollama(model = model)
 secure_chat("hello", chat, show_tokens = TRUE)
+secure_chat("hello", provider = "ollama", model = model, checks = "rules")
+secure_chat("hello", provider = "anthropic", checks = "rules")
 }
 }

@@ -65,8 +65,8 @@ LLM category, and optional character span. Scanner reports resolve to `allow`,
   hidden classifier.
 - Support local-first safety workflows through deterministic rules, NLP checks,
   and optional Ollama review.
-- Stay model-agnostic: any `ellmer` chat, object with `$chat()`, or plain R
-  function can be used.
+- Stay model-agnostic: any provider exposed through `ellmer::chat()`, existing
+  chat object, object with `$chat()`, or plain R function can be used.
 - Separate scanning from orchestration so prompt, context, output, tool, and
   stream checks can be used independently.
 - Preserve auditability through scanner reports, final decisions, token

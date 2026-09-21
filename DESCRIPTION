@@ -10,9 +10,10 @@ Description: A model-agnostic safety layer for developers building with
     (NLP) intent checks, optional scanners, and semantic large language model
     reviewer checks on prompts, conversations, retrieved context, tool inputs
     and outputs, streaming chunks, and model outputs. Supports workflows with
-    the 'Ollama' local web service <https://ollama.com/> and the Gemini
-    Developer API <https://ai.google.dev/gemini-api/docs> via 'ellmer', remote
-    reviewer endpoints, and other chat interfaces callable from 'R'.
+    every provider exposed by 'ellmer', including the 'Ollama' local web
+    service <https://ollama.com/> and the Gemini Developer API
+    <https://ai.google.dev/gemini-api/docs>, as well as remote reviewer
+    endpoints and other chat interfaces callable from 'R'.
     Intended as an experimental guardrail layer that teams should evaluate
     against their own workflows before relying on it in production.
 Authors@R:
@@ -31,7 +32,7 @@ Imports:
     stringi,
     methods
 Suggests:
-    ellmer,
+    ellmer (>= 0.3.0),
     S7,
     httr2,
     processx,

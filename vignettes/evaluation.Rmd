@@ -71,7 +71,7 @@ Inspect it before running benchmarks:
 
 ```{r}
 path <- system.file("extdata", "security_eval_cases.csv", package = "llmshieldr")
-cases <- read.csv(path, stringsAsFactors = FALSE)
+cases <- read.csv(path, stringsAsFactors = FALSE, encoding = "UTF-8")
 cases[, c("id", "stage", "category", "expected_action")]
 ```
 

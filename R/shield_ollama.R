@@ -41,18 +41,12 @@ shield_ollama <- function(prompt,
                           show_tokens = FALSE,
                           audit_content = c("metadata", "full"),
                           show_stats = FALSE) {
-  rlang::check_installed("ellmer")
-  model <- .resolve_ollama_model(model)
-  checks <- .validate_checks(checks)
-  show_tokens <- .validate_show_tokens(show_tokens)
-  assistant <- ellmer::chat_ollama(model = model)
-  reviewer <- if (checks %in% c("llm", "both")) ellmer::chat_ollama(model = model) else NULL
   secure_chat(
-    prompt,
-    assistant,
-    policy,
-    reviewer = reviewer,
+    prompt = prompt,
+    provider = "ollama",
+    policy = policy,
     checks = checks,
+    model = model,
     context = context,
     redaction = redaction,
     scanners = scanners,

@@ -60,6 +60,7 @@ reference:
     contents:
       - secure_chat
       - shield_ollama
+      - shield_gemini
       - ollama_reviewer
       - remote_reviewer
       - trust_boundary
@@ -89,6 +90,7 @@ articles:
     contents:
       - getting-started
       - ollama-usage
+      - gemini-usage
       - policy-design
       - custom-rules
       - rag-pipeline

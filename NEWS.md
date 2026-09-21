@@ -19,10 +19,14 @@
   edition-qualified category ID.
 - Added Gemini Developer API workflow examples and `shield_gemini()`, alongside
   the Ollama path.
+- Extended `secure_chat()` to accept every provider supported by
+  `ellmer::chat()`, including provider-specific arguments and separate
+  assistant and reviewer provider/model selection.
 - Added opt-in `show_stats` messages to every exported function, including
   scanning, guarded chat, and HTTP reviewer workflows. Transfer rates are
   reported where body bytes and request duration are measurable.
-- Fixed Unicode confusable normalization on non-UTF-8 Windows locales.
+- Fixed UTF-8 evaluation-corpus loading and Unicode confusable normalization
+  on non-UTF-8 Windows locales.
 
 # llmshieldr 0.1.0
 

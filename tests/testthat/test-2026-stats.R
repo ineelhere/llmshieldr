@@ -56,7 +56,7 @@ test_that("every exported function has an opt-in stats argument", {
 test_that("packaged Unicode evasion cases contain real characters", {
   path <- system.file("extdata", "security_eval_cases.csv", package = "llmshieldr")
   cases <- utils::read.csv(path, stringsAsFactors = FALSE,
-                           fileEncoding = "UTF-8")
+                           encoding = "UTF-8")
   selected <- cases[cases$id %in% c("unicode_confusable_001", "invisible_text_001"), ]
   expect_equal(nrow(selected), 2L)
   expect_true(all(evaluate_security_cases(selected)$matched))
