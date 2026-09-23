@@ -393,10 +393,14 @@ category.
 ```text
 llm01 = prompt injection and instruction override findings
 llm02 = sensitive information and secret findings
-llm06 = excessive agency findings
-llm08 = retrieved-context trust and anomaly findings
-llm09 = misinformation and unsupported claim findings
-llm10 = resource exhaustion and rate-guard findings
+llm03 = excessive agency and unsafe tool-use findings
+llm04 = model and provider supply-chain findings
+llm05 = context provenance and poisoning findings
+llm06 = resource exhaustion and rate-guard findings
+llm07 = misinformation and grounding findings
+llm08 = hidden-context exposure findings
+llm09 = retrieved-context and vector-isolation findings
+llm10 = improper output handling findings
 ```
 
 Each category is capped at `1.0`. The value is useful for dashboards and audit

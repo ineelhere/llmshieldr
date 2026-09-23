@@ -33,9 +33,10 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 }
 ```
 
-`llmshieldr` adds a safety layer around LLM calls in R. It does not require a
-specific model service. You can use an `ellmer` chat object, anything with a
-`$chat()` method, a remote reviewer function, or the optional Ollama helper.
+`llmshieldr` adds a safety layer around LLM calls in R without requiring a
+specific model service. `secure_chat()` accepts any provider supported by
+`ellmer::chat()`, an existing chat object, an object with a `$chat()` method,
+or an R function. Gemini and Ollama use this same provider-neutral path.
 
 ## Load a Policy
 
@@ -182,12 +183,16 @@ Provider-specific options are forwarded without a llmshieldr allowlist.
 ```{r, eval = FALSE}
 provider_result <- secure_chat(
   prompt = "Summarize this support issue in a short paragraph.",
-  provider = "anthropic",
-  model = "your-model-name",
-  provider_args = list(),
+  provider = "gemini",
+  model = "gemini-3.8-flash",
   checks = "rules"
 )
 ```
+
+The example uses a stable model currently listed for free-tier use. Gemini
+eligibility, quotas, model availability, and data-use terms depend on the
+account, project, and region. Check Google's current pricing, rate limits,
+and terms before sending private data.
 
 Use `reviewer_provider`, `reviewer_model`, and `reviewer_provider_args` when the
 semantic reviewer should use a different ellmer provider configuration.
@@ -235,9 +240,11 @@ refusing_policy <- policy(
 For more local LLM patterns, see
 `vignette("ollama-usage", package = "llmshieldr")`.
 
-`risk_summary` aggregates triggered findings by OWASP category. For example,
-PII rules contribute to `llm02`, injection rules to `llm01`, and rate-limit
-failures to `llm10`.
+`risk_summary` aggregates triggered findings by OWASP 2026 category. Injection
+maps to `llm01`, sensitive information to `llm02`, excessive agency to
+`llm03`, resource limits to `llm06`, misinformation to `llm07`, hidden-context
+exposure to `llm08`, retrieved-context weaknesses to `llm09`, and improper
+output handling to `llm10`.
 
 ## Inspect Output
 
@@ -284,15 +291,20 @@ scan_tool_call(
 scan_tool_output("search_docs", "Result includes neel@example.com")
 ```
 
-For streaming APIs, scan chunks with rolling context so split phrases can still
-be detected.
+For streaming APIs, use `stream_guard()` when text must not be released until
+the complete response passes its final scan. Raw provider chunks go only to
+`$push()`; `$finish()` emits the cleaned text after an allow or redact decision.
 
 ```{r}
-scan_stream(
-  c("I will now ", "delete the records."),
-  on_block = "return"
-)
+released <- character()
+guard <- stream_guard(function(text) released <<- c(released, text))
+guard$push("A short public ")
+guard$push("response.")
+guard$finish()
 ```
+
+Use `scan_stream()` for batch or post-hoc chunk reports when its caller already
+controls release.
 
 ## Customize Scanners and Redaction
 
@@ -325,17 +337,21 @@ write_audit_log(result$audit, path)
 readLines(path)
 ```
 
-The audit object records input and output reports, context reports when
-present, cleaned prompt text, raw model output, elapsed time, token estimate,
-and the final action.
+The default audit records report metadata, context and tool decisions, elapsed
+time, token estimates, and the final action. Prompt text, output text, finding
+excerpts, and reviewer details are omitted. Retaining content in memory
+requires `secure_chat(..., audit_content = "full")`; writing it requires the
+separate `write_audit_log(..., include_content = TRUE)` opt-in.
 
 With `show_tokens = TRUE`, token counts use `ellmer` usage records when they
 are available and fall back to `ceiling(nchar(text) / 4)`. They are intended
 for operational safety limits, not exact billing.
 
-For stricter budget behavior, create a guard with `rate_guard(strict = TRUE)`.
-For shared guards in parallel or async code on one machine, use
-`rate_guard(concurrent = TRUE)` and install the optional `filelock` package.
+`rate_guard()` can bound requests, estimated or reported tokens, output tokens,
+tool calls, side effects, and elapsed time. Use `strict = TRUE` for pre-call
+token reservation, `concurrent = TRUE` with optional `filelock` for shared
+work on one machine, or supply a backend that implements the shared-counter
+contract for a deployment-managed store.
 
 ## Evaluate a Starter Corpus
 

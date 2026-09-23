@@ -52,6 +52,8 @@ make a workflow production-ready by itself.
   output blocks, refusals, and human escalation.
 - Configure `scanner_options()` for token limits, URL host policy, topic bans,
   and language policy when those controls matter.
+- Define `context_policy()`, `tool_policy()`, `output_contract()`, and
+  `grounding_policy()` requirements for the boundaries the application uses.
 - Choose a redaction strategy for logs and user-visible text.
 - Evaluate detection and false-positive rates on representative data.
 - Review audit log contents and storage controls.
@@ -62,17 +64,24 @@ make a workflow production-ready by itself.
 - Scan user prompts before model calls.
 - Scan retrieved context before prompt assembly.
 - Drop, refuse, or escalate blocked context rows according to policy.
-- Supply trustworthy source labels and, where needed, a row-level authorization
-  function. Admitted row identifiers and source labels appear in prompt
-  assembly and audit metadata.
+- Require provenance and apply tenant, ACL, source, trust-tier, freshness, and
+  row authorization checks with `context_policy()`. Enforce the same tenant
+  and ACL scope inside the retrieval query.
 - Scan model output before display, storage, or downstream tool use.
-- Validate tool-call names and arguments before execution.
-- Scan tool outputs before they re-enter model context.
+- Use `tool_policy()` or `guard_tool()` to validate tool names, schemas,
+  authorization, spend, and call limits before dispatch; scan results before
+  they re-enter model context.
+- Apply `output_contract()` and `grounding_policy()` before releasing output
+  to its destination.
 - Scan the complete buffered stream before releasing its cleaned text. Do not
   display unscanned chunks to users.
 - Apply rate guards appropriate to the environment.
 - Use strict rate-guard reservation for shared or bursty workloads.
+- Provide a deployment-managed shared-counter backend when limits must span
+  processes or machines.
 - Record metadata-only audit logs to access-controlled storage.
+- Export content-free decision events with `telemetry_options()` when runtime
+  monitoring is required.
 - Monitor warnings, blocked requests, reviewer parse errors, and escalation
   counts.
 
@@ -164,7 +173,7 @@ scan_prompt("Summarize this public note.", show_stats = TRUE)
 result <- secure_chat(
   "Summarize this public note.",
   provider = "gemini",
-  model = "gemini-2.5-flash",
+  model = "gemini-3.8-flash",
   checks = "rules",
   show_stats = TRUE
 )

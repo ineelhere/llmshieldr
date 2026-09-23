@@ -48,7 +48,7 @@ replacement for every Python tool.
 | Guardrails AI | Runtime validation and structured-output guards | Validator hub, on-fail actions, structured output, server mode | Similar runtime validation ideas; R-first scanner ergonomics |
 | NVIDIA NeMo Guardrails | Programmable LLM rails | Input, output, retrieval, dialog, execution rails, deployment docs | Inspiration for richer workflow stages and policy configuration |
 | LLM Guard | Runtime prompt/response scanning | Many input/output scanners, anonymization, prompt injection, secrets, URLs, toxicity | Closest conceptual peer; useful benchmark for scanner breadth |
-| Microsoft Presidio | PII detection and anonymization | Mature recognizers, anonymizers, structured data, extensibility | Potential optional bridge for stronger PII/PHI workflows |
+| Microsoft Presidio | PII detection and anonymization | Mature recognizers, anonymizers, structured data, extensibility | Optional `presidio_provider()` adapter for stronger PII/PHI workflows |
 | LlamaFirewall | Agentic security guardrails | Prompt, alignment, code, agent, and tool layers | Useful reference point for tool-call and generated-code protection |
 | garak | Vulnerability scanning | Red-team probes and vulnerability reports | Evaluation inspiration, not runtime competition |
 | Promptfoo | LLM evals and red teaming | CI-friendly evals, attack generation, reports, provider coverage | Inspiration for benchmarks, fixtures, and CI eval workflows |
@@ -61,7 +61,7 @@ replacement for every Python tool.
 - Shiny applications,
 - `plumber` APIs,
 - data-frame based RAG pipelines,
-- local Ollama experiments,
+- local Ollama and hosted-provider experiments,
 - regulated analytics environments where R is already approved.
 
 The package leans into that niche through:
@@ -70,7 +70,7 @@ The package leans into that niche through:
 - data-frame friendly context scanning,
 - transparent S3 objects,
 - audit logs that are easy to inspect,
-- local-first examples,
+- local and hosted-provider examples,
 - optional bridges to stronger external detectors.
 
 ## Near-Term Lessons

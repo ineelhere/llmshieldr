@@ -87,15 +87,23 @@ results <- evaluate_security_cases(
 results
 ```
 
-Useful headline metrics:
+Summarize sensitivity, benign false-positive rate, action accuracy, Wilson
+95% confidence intervals, and p50/p95 latency:
 
 ```{r}
-data.frame(
-  cases = nrow(results),
-  action_accuracy = mean(results$matched),
-  median_latency_ms = median(results$latency_ms),
-  p95_latency_ms = as.numeric(quantile(results$latency_ms, 0.95))
+summarize_security_evaluation(results)
+```
+
+Before changing a production policy, compare decisions and triggered rules on
+the same corpus:
+
+```{r, eval = FALSE}
+changes <- compare_policies(
+  cases,
+  from = policy("enterprise_default"),
+  to = policy("comprehensive")
 )
+subset(changes, changed)
 ```
 
 For release notes, report the package version, R version, optional dependency

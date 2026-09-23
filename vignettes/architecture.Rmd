@@ -42,13 +42,17 @@ at the repository root.
 ```text
 policy() creates rules, thresholds, controls, and optional rate guards
 scan_prompt() checks user input before it reaches a model
-scan_context() checks retrieved rows before prompt assembly
+context_policy() defines provenance and authorization requirements
+scan_context() checks and admits retrieved rows before prompt assembly
 scan_conversation() checks role-preserving chat histories
-scan_tool_call() and scan_tool_output() guard tool boundaries
-scan_stream() scans streamed output with rolling context
+tool_policy() and guard_tool() authorize, scan, dispatch, and rescan tools
+stream_guard() buffers provider chunks and releases only final safe text
+scan_document() performs bounded extraction before content is trusted
 scan_output() checks model text before display, storage, or downstream use
-secure_chat() orchestrates scanning, chat execution, output scanning, and audit
-write_audit_log() persists the end-to-end evidence trail
+output_contract() and grounding_policy() validate destination and citations
+secure_chat() orchestrates provider creation, checks, execution, and audit
+telemetry_options() exports content-free decision events
+write_audit_log() persists the evidence trail with explicit content controls
 ```
 
 The package keeps the safety path inspectable. Every scanner result is based on
@@ -63,8 +67,8 @@ LLM category, and optional character span. Scanner reports resolve to `allow`,
   scanner.
 - Keep internals inspectable: policies are lists of explicit rules, not a
   hidden classifier.
-- Support local-first safety workflows through deterministic rules, NLP checks,
-  and optional Ollama review.
+- Support deterministic rules, local NLP checks, and optional semantic review
+  with Gemini, Ollama, other ellmer providers, or caller-supplied reviewers.
 - Stay model-agnostic: any provider exposed through `ellmer::chat()`, existing
   chat object, object with `$chat()`, or plain R function can be used.
 - Separate scanning from orchestration so prompt, context, output, tool, and
@@ -76,16 +80,18 @@ LLM category, and optional character span. Scanner reports resolve to `allow`,
 
 ## Package Layers
 
-1. Rule, report, audit, and result constructors in `R/rules.R`.
-2. Built-in policy assembly and policy mutation helpers in `R/policy.R`.
-3. Prompt scanning, normalization, scoring, redaction, and reviewer parsing in
-   `R/scan_prompt.R`.
-4. Context scanning and RAG anomaly/source checks in `R/scan_context.R`.
-5. Output scanning in `R/scan_output.R`.
-6. Chat orchestration and token accounting in `R/secure_chat.R`.
-7. Optional surfaces: conversations, tools, streams, scanner options,
-   redaction strategies, audit writing, HTTP reviewers, Ollama, and trust
-   boundaries.
+1. **Decision model:** explicit rules, findings, reports, policy thresholds,
+   orchestration controls, and OWASP 2026 metadata.
+2. **Detection:** normalization, deterministic rules, local NLP intent,
+   optional semantic reviewers, entity recognizers, and secret detectors.
+3. **Admission:** context provenance and authorization, bounded document
+   extraction, URL policy, provider trust boundaries, and rate budgets.
+4. **Execution:** provider-neutral chat orchestration and default-deny tool
+   policies with schema, authorization, spend, and loop controls.
+5. **Release:** output scanning, grounding checks, destination contracts, and
+   buffered stream release.
+6. **Evidence:** metadata-first audits, privacy-safe telemetry, execution
+   statistics, evaluation summaries, and policy comparisons.
 
 ## Object Model
 
@@ -166,6 +172,10 @@ Explicit `block` rules and critical findings still block immediately.
 - Use `redaction_strategy()` for replace, mask, hash, drop, and keep behavior.
 - Use `policy_controls()` to choose refuse, escalate, drop, or keep-redacted
   outcomes after scanner blocks.
+- Use `context_policy()`, `tool_policy()`, `output_contract()`, and
+  `grounding_policy()` to make workflow boundaries explicit.
+- Add external detectors with `guardrail_provider()`, PII services with
+  `presidio_provider()`, and custom secret patterns with `secret_registry()`.
 - Wrap local or remote reviewer models with `ollama_reviewer()` or
   `remote_reviewer()`.
 

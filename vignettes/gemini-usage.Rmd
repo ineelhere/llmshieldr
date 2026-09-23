@@ -16,10 +16,14 @@ and set `GEMINI_API_KEY` or `GOOGLE_API_KEY` outside your script. Live examples
 are disabled during vignette builds and CRAN checks.
 
 The Gemini Developer API sends admitted prompt and context text to Google.
-Google states that free-tier content may be used to improve its products.
-Review [current pricing](https://ai.google.dev/gemini-api/docs/pricing),
-[rate limits](https://ai.google.dev/gemini-api/docs/rate-limits), and your
-organization's data rules before using private content.
+The examples use stable models currently listed for free-tier use. Google
+determines eligibility, quotas, model availability, and data-use terms by
+account, project, and region. Review
+[current pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[rate limits](https://ai.google.dev/gemini-api/docs/rate-limits), current
+terms, and your organization's data rules before using private content. The
+current pricing table marks free-tier content as eligible for product
+improvement.
 
 ## Guard a public prompt
 
@@ -29,8 +33,8 @@ library(llmshieldr)
 result <- secure_chat(
   "Summarize the public release note in three bullets.",
   provider = "gemini",
-  model = "gemini-2.5-flash",
-  reviewer_model = "gemini-2.5-flash-lite",
+  model = "gemini-3.8-flash",
+  reviewer_model = "gemini-3.5-flash-lite",
   checks = "both",
   show_stats = TRUE
 )
@@ -51,13 +55,16 @@ shown as unavailable instead of inferred from character counts.
 ## Admit only approved context
 
 ```{r, eval = FALSE}
-guardrails <- policy(
-  "enterprise_default",
-  overrides = list(trusted_sources = "public_kb")
+guardrails <- policy("enterprise_default")
+admission <- context_policy(
+  required_columns = c("document_id", "source", "tenant"),
+  tenant_id = "public",
+  trusted_sources = "public_kb"
 )
 context <- data.frame(
   text = c("Public release notes.", "Private tenant note."),
   source = c("public_kb", "private_kb"),
+  document_id = c("release-1", "private-1"),
   tenant = c("public", "other"),
   stringsAsFactors = FALSE
 )
@@ -65,23 +72,23 @@ context <- data.frame(
 result <- secure_chat(
   "Summarize the release notes.",
   provider = "gemini",
-  model = "gemini-2.5-flash",
-  reviewer_model = "gemini-2.5-flash-lite",
+  model = "gemini-3.8-flash",
+  reviewer_model = "gemini-3.5-flash-lite",
   policy = guardrails,
   context = context,
-  context_authorize = function(row) identical(row$tenant[[1]], "public"),
+  context_policy = admission,
   checks = "both"
 )
 ```
 
-Apply tenant and document permissions in the retrieval query too. The row
-authorization callback is a second check before model submission.
+Apply tenant and document permissions in the retrieval query too.
+`context_policy()` is a second admission check before model submission.
 
 ## Bring an existing Gemini chat
 
 ```{r, eval = FALSE}
-assistant <- ellmer::chat_google_gemini(model = "gemini-2.5-flash", echo = "none")
-reviewer <- ellmer::chat_google_gemini(model = "gemini-2.5-flash-lite", echo = "none")
+assistant <- ellmer::chat_google_gemini(model = "gemini-3.8-flash", echo = "none")
+reviewer <- ellmer::chat_google_gemini(model = "gemini-3.5-flash-lite", echo = "none")
 secure_chat(
   "Explain a public technical term.",
   chat = assistant,

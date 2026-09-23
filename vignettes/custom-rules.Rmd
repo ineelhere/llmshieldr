@@ -181,9 +181,9 @@ Finance workflows often tighten language around recommendations and promises.
 finance <- policy("finance_strict")
 finance <- add_rule(
   finance,
-  id = "llm09.promissory_return",
+  id = "llm07.promissory_return",
   pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
-  owasp = "llm09",
+  owasp = "llm07",
   severity = "critical",
   action = "block",
   description = "Promissory investment performance claim."

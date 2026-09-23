@@ -269,8 +269,9 @@ secure_chat(
 
 ## Any LLM Service
 
-For hosted models or private gateways, wrap your call as a function or object
-with `$chat()`.
+For hosted models supported by `ellmer::chat()`, pass the provider name and
+optional `provider_args` to `secure_chat()`. For a custom gateway, pass a
+function or object with `$chat()`.
 
 ```{r}
 chat <- function(prompt) {
@@ -294,12 +295,10 @@ the call; you decide which model service actually produces or reviews text.
 
 Provider compatibility notes:
 
-- OpenAI-compatible SDKs: wrap the call in a function that accepts one prompt
-  string and returns one response string.
-- Anthropic-compatible SDKs: do the same, preserving any provider-specific
-  message formatting inside your wrapper.
-- Internal gateways: expose a `$chat()` method or plain function and keep
-  authentication, retries, and request logging outside llmshieldr.
+- Ellmer providers: use the constructor suffix as `provider`, or pass a
+  `"provider/model"` value; put constructor options in `provider_args`.
+- Internal gateways outside ellmer: expose a `$chat()` method or plain function
+  and keep authentication, retries, and request logging outside llmshieldr.
 - Local Ollama: set `provider = "ollama"` or pass an existing
   `ellmer::chat_ollama()` object to `secure_chat()`.
 

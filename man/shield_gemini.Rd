@@ -55,18 +55,27 @@ It requires the suggested \code{ellmer} package and \code{GEMINI_API_KEY} or
 is called.
 }
 \details{
-The default model names had a free tier when this package was documented;
-availability, quotas, and data terms can change. Check
+The compatibility defaults retain the Gemini 2.5 model names used when this
+wrapper was introduced. Google may limit those models for new projects; new
+code should pass a current model explicitly to \code{\link[=secure_chat]{secure_chat()}}. Google
+determines free-tier eligibility, quotas, model availability, and data-use
+terms by account, project, and region. Check
 \url{https://ai.google.dev/gemini-api/docs/pricing} and
 \url{https://ai.google.dev/gemini-api/docs/rate-limits} for your project.
 Gemini requests transmit the cleaned prompt and admitted context to Google.
-The Gemini API free tier may use submitted content to improve Google products;
-avoid sending sensitive data unless your organization permits it.
+Google's current pricing table marks free-tier content as eligible for
+product improvement. Review current terms and organizational data rules
+before sending private content.
 }
 \examples{
 \dontrun{
 # Set GEMINI_API_KEY in your environment before running.
-result <- shield_gemini("Summarize this public note.", show_stats = TRUE)
+result <- shield_gemini(
+  "Summarize this public note.",
+  model = "gemini-3.8-flash",
+  reviewer_model = "gemini-3.5-flash-lite",
+  show_stats = TRUE
+)
 result$output
 }
 }
