@@ -14,6 +14,9 @@ scan_tool_call(
   redaction = NULL,
   scanners = scanner_options(),
   show_tokens = FALSE,
+  tool_policy = NULL,
+  subject = NULL,
+  state = NULL,
   show_stats = FALSE
 )
 }
@@ -37,6 +40,12 @@ empty vector denies every tool; \code{NULL} explicitly disables the allowlist.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{tool_policy}{Optional richer policy from \code{\link[=tool_policy]{tool_policy()}}.}
+
+\item{subject}{Optional authorization context passed to the tool policy.}
+
+\item{state}{Optional mutable call-limit state used by guarded dispatchers.}
 
 \item{show_stats}{Show execution statistics as messages.}
 }

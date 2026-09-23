@@ -51,10 +51,23 @@ reference:
       - scan_output
       - scan_conversation
       - scan_stream
+      - stream_guard
       - scan_tool_call
       - scan_tool_output
+      - scan_url_target
+      - scan_grounding
+      - scan_document
       - scanner_options
       - redaction_strategy
+      - output_contract
+      - validate_output_contract
+      - context_policy
+      - grounding_policy
+      - url_policy
+      - document_input
+      - entity_recognizer
+      - native_recognizers
+      - secret_registry
 
   - title: Orchestration
     contents:
@@ -65,6 +78,16 @@ reference:
       - remote_reviewer
       - trust_boundary
       - rate_guard
+      - tool_policy
+      - guard_tool
+      - telemetry_options
+
+  - title: Optional Detector Adapters
+    contents:
+      - guardrail_provider
+      - presidio_provider
+      - gitleaks_provider
+      - opa_provider
 
   - title: Audit and Explanation
     contents:
@@ -72,6 +95,9 @@ reference:
       - explain_findings
       - example_prompts
       - evaluate_security_cases
+      - summarize_security_evaluation
+      - compare_policies
+      - owasp_crosswalk
       - reviewer_prompt
 
   - title: Constructors

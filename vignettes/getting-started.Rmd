@@ -192,13 +192,14 @@ provider_result <- secure_chat(
 Use `reviewer_provider`, `reviewer_model`, and `reviewer_provider_args` when the
 semantic reviewer should use a different ellmer provider configuration.
 
-For the quickest local Ollama path, use `shield_ollama()`. This chunk is not
-evaluated during site builds because it requires a running Ollama service and a
-local model.
+For local Ollama, use the same provider interface. This chunk is not evaluated
+during site builds because it requires a running Ollama service and a local
+model.
 
 ```{r, eval = FALSE}
-ollama_result <- shield_ollama(
+ollama_result <- secure_chat(
   prompt = "Summarize this support issue in a short paragraph.",
+  provider = "ollama",
   policy = policy("baseline"),
   checks = "rules",
   show_tokens = TRUE

@@ -11,7 +11,9 @@ scan_output(
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
+  contract = NULL,
   show_tokens = FALSE,
+  stage = "output",
   show_stats = FALSE
 )
 }
@@ -28,7 +30,11 @@ scan_output(
 
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
+\item{contract}{Optional destination contract from \code{\link[=output_contract]{output_contract()}}.}
+
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{stage}{Internal trust-boundary stage.}
 
 \item{show_stats}{Show elapsed time, token estimate, network status, and
 transfer metrics when available.}

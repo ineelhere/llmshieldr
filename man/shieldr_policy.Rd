@@ -11,6 +11,7 @@ shieldr_policy(
   rate_guard = NULL,
   trusted_sources = NULL,
   controls = NULL,
+  version = "1",
   show_stats = FALSE
 )
 }
@@ -27,6 +28,8 @@ values between 0 and 1.}
 \item{trusted_sources}{Optional character vector of trusted context sources.}
 
 \item{controls}{Optional list from \code{\link[=policy_controls]{policy_controls()}}.}
+
+\item{version}{Policy configuration version recorded in reports and audits.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }

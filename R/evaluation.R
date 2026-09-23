@@ -105,8 +105,111 @@ evaluate_security_cases <- function(cases = NULL,
       matched = identical(report$action, expected),
       latency_ms = latency_ms,
       n_findings = length(report$findings),
+      rule_ids = paste(unique(vapply(report$findings, function(finding) finding$rule_id %||% "unknown", character(1))), collapse = ","),
       stringsAsFactors = FALSE
     )
   }
   do.call(rbind, rows)
+}
+
+#' Summarize a labeled security evaluation
+#'
+#' Calculates detection sensitivity, benign false-positive rate, action
+#' accuracy, Wilson 95% confidence intervals, and p50/p95 latency from
+#' [evaluate_security_cases()] output.
+#'
+#' @param results Evaluation result data frame.
+#' @param positive_actions Actions counted as a detected risk.
+#' @param show_stats Show calculation time and available usage metrics.
+#'
+#' @return A one-row data frame of metrics.
+#' @examples
+#' results <- evaluate_security_cases()
+#' summarize_security_evaluation(results)
+#' @export
+summarize_security_evaluation <- function(results,
+                                          positive_actions = c("redact", "block"),
+                                          show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "summarize_security_evaluation")
+  on.exit(.stats_end(stats), add = TRUE)
+  if (!is.data.frame(results)) cli::cli_abort("{.arg results} must be a data frame.")
+  required <- c("label", "actual_action", "matched", "latency_ms")
+  missing <- setdiff(required, names(results))
+  if (length(missing) > 0L) cli::cli_abort("{.arg results} is missing required column{?s}: {.field {missing}}.")
+  benign <- tolower(as.character(results$label)) == "benign"
+  detected <- results$actual_action %in% positive_actions
+  positive <- !benign
+  sensitivity <- .rate_ci(sum(detected & positive), sum(positive))
+  false_positive <- .rate_ci(sum(detected & benign), sum(benign))
+  accuracy <- .rate_ci(sum(results$matched, na.rm = TRUE), nrow(results))
+  data.frame(
+    cases = nrow(results),
+    sensitivity = sensitivity[["estimate"]],
+    sensitivity_low = sensitivity[["low"]],
+    sensitivity_high = sensitivity[["high"]],
+    false_positive_rate = false_positive[["estimate"]],
+    false_positive_low = false_positive[["low"]],
+    false_positive_high = false_positive[["high"]],
+    action_accuracy = accuracy[["estimate"]],
+    action_accuracy_low = accuracy[["low"]],
+    action_accuracy_high = accuracy[["high"]],
+    latency_p50_ms = as.numeric(stats::quantile(results$latency_ms, 0.5, na.rm = TRUE, names = FALSE)),
+    latency_p95_ms = as.numeric(stats::quantile(results$latency_ms, 0.95, na.rm = TRUE, names = FALSE)),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Compare policy decisions on the same corpus
+#'
+#' @param cases Evaluation corpus accepted by [evaluate_security_cases()].
+#' @param from Baseline policy.
+#' @param to Candidate policy.
+#' @inheritParams evaluate_security_cases
+#' @param show_stats Show execution statistics as messages.
+#'
+#' @return A data frame with baseline and candidate actions, rules, and a
+#'   `changed` flag.
+#' @examples
+#' \dontrun{
+#' diff <- compare_policies(
+#'   NULL,
+#'   policy("enterprise_default"),
+#'   policy("comprehensive")
+#' )
+#' subset(diff, changed)
+#' }
+#' @export
+compare_policies <- function(cases = NULL,
+                             from,
+                             to,
+                             reviewer = NULL,
+                             checks = "rules",
+                             redaction = NULL,
+                             scanners = scanner_options(),
+                             show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "compare_policies")
+  on.exit(.stats_end(stats), add = TRUE)
+  baseline <- evaluate_security_cases(cases, from, reviewer, checks, redaction, scanners)
+  candidate <- evaluate_security_cases(cases, to, reviewer, checks, redaction, scanners)
+  if (!identical(baseline$id, candidate$id)) cli::cli_abort("Policy evaluations returned different case ordering.")
+  data.frame(
+    id = baseline$id,
+    stage = baseline$stage,
+    category = baseline$category,
+    from_action = baseline$actual_action,
+    to_action = candidate$actual_action,
+    from_rules = baseline$rule_ids,
+    to_rules = candidate$rule_ids,
+    changed = baseline$actual_action != candidate$actual_action | baseline$rule_ids != candidate$rule_ids,
+    stringsAsFactors = FALSE
+  )
+}
+
+.rate_ci <- function(successes, total, z = 1.959964) {
+  if (total == 0L) return(c(estimate = NA_real_, low = NA_real_, high = NA_real_))
+  p <- successes / total
+  denominator <- 1 + z^2 / total
+  center <- (p + z^2 / (2 * total)) / denominator
+  margin <- z * sqrt((p * (1 - p) + z^2 / (4 * total)) / total) / denominator
+  c(estimate = p, low = max(0, center - margin), high = min(1, center + margin))
 }

@@ -129,6 +129,8 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
         )
         rows[[length(rows) + 1L]] <- data.frame(
           stage = stage,
+          decision_id = audit$decision_id %||% NA_character_,
+          policy_version = audit$policy_version %||% NA_character_,
           context_row_index = context_row_index,
           context_source = metadata$source %||% NA_character_,
           tool_name = metadata$tool_name %||% NA_character_,
@@ -151,6 +153,8 @@ write_audit_log <- function(audit, path, format = "jsonl", include_content = FAL
   if (length(rows) == 0L) {
     return(data.frame(
       stage = character(),
+      decision_id = character(),
+      policy_version = character(),
       context_row_index = integer(),
       context_source = character(),
       tool_name = character(),

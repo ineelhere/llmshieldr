@@ -45,11 +45,18 @@
 #' @param max_tokens Maximum tokens per window, `NULL`, or an existing
 #'   `shieldr_rate_guard` when checking a guard with `rate_guard(guard)`.
 #' @param max_requests Maximum requests per window, or `NULL`.
+#' @param max_output_tokens Maximum output tokens reserved before each model
+#'   call and enforced on the returned output estimate.
+#' @param max_tool_calls Maximum tool requests in one guarded chat.
+#' @param max_elapsed_seconds Optional model-call wall-time limit.
 #' @param window_seconds Window length in seconds.
 #' @param strict Whether [secure_chat()] should reserve estimated prompt tokens
 #'   before calling the model.
 #' @param concurrent Whether to protect `$usage()` and `$update()` with a
 #'   file-based lock from the suggested `filelock` package.
+#' @param backend Optional shared quota backend as a list of `usage`, `reserve`,
+#'   and `rollback` functions. This lets server deployments provide Redis,
+#'   database, or service-backed atomic accounting without a core dependency.
 #' @param show_stats Show construction or check time and available usage
 #'   metrics as messages.
 #'
@@ -62,9 +69,13 @@
 #' @export
 rate_guard <- function(max_tokens = NULL,
                        max_requests = NULL,
+                       max_output_tokens = NULL,
+                       max_tool_calls = NULL,
+                       max_elapsed_seconds = NULL,
                        window_seconds = 3600L,
                        strict = FALSE,
                        concurrent = FALSE,
+                       backend = NULL,
                        show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "rate_guard")
   on.exit(.stats_end(stats), add = TRUE)
@@ -84,9 +95,16 @@ rate_guard <- function(max_tokens = NULL,
 
   .validate_nullable_limit(max_tokens, "max_tokens")
   .validate_nullable_limit(max_requests, "max_requests")
+  .validate_nullable_limit(max_output_tokens, "max_output_tokens")
+  .validate_nullable_limit(max_tool_calls, "max_tool_calls")
+  .validate_optional_positive(max_elapsed_seconds, "max_elapsed_seconds")
   .validate_nullable_limit(window_seconds, "window_seconds", allow_null = FALSE)
   .validate_flag(strict, "strict")
   .validate_flag(concurrent, "concurrent")
+  .validate_rate_backend(backend)
+  if (!is.null(backend) && isTRUE(concurrent)) {
+    cli::cli_abort("Use either a shared {.arg backend} or local {.arg concurrent} locking, not both.")
+  }
   if (isTRUE(concurrent)) {
     .check_filelock()
   }
@@ -97,25 +115,37 @@ rate_guard <- function(max_tokens = NULL,
   env$.window_start <- Sys.time()
   env$.max_tokens <- max_tokens
   env$.max_requests <- max_requests
+  env$.max_output_tokens <- max_output_tokens
+  env$.max_tool_calls <- max_tool_calls
+  env$.max_elapsed_seconds <- max_elapsed_seconds
   env$.window_seconds <- as.integer(window_seconds)
   env$.strict <- isTRUE(strict)
   env$.concurrent <- isTRUE(concurrent)
+  env$.backend <- backend
   env$.lock_path <- if (isTRUE(concurrent)) tempfile(fileext = ".lock") else NULL
 
-  env$usage <- function() {
+  env$usage <- function(show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "rate_guard$usage")
+    on.exit(.stats_end(method_stats), add = TRUE)
+    if (!is.null(env$.backend)) return(env$.backend$usage())
     lock <- .rate_guard_lock(env)
     on.exit(.rate_guard_unlock(lock), add = TRUE)
     .rate_guard_reset_if_expired(env)
     .rate_guard_usage_snapshot(env)
   }
 
-  env$update <- function(tokens, requests = 1L) {
+  env$update <- function(tokens, requests = 1L, show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "rate_guard$update")
+    on.exit(.stats_end(method_stats), add = TRUE)
     env$reserve(tokens = tokens, requests = requests)
   }
 
-  env$reserve <- function(tokens = 0, requests = 1L) {
+  env$reserve <- function(tokens = 0, requests = 1L, show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "rate_guard$reserve")
+    on.exit(.stats_end(method_stats), add = TRUE)
     .validate_nullable_limit(tokens, "tokens", allow_null = FALSE)
     .validate_nullable_limit(requests, "requests", allow_null = FALSE)
+    if (!is.null(env$.backend)) return(env$.backend$reserve(tokens = tokens, requests = requests))
     lock <- .rate_guard_lock(env)
     on.exit(.rate_guard_unlock(lock), add = TRUE)
     .rate_guard_reset_if_expired(env)
@@ -125,9 +155,12 @@ rate_guard <- function(max_tokens = NULL,
     invisible(.rate_guard_usage_snapshot(env))
   }
 
-  env$rollback <- function(tokens = 0, requests = 0L) {
+  env$rollback <- function(tokens = 0, requests = 0L, show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "rate_guard$rollback")
+    on.exit(.stats_end(method_stats), add = TRUE)
     .validate_nullable_limit(tokens, "tokens", allow_null = FALSE)
     .validate_nullable_limit(requests, "requests", allow_null = FALSE)
+    if (!is.null(env$.backend)) return(env$.backend$rollback(tokens = tokens, requests = requests))
     lock <- .rate_guard_lock(env)
     on.exit(.rate_guard_unlock(lock), add = TRUE)
     env$.tokens_used <- max(0, env$.tokens_used - as.numeric(tokens))
@@ -179,10 +212,24 @@ rate_guard <- function(max_tokens = NULL,
     window_start = session$.window_start,
     max_tokens = session$.max_tokens,
     max_requests = session$.max_requests,
+    max_output_tokens = session$.max_output_tokens,
+    max_tool_calls = session$.max_tool_calls,
+    max_elapsed_seconds = session$.max_elapsed_seconds,
     window_seconds = session$.window_seconds,
     strict = session$.strict,
     concurrent = session$.concurrent
   )
+}
+
+.validate_rate_backend <- function(backend) {
+  if (is.null(backend)) return(invisible(TRUE))
+  if (!is.list(backend)) cli::cli_abort("{.arg backend} must be a list or {.code NULL}.")
+  required <- c("usage", "reserve", "rollback")
+  missing <- setdiff(required, names(backend))
+  if (length(missing) > 0L || any(!vapply(backend[required], is.function, logical(1)))) {
+    cli::cli_abort("{.arg backend} must provide {.field usage}, {.field reserve}, and {.field rollback} functions.")
+  }
+  invisible(TRUE)
 }
 
 .rate_guard_reset_if_expired <- function(session) {

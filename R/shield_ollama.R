@@ -1,7 +1,7 @@
-#' Guard an Ollama chat workflow
+#' Guard an Ollama chat workflow (deprecated)
 #'
-#' Convenience wrapper that creates separate `ellmer` Ollama chats for the
-#' assistant and semantic reviewer, then delegates to [secure_chat()].
+#' This compatibility wrapper delegates to [secure_chat()] with
+#' `provider = "ollama"`. New code should use that common provider path.
 #'
 #' @details
 #' This is an optional local-model path. It requires the suggested `ellmer`
@@ -41,6 +41,7 @@ shield_ollama <- function(prompt,
                           show_tokens = FALSE,
                           audit_content = c("metadata", "full"),
                           show_stats = FALSE) {
+  .Deprecated("secure_chat", package = "llmshieldr")
   secure_chat(
     prompt = prompt,
     provider = "ollama",

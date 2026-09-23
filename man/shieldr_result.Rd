@@ -22,8 +22,7 @@ shieldr_result(output = NULL, audit, risk_summary, action, show_stats = FALSE)
 A \code{shieldr_result} S3 object.
 }
 \description{
-A \code{shieldr_result} is the high-level return value from \code{\link[=secure_chat]{secure_chat()}} and
-\code{\link[=shield_ollama]{shield_ollama()}}.
+A \code{shieldr_result} is the high-level return value from \code{\link[=secure_chat]{secure_chat()}}.
 }
 \details{
 \code{output} is \code{NULL} when the final action is \code{block}; otherwise it contains

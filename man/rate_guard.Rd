@@ -7,9 +7,13 @@
 rate_guard(
   max_tokens = NULL,
   max_requests = NULL,
+  max_output_tokens = NULL,
+  max_tool_calls = NULL,
+  max_elapsed_seconds = NULL,
   window_seconds = 3600L,
   strict = FALSE,
   concurrent = FALSE,
+  backend = NULL,
   show_stats = FALSE
 )
 }
@@ -19,6 +23,13 @@ rate_guard(
 
 \item{max_requests}{Maximum requests per window, or \code{NULL}.}
 
+\item{max_output_tokens}{Maximum output tokens reserved before each model
+call and enforced on the returned output estimate.}
+
+\item{max_tool_calls}{Maximum tool requests in one guarded chat.}
+
+\item{max_elapsed_seconds}{Optional model-call wall-time limit.}
+
 \item{window_seconds}{Window length in seconds.}
 
 \item{strict}{Whether \code{\link[=secure_chat]{secure_chat()}} should reserve estimated prompt tokens
@@ -26,6 +37,10 @@ before calling the model.}
 
 \item{concurrent}{Whether to protect \verb{$usage()} and \verb{$update()} with a
 file-based lock from the suggested \code{filelock} package.}
+
+\item{backend}{Optional shared quota backend as a list of \code{usage}, \code{reserve},
+and \code{rollback} functions. This lets server deployments provide Redis,
+database, or service-backed atomic accounting without a core dependency.}
 
 \item{show_stats}{Show construction or check time and available usage
 metrics as messages.}

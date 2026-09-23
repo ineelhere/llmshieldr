@@ -15,6 +15,10 @@ scanner_options(
   blocked_topics = NULL,
   blocked_url_hosts = NULL,
   allowed_url_hosts = NULL,
+  url_policy = NULL,
+  recognizers = list(),
+  providers = list(),
+  secrets = NULL,
   show_stats = FALSE
 )
 }
@@ -47,6 +51,16 @@ named character vector. Matches create topic-ban findings.}
 
 \item{allowed_url_hosts}{Optional character vector of allowed URL hosts. When
 supplied, URL hosts outside the allowlist are flagged.}
+
+\item{url_policy}{Optional canonical destination policy from \code{\link[=url_policy]{url_policy()}}.
+Legacy host arguments are merged into a conservative HTTP/HTTPS policy.}
+
+\item{recognizers}{Optional list from \code{\link[=entity_recognizer]{entity_recognizer()}} or
+\code{\link[=native_recognizers]{native_recognizers()}}.}
+
+\item{providers}{Optional list of adapters from \code{\link[=guardrail_provider]{guardrail_provider()}}.}
+
+\item{secrets}{Optional registry from \code{\link[=secret_registry]{secret_registry()}}.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }

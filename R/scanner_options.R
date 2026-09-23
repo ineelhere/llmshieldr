@@ -36,6 +36,12 @@
 #' @param blocked_url_hosts Optional character vector of blocked URL hosts.
 #' @param allowed_url_hosts Optional character vector of allowed URL hosts. When
 #'   supplied, URL hosts outside the allowlist are flagged.
+#' @param url_policy Optional canonical destination policy from [url_policy()].
+#'   Legacy host arguments are merged into a conservative HTTP/HTTPS policy.
+#' @param recognizers Optional list from [entity_recognizer()] or
+#'   [native_recognizers()].
+#' @param providers Optional list of adapters from [guardrail_provider()].
+#' @param secrets Optional registry from [secret_registry()].
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_scanner_options` object.
@@ -54,10 +60,14 @@ scanner_options <- function(invisible_text = TRUE,
                             max_tokens = NULL,
                             allowed_languages = NULL,
                             language_fn = NULL,
-                            blocked_topics = NULL,
-                            blocked_url_hosts = NULL,
-                            allowed_url_hosts = NULL,
-                            show_stats = FALSE) {
+                             blocked_topics = NULL,
+                             blocked_url_hosts = NULL,
+                             allowed_url_hosts = NULL,
+                             url_policy = NULL,
+                             recognizers = list(),
+                             providers = list(),
+                             secrets = NULL,
+                             show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "scanner_options")
   on.exit(.stats_end(stats), add = TRUE)
   .validate_flag(invisible_text, "invisible_text")
@@ -80,6 +90,10 @@ scanner_options <- function(invisible_text = TRUE,
   if (!is.null(allowed_url_hosts) && !is.character(allowed_url_hosts)) {
     cli::cli_abort("{.arg allowed_url_hosts} must be a character vector or {.code NULL}.")
   }
+  if (!is.null(url_policy)) .validate_url_policy(url_policy)
+  .validate_recognizer_list(recognizers)
+  .validate_provider_list(providers)
+  .validate_secret_registry(secrets)
 
   structure(
     list(
@@ -92,7 +106,11 @@ scanner_options <- function(invisible_text = TRUE,
       language_fn = language_fn,
       blocked_topics = blocked_topics,
       blocked_url_hosts = blocked_url_hosts,
-      allowed_url_hosts = allowed_url_hosts
+      allowed_url_hosts = allowed_url_hosts,
+      url_policy = url_policy,
+      recognizers = recognizers,
+      providers = providers,
+      secrets = secrets
     ),
     class = "shieldr_scanner_options"
   )
@@ -137,6 +155,18 @@ scanner_options <- function(invisible_text = TRUE,
   }
   if (!is.null(scanners$blocked_topics)) {
     findings <- c(findings, .scan_topics(normalised_text, scanners$blocked_topics))
+  }
+  if (length(scanners$recognizers) > 0L) {
+    findings <- c(findings, .run_recognizers(scanners$recognizers, original_text, stage))
+  }
+  if (!is.null(scanners$secrets)) {
+    findings <- c(findings, .scan_secret_registry(original_text, scanners$secrets))
+  }
+  if (length(scanners$providers) > 0L) {
+    findings <- c(findings, .run_guardrail_providers(
+      scanners$providers, original_text, stage,
+      metadata = list(normalised_text = normalised_text)
+    ))
   }
 
   lapply(findings, function(finding) {
@@ -222,19 +252,23 @@ scanner_options <- function(invisible_text = TRUE,
 
   out <- list()
   for (url in urls) {
-    host <- .url_host(url)
-    blocked <- !is.null(scanners$blocked_url_hosts) && host %in% scanners$blocked_url_hosts
-    outside_allowlist <- !is.null(scanners$allowed_url_hosts) && !host %in% scanners$allowed_url_hosts
-
-    if (isTRUE(scanners$malicious_urls) && (blocked || outside_allowlist)) {
-      out[[length(out) + 1L]] <- .scanner_finding(
-        rule_id = "llm05.scanner.url.host",
-        owasp = "llm02",
-        severity = "high",
-        action = "block",
-        description = "URL host is blocked or outside the configured allowlist.",
-        match = url
-      )
+    destination_policy <- scanners$url_policy %||% url_policy(
+      allowed_schemes = c("http", "https"),
+      allowed_hosts = scanners$allowed_url_hosts,
+      blocked_hosts = unique(c("localhost", "localhost.localdomain", scanners$blocked_url_hosts %||% character())),
+      block_private = TRUE
+    )
+    blocked_findings <- if (isTRUE(scanners$malicious_urls)) {
+      .url_policy_findings(url, destination_policy)
+    } else {
+      list()
+    }
+    if (length(blocked_findings) > 0L) {
+      blocked_findings <- lapply(blocked_findings, function(finding) {
+        finding$source <- "scanner"
+        finding
+      })
+      out <- c(out, blocked_findings)
     } else if (isTRUE(scanners$urls)) {
       out[[length(out) + 1L]] <- .scanner_finding(
         rule_id = "llm02.scanner.url.present",
@@ -258,13 +292,6 @@ scanner_options <- function(invisible_text = TRUE,
   vapply(seq_along(hits), function(i) {
     substr(text, hits[[i]], hits[[i]] + lengths[[i]] - 1L)
   }, character(1))
-}
-
-.url_host <- function(url) {
-  parsed <- tryCatch(utils::URLdecode(url), error = function(e) url)
-  host <- sub("^https?://", "", parsed, ignore.case = TRUE)
-  host <- sub("[:/].*$", "", host)
-  tolower(host)
 }
 
 .scan_token_limit <- function(text, max_tokens) {

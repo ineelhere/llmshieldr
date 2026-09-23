@@ -13,6 +13,7 @@ scan_prompt(
   redaction = NULL,
   scanners = scanner_options(),
   show_tokens = FALSE,
+  stage = "prompt",
   show_stats = FALSE
 )
 }
@@ -33,6 +34,9 @@ Ignored when \code{redact = FALSE}.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{stage}{Internal trust-boundary stage. Advanced callers should normally
+use the stage-specific public scanner instead.}
 
 \item{show_stats}{Show elapsed time, token estimate, network status, and
 transfer metrics when available.}

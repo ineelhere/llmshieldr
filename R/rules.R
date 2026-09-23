@@ -69,6 +69,9 @@ reviewer_prompt <- function(show_stats = FALSE) {
 #' @param severity One of `"low"`, `"medium"`, `"high"`, or `"critical"`.
 #' @param action One of `"allow"`, `"redact"`, or `"block"`.
 #' @param description Human-readable rule description.
+#' @param stages Stages where the rule runs. Defaults to all text stages.
+#' @param confidence Optional detector confidence between 0 and 1. Severity
+#'   remains an impact measure and action remains a policy decision.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_rule` S3 object.
@@ -87,6 +90,8 @@ shieldr_rule <- function(id,
                          severity = "medium",
                          action = "redact",
                          description = "",
+                         stages = c("prompt", "context", "output", "tool_call", "tool_output", "document"),
+                         confidence = NULL,
                          show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "shieldr_rule")
   on.exit(.stats_end(stats), add = TRUE)
@@ -112,6 +117,11 @@ shieldr_rule <- function(id,
   .check_choice(severity, "severity", .shieldr_severities())
   .check_choice(action, "action", .shieldr_rule_actions())
   .check_string(description, "description", allow_empty = TRUE)
+  allowed_stages <- c("prompt", "context", "output", "tool_call", "tool_output", "document")
+  if (!is.character(stages) || length(stages) == 0L || anyNA(stages) || any(!stages %in% allowed_stages)) {
+    cli::cli_abort("{.arg stages} must contain valid text stages.")
+  }
+  if (!is.null(confidence)) .check_number_between(confidence, "confidence", 0, 1)
 
   structure(
     list(
@@ -121,7 +131,9 @@ shieldr_rule <- function(id,
       owasp = if (is.null(owasp)) NULL else tolower(owasp),
       severity = severity,
       action = action,
-      description = description
+      description = description,
+      stages = unique(stages),
+      confidence = confidence
     ),
     class = "shieldr_rule"
   )
@@ -154,6 +166,7 @@ shieldr_rule <- function(id,
 #' @param rate_guard A `shieldr_rate_guard` environment, or `NULL`.
 #' @param trusted_sources Optional character vector of trusted context sources.
 #' @param controls Optional list from [policy_controls()].
+#' @param version Policy configuration version recorded in reports and audits.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_policy` S3 object.
@@ -166,6 +179,7 @@ shieldr_policy <- function(name,
                            rate_guard = NULL,
                            trusted_sources = NULL,
                            controls = NULL,
+                           version = "1",
                            show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "shieldr_policy")
   on.exit(.stats_end(stats), add = TRUE)
@@ -177,6 +191,7 @@ shieldr_policy <- function(name,
     cli::cli_abort("{.arg trusted_sources} must be a character vector or {.code NULL}.")
   }
   controls <- .validate_policy_controls(controls)
+  .check_string(version, "version")
 
   structure(
     list(
@@ -185,7 +200,17 @@ shieldr_policy <- function(name,
       thresholds = thresholds,
       rate_guard = rate_guard,
       trusted_sources = trusted_sources,
-      controls = controls
+      controls = controls,
+      version = version,
+      decision_schema_version = "1.0",
+      fingerprint = digest::digest(list(
+        name = name,
+        rules = lapply(rules, function(rule) rule[c("id", "pattern", "owasp", "severity", "action", "description", "stages", "confidence")]),
+        thresholds = thresholds,
+        trusted_sources = trusted_sources,
+        controls = controls,
+        version = version
+      ), algo = "sha256")
     ),
     class = "shieldr_policy"
   )
@@ -208,7 +233,8 @@ print.shieldr_policy <- function(x, ..., show_stats = FALSE) {
     "name: {x$name}",
     "rules: {length(x$rules)}",
     "redact_at: {x$thresholds$redact_at}",
-    "block_at: {x$thresholds$block_at}"
+    "block_at: {x$thresholds$block_at}",
+    "version: {x$version}"
   ))
   invisible(x)
 }
@@ -362,6 +388,13 @@ print.shieldr_report <- function(x, ..., show_stats = FALSE) {
 #'   storage. [write_audit_log()] still requires `include_content = TRUE` to
 #'   persist the full content.
 #' @param tool_reports Optional list of tool-request and tool-output reports.
+#' @param decision_id Correlation identifier. A local identifier is generated
+#'   when omitted.
+#' @param policy_version Policy configuration version.
+#' @param metrics Privacy-safe structured timing, token, network, and request
+#'   metrics.
+#' @param fingerprint_key Optional secret key used to HMAC finding matches before
+#'   metadata-only content removal. The key is never stored.
 #' @param show_stats Show construction time and audit token estimate.
 #'
 #' @return A `shieldr_audit` S3 object.
@@ -378,6 +411,10 @@ shieldr_audit <- function(input_report = NULL,
                           action,
                           content_mode = c("metadata", "full"),
                           tool_reports = NULL,
+                          decision_id = NULL,
+                          policy_version = NULL,
+                          metrics = list(),
+                          fingerprint_key = NULL,
                           show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "shieldr_audit")
   on.exit(.stats_end(stats), add = TRUE)
@@ -403,15 +440,20 @@ shieldr_audit <- function(input_report = NULL,
     cli::cli_abort("{.arg token_estimate} must be a single integer-like value.")
   }
   .check_choice(action, "action", .shieldr_final_actions())
+  if (is.null(decision_id)) decision_id <- .decision_id()
+  .check_string(decision_id, "decision_id")
+  if (!is.null(policy_version)) .check_string(policy_version, "policy_version")
+  if (!is.list(metrics)) cli::cli_abort("{.arg metrics} must be a list.")
+  if (!is.null(fingerprint_key)) .check_string(fingerprint_key, "fingerprint_key")
 
   if (identical(content_mode, "metadata")) {
-    input_report <- .audit_metadata_report(input_report)
-    output_report <- .audit_metadata_report(output_report)
+    input_report <- .audit_metadata_report(input_report, fingerprint_key)
+    output_report <- .audit_metadata_report(output_report, fingerprint_key)
     if (!is.null(context_reports)) {
-      context_reports <- lapply(context_reports, .audit_metadata_report)
+      context_reports <- lapply(context_reports, .audit_metadata_report, fingerprint_key = fingerprint_key)
     }
     if (!is.null(tool_reports)) {
-      tool_reports <- lapply(tool_reports, .audit_metadata_report)
+      tool_reports <- lapply(tool_reports, .audit_metadata_report, fingerprint_key = fingerprint_key)
     }
     prompt_clean <- NULL
     output_raw <- NULL
@@ -428,21 +470,42 @@ shieldr_audit <- function(input_report = NULL,
       elapsed_ms = elapsed_ms,
       token_estimate = as.integer(token_estimate),
       action = action,
-      content_mode = content_mode
+      content_mode = content_mode,
+      decision_id = decision_id,
+      policy_version = policy_version,
+      decision_schema_version = "1.0",
+      metrics = metrics
     ),
     class = "shieldr_audit"
   )
 }
 
-.audit_metadata_report <- function(report) {
+.decision_id <- function() {
+  seed <- paste(
+    format(Sys.time(), "%Y%m%d%H%M%OS6", tz = "UTC"),
+    Sys.getpid(), proc.time()[["elapsed"]], sep = ":"
+  )
+  paste0("dec_", substr(digest::digest(seed, algo = "sha256"), 1L, 20L))
+}
+
+.audit_metadata_report <- function(report, fingerprint_key = NULL) {
   if (is.null(report)) {
     return(NULL)
   }
   report$text_clean <- ""
   report$findings <- lapply(report$findings, function(finding) {
+    value <- finding$match %||% finding$evidence %||% NULL
+    if (!is.null(fingerprint_key) && !is.null(value) && length(value) > 0L && !is.na(value[[1L]]) && nzchar(as.character(value[[1L]]))) {
+      finding$fingerprint <- digest::hmac(
+        key = fingerprint_key, object = as.character(value[[1L]]),
+        algo = "sha256", serialize = FALSE
+      )
+    }
     keep <- intersect(
       c("rule_id", "owasp", "owasp_edition", "taxonomy_version", "severity", "action",
-        "start", "end", "source", "synthetic", "confidence"),
+        "start", "end", "source", "synthetic", "confidence", "fingerprint",
+        "entity_type", "provider_id", "provider_version", "recognizer_id",
+        "recognizer_version", "registry_version"),
       names(finding)
     )
     finding[keep]
@@ -450,7 +513,12 @@ shieldr_audit <- function(input_report = NULL,
   metadata <- report$metadata %||% list()
   keep <- intersect(
     c("stage", "row_index", "chunk_index", "overlap", "role", "tool_name",
-      "allowed", "admission", "admission_reason", "taxonomy_version"),
+      "allowed", "admission", "admission_reason", "taxonomy_version",
+      "policy_version", "policy_fingerprint", "decision_schema_version",
+      "review_status", "reviewer_failure_action", "schema_checked",
+      "authorization_checked", "call_count", "side_effect_count",
+      "document_id", "tenant", "source_id", "mime_type",
+      "extraction_method", "ocr_used", "hidden_text_checked"),
     names(metadata)
   )
   report$metadata <- metadata[keep]
@@ -466,8 +534,7 @@ shieldr_audit <- function(input_report = NULL,
 
 #' Construct a `shieldr_result`
 #'
-#' A `shieldr_result` is the high-level return value from [secure_chat()] and
-#' [shield_ollama()].
+#' A `shieldr_result` is the high-level return value from [secure_chat()].
 #'
 #' @details
 #' `output` is `NULL` when the final action is `block`; otherwise it contains

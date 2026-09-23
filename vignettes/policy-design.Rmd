@@ -210,9 +210,11 @@ recommended_action   optional allow, redact, or block
 span                 optional start/end offsets for redaction
 ```
 
-Malformed JSON and schema issues are soft failures. The scanner warns, keeps
+Malformed JSON and schema issues are recorded failures. The scanner warns, keeps
 deterministic findings, and stores structured reviewer errors in
-`report$metadata$reviewer_errors`.
+`report$metadata$reviewer_errors`. The default policy adds a blocking reviewer
+failure finding; configure `on_reviewer_error` explicitly to escalate or use a
+rules-only fallback.
 :::
 
 ## Scoring

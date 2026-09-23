@@ -15,6 +15,10 @@ shieldr_audit(
   action,
   content_mode = c("metadata", "full"),
   tool_reports = NULL,
+  decision_id = NULL,
+  policy_version = NULL,
+  metrics = list(),
+  fingerprint_key = NULL,
   show_stats = FALSE
 )
 }
@@ -43,6 +47,17 @@ storage. \code{\link[=write_audit_log]{write_audit_log()}} still requires \code{
 persist the full content.}
 
 \item{tool_reports}{Optional list of tool-request and tool-output reports.}
+
+\item{decision_id}{Correlation identifier. A local identifier is generated
+when omitted.}
+
+\item{policy_version}{Policy configuration version.}
+
+\item{metrics}{Privacy-safe structured timing, token, network, and request
+metrics.}
+
+\item{fingerprint_key}{Optional secret key used to HMAC finding matches before
+metadata-only content removal. The key is never stored.}
 
 \item{show_stats}{Show construction time and audit token estimate.}
 }

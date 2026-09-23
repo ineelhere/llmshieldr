@@ -19,6 +19,9 @@
 #'   other JSON-serializable value.
 #' @param allowed_tools Character vector of approved tool names. The default
 #'   empty vector denies every tool; `NULL` explicitly disables the allowlist.
+#' @param tool_policy Optional richer policy from [tool_policy()].
+#' @param subject Optional authorization context passed to the tool policy.
+#' @param state Optional mutable call-limit state used by guarded dispatchers.
 #' @param policy A `shieldr_policy` or built-in policy name.
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
@@ -46,12 +49,19 @@ scan_tool_call <- function(tool_name,
                            redaction = NULL,
                            scanners = scanner_options(),
                            show_tokens = FALSE,
+                           tool_policy = NULL,
+                           subject = NULL,
+                           state = NULL,
                            show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "scan_tool_call")
   on.exit(.stats_end(stats), add = TRUE)
   .check_string(tool_name, "tool_name")
   if (!is.null(allowed_tools) && !is.character(allowed_tools)) {
     cli::cli_abort("{.arg allowed_tools} must be a character vector or {.code NULL}.")
+  }
+  .validate_tool_policy(tool_policy, allow_null = TRUE)
+  if (!is.null(state) && !is.environment(state)) {
+    cli::cli_abort("{.arg state} must be an environment or {.code NULL}.")
   }
 
   policy_obj <- .as_policy(policy)
@@ -65,20 +75,16 @@ scan_tool_call <- function(tool_name,
     checks = checks,
     redaction = redaction,
     scanners = scanners,
-    show_tokens = show_tokens
+    show_tokens = show_tokens,
+    stage = "tool_call"
   )
 
-  extra <- list()
-  allowed <- is.null(allowed_tools) || tool_name %in% allowed_tools
-  if (!allowed) {
-    extra[[1L]] <- .synthetic_finding(
-      "llm06.tool.unapproved",
-      "llm03",
-      "critical",
-      "Tool call targets a tool outside the configured allowlist.",
-      action = "block"
-    )
-  }
+  effective_policy <- .as_tool_policy(
+    tool_policy,
+    if (is.null(allowed_tools)) tool_name else allowed_tools
+  )
+  extra <- .tool_policy_findings(tool_name, arguments, effective_policy, subject, state)
+  allowed <- length(extra) == 0L
 
   findings <- .dedupe_findings(c(extra, report$findings))
   risk_score <- .score_findings(findings)
@@ -94,9 +100,18 @@ scan_tool_call <- function(tool_name,
     tokens = report$tokens,
     metadata = .report_metadata(
       stage = "tool_call",
+      policy_version = policy_obj$version,
+      policy_fingerprint = policy_obj$fingerprint,
+      decision_schema_version = policy_obj$decision_schema_version,
       tool_name = tool_name,
       allowed = allowed,
+      schema_checked = tool_name %in% names(effective_policy$schemas),
+      authorization_checked = !is.null(effective_policy$authorize),
+      call_count = if (is.null(state)) NULL else state$calls,
+      side_effect_count = if (is.null(state)) NULL else state$side_effects,
       reviewer_errors = report$metadata$reviewer_errors %||% list(),
+      review_status = report$metadata$review_status %||% "not_requested",
+      reviewer_failure_action = report$metadata$reviewer_failure_action %||% NULL,
       scanners = scanners
     )
   )
@@ -141,7 +156,8 @@ scan_tool_output <- function(tool_name,
     checks = checks,
     redaction = redaction,
     scanners = scanners,
-    show_tokens = show_tokens
+    show_tokens = show_tokens,
+    stage = "tool_output"
   )
   report$metadata <- utils::modifyList(
     report$metadata %||% list(),

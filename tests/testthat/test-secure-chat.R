@@ -332,12 +332,18 @@ test_that("provider wrappers delegate to secure_chat", {
     .package = "llmshieldr"
   )
 
-  ollama <- shield_ollama("hello", model = "ollama-model", checks = "rules")
-  gemini <- shield_gemini(
-    "hello",
-    model = "gemini-model",
-    reviewer_model = "gemini-reviewer",
-    checks = "rules"
+  expect_warning(
+    ollama <- shield_ollama("hello", model = "ollama-model", checks = "rules"),
+    "deprecated"
+  )
+  expect_warning(
+    gemini <- shield_gemini(
+      "hello",
+      model = "gemini-model",
+      reviewer_model = "gemini-reviewer",
+      checks = "rules"
+    ),
+    "deprecated"
   )
 
   expect_equal(ollama$provider, "ollama")

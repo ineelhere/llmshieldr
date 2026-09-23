@@ -32,6 +32,7 @@
 #' @param rate_guard Optional `shieldr_rate_guard`. When present, [secure_chat()]
 #'   checks the guard before chat calls and updates it after successful calls.
 #' @param controls Optional controls from [policy_controls()].
+#' @param version Policy configuration version.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_policy`.
@@ -44,6 +45,7 @@ build_policy <- function(name = "custom",
                          thresholds = list(),
                          rate_guard = NULL,
                          controls = NULL,
+                         version = "1",
                          show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "build_policy")
   on.exit(.stats_end(stats), add = TRUE)
@@ -56,7 +58,8 @@ build_policy <- function(name = "custom",
     rules = rules,
     thresholds = thresholds,
     rate_guard = rate_guard,
-    controls = controls
+    controls = controls,
+    version = version
   )
 }
 
@@ -182,13 +185,16 @@ build_policy <- function(name = "custom",
   } else {
     NULL
   }
+  version <- overrides$version %||% "2026.1"
+  .check_string(version, "overrides$version")
 
   policy <- build_policy(
     name = requested_name,
     rules = rules,
     thresholds = thresholds,
     rate_guard = guard,
-    controls = controls
+    controls = controls,
+    version = version
   )
 
   if (!is.null(overrides$trusted_sources)) {

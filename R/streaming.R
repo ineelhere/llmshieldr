@@ -148,3 +148,98 @@ scan_stream <- function(chunks,
     substr(text, start, min(nchar(text, type = "chars"), start + chunk_size - 1L))
   }, character(1))
 }
+
+#' Create a stateful safe-release stream guard
+#'
+#' Buffers provider chunks and releases text only after [scan_stream()] has made
+#' a final decision over the complete response. This conservative contract
+#' prevents split payloads from reaching the consumer and makes cancellation
+#' explicit. It trades token-by-token display for a release guarantee; callers
+#' must send raw provider chunks only to `$push()`.
+#'
+#' @param emit Function receiving the final cleaned text after an allow/redact
+#'   decision.
+#' @param cancel Optional function called when the guard blocks or is cancelled.
+#' @inheritParams scan_stream
+#' @param show_stats Show construction time and available usage metrics.
+#'
+#' @return A `shieldr_stream_guard` environment with `$push(chunk)`, `$finish()`,
+#'   `$cancel()`, and `$status()` methods. Each method accepts `show_stats`.
+#' @examples
+#' released <- character()
+#' guard <- stream_guard(function(text) released <<- c(released, text))
+#' guard$push("Contact ")
+#' guard$push("a@example.com")
+#' result <- guard$finish()
+#' @export
+stream_guard <- function(emit,
+                         cancel = NULL,
+                         policy = "enterprise_default",
+                         reviewer = NULL,
+                         checks = "rules",
+                         overlap = 200L,
+                         redaction = NULL,
+                         scanners = scanner_options(),
+                         show_tokens = FALSE,
+                         show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "stream_guard")
+  on.exit(.stats_end(stats), add = TRUE)
+  if (!is.function(emit)) cli::cli_abort("{.arg emit} must be a function.")
+  if (!is.null(cancel) && !is.function(cancel)) cli::cli_abort("{.arg cancel} must be a function or {.code NULL}.")
+  .validate_nullable_limit(overlap, "overlap", allow_null = FALSE)
+  state <- new.env(parent = emptyenv())
+  state$chunks <- character()
+  state$finished <- FALSE
+  state$cancelled <- FALSE
+  state$result <- NULL
+
+  state$push <- function(chunk, show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "stream_guard$push")
+    on.exit(.stats_end(method_stats), add = TRUE)
+    if (state$finished || state$cancelled) cli::cli_abort("The stream guard is already closed.")
+    .check_string(chunk, "chunk", allow_empty = TRUE)
+    .stats_text_tokens(method_stats, chunk)
+    state$chunks <- c(state$chunks, chunk)
+    invisible(NULL)
+  }
+  state$finish <- function(show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "stream_guard$finish")
+    on.exit(.stats_end(method_stats), add = TRUE)
+    if (state$cancelled) cli::cli_abort("The stream guard was cancelled.")
+    if (state$finished) return(state$result)
+    state$result <- scan_stream(
+      state$chunks, policy = policy, reviewer = reviewer, checks = checks,
+      overlap = overlap, on_block = "return", redaction = redaction,
+      scanners = scanners, show_tokens = show_tokens
+    )
+    state$finished <- TRUE
+    if (identical(state$result$action, "block")) {
+      state$cancelled <- TRUE
+      if (!is.null(cancel)) cancel()
+    } else {
+      emit(state$result$text)
+    }
+    state$result
+  }
+  state$cancel <- function(show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "stream_guard$cancel")
+    on.exit(.stats_end(method_stats), add = TRUE)
+    if (!state$cancelled) {
+      state$cancelled <- TRUE
+      if (!is.null(cancel)) cancel()
+    }
+    invisible(NULL)
+  }
+  state$status <- function(show_stats = FALSE) {
+    method_stats <- .stats_begin(show_stats, "stream_guard$status")
+    on.exit(.stats_end(method_stats), add = TRUE)
+    list(
+      finished = state$finished,
+      cancelled = state$cancelled,
+      chunks_received = length(state$chunks),
+      action = state$result$action %||% NULL
+    )
+  }
+  class(state) <- c("shieldr_stream_guard", class(state))
+  state
+}

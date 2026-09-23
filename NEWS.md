@@ -24,6 +24,25 @@
   assistant and reviewer provider/model selection. Assistant chats are created
   only after prompt and context checks pass, so blocked requests do not probe
   or initialize their provider.
+- Deprecated `shield_ollama()` and `shield_gemini()` in favor of the common
+  `secure_chat(provider = ...)` path. Both compatibility wrappers continue to
+  work and now issue R's standard deprecation warning.
+- Added tool policies with argument schemas, subject authorization, custom
+  destination validators, spend limits, and per-run call/side-effect budgets,
+  plus a provider-neutral `guard_tool()` dispatcher.
+- Added context provenance/tenant/ACL/freshness admission, destination-specific
+  output contracts, citation grounding checks, canonical URL destination
+  policy, document-ingestion provenance, checksum-aware entity recognizers,
+  and a versioned secret signature registry.
+- Added a narrow optional detector-provider protocol and opt-in Presidio,
+  Gitleaks, and Open Policy Agent adapters without adding Python, services, or
+  binaries to core installation requirements.
+- Added reviewer timeout/retry controls and an escalation failure outcome.
+  Rate guards can reserve maximum output tokens, limit wall time and tool
+  calls, or delegate atomic accounting to a shared backend.
+- Added policy versions/fingerprints, decision IDs, structured audit metrics,
+  privacy-safe telemetry callbacks, policy diff tooling, confidence intervals
+  for evaluation summaries, and an exported OWASP 2026 migration crosswalk.
 - Added opt-in `show_stats` messages to every exported function, including
   scanning, guarded chat, and HTTP reviewer workflows. Transfer rates are
   reported where body bytes and request duration are measurable.

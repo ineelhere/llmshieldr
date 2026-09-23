@@ -193,19 +193,21 @@ reviewer <- function(prompt) {
 ```
 
 When a result seems surprising, inspect `report$metadata$reviewer_errors`.
-Malformed JSON and schema issues are soft failures; llmshieldr records them
-there and continues with whatever findings it can safely use.
+Malformed JSON and schema issues are recorded there and block by default. Use
+`policy_controls(on_reviewer_error = "rules_only")` only when a deterministic
+fallback is acceptable, or `"escalate"` for human review.
 :::
 
 ## Full Ollama Chat
 
-`shield_ollama()` is the shortest path for a local guarded chat call. It creates
-an Ollama chat for the assistant and, when `checks = "llm"` or `"both"`, a
+Use the common provider path for a local guarded chat call. It creates an
+Ollama chat for the assistant and, when `checks = "llm"` or `"both"`, a
 separate Ollama chat for review.
 
 ```{r, eval = FALSE}
-result <- shield_ollama(
+result <- secure_chat(
   prompt = "Summarize this support issue safely.",
+  provider = "ollama",
   policy = "enterprise_default",
   checks = "both",
   show_tokens = TRUE
@@ -219,8 +221,9 @@ result$risk_summary
 If you only want local NLP checks around the Ollama chat, use `checks = "nlp"`.
 
 ```{r, eval = FALSE}
-shield_ollama(
+secure_chat(
   prompt = "Summarize this support issue safely.",
+  provider = "ollama",
   checks = "nlp"
 )
 ```
@@ -297,7 +300,7 @@ Provider compatibility notes:
   message formatting inside your wrapper.
 - Internal gateways: expose a `$chat()` method or plain function and keep
   authentication, retries, and request logging outside llmshieldr.
-- Local Ollama: use `shield_ollama()` for the convenience path or pass an
+- Local Ollama: set `provider = "ollama"` or pass an existing
   `ellmer::chat_ollama()` object to `secure_chat()`.
 
 If your organization has a remote review service, use `remote_reviewer()`.

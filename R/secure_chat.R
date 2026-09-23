@@ -40,6 +40,8 @@
 #' @param context Optional data frame of retrieved context.
 #' @param context_authorize Optional function passed to [scan_context()] to
 #'   authorize each retrieved row before it is included in the model prompt.
+#' @param context_policy Optional provenance and authorization requirements from
+#'   [context_policy()].
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
@@ -47,9 +49,19 @@
 #'   excerpts and reviewer details from the audit. `"full"` retains them in
 #'   memory; [write_audit_log()] requires a separate explicit opt-in to write
 #'   them.
+#' @param audit_key Optional secret key used for HMAC fingerprints in
+#'   metadata-only audit findings. The key is never stored.
 #' @param allowed_tools Explicit names of registered `ellmer` tools allowed
 #'   during this call. The default empty vector denies tool-enabled chats before
 #'   calling the model. Allowed calls are scanned before tool execution.
+#' @param tool_policy Optional richer policy from [tool_policy()]. Its allowlist
+#'   replaces `allowed_tools` and it adds schema, subject, spend, and loop limits.
+#' @param tool_subject Optional authorization context passed to `tool_policy`.
+#' @param output_contract Optional destination contract from [output_contract()].
+#' @param grounding Optional citation policy from [grounding_policy()]. Citation
+#'   IDs are checked against admitted context `document_id` values (or row IDs).
+#' @param telemetry Optional privacy-safe event exporter from
+#'   [telemetry_options()].
 #' @param show_stats Show elapsed time, token use, network status, and
 #'   transfer metrics when available.
 #' @param provider Any provider name supported by `ellmer::chat()`, optionally
@@ -98,8 +110,15 @@ secure_chat <- function(prompt,
                         scanners = scanner_options(),
                         show_tokens = FALSE,
                         context_authorize = NULL,
+                        context_policy = NULL,
                         audit_content = c("metadata", "full"),
+                        audit_key = NULL,
                         allowed_tools = character(),
+                        tool_policy = NULL,
+                        tool_subject = NULL,
+                        output_contract = NULL,
+                        grounding = NULL,
+                        telemetry = NULL,
                         show_stats = FALSE,
                         provider = NULL,
                         model = NULL,
@@ -153,9 +172,15 @@ secure_chat <- function(prompt,
   scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
   audit_content <- match.arg(audit_content)
+  if (!is.null(audit_key)) .check_string(audit_key, "audit_key")
   if (!is.character(allowed_tools) || anyNA(allowed_tools)) {
     cli::cli_abort("{.arg allowed_tools} must be a character vector without missing values.")
   }
+  .validate_tool_policy(tool_policy, allow_null = TRUE)
+  .validate_context_policy(context_policy, allow_null = TRUE)
+  .validate_output_contract(output_contract, allow_null = TRUE)
+  .validate_grounding_policy(grounding, allow_null = TRUE)
+  .validate_telemetry(telemetry, allow_null = TRUE)
   if (is.null(provider)) {
     .validate_chat(chat)
   } else if (is.null(reviewer) && checks %in% c("llm", "both")) {
@@ -176,7 +201,9 @@ secure_chat <- function(prompt,
     cli::cli_abort("{.arg context_authorize} must be a function or {.code NULL}.")
   }
 
+  decision_id <- .decision_id()
   t0 <- proc.time()[["elapsed"]]
+  prompt_started <- proc.time()[["elapsed"]]
   input_report <- scan_prompt(
     prompt,
     policy,
@@ -186,10 +213,16 @@ secure_chat <- function(prompt,
     scanners = scanners,
     show_tokens = show_tokens
   )
+  prompt_ms <- .elapsed_ms(prompt_started)
+  .emit_telemetry(telemetry, decision_id, "prompt", "completed", input_report, prompt_ms)
 
   if (identical(input_report$action, "block")) {
     .stats_text_tokens(stats, input_report$text_clean)
-    final_action <- policy$controls$on_prompt_block
+    final_action <- if (.reports_request_escalation(input_report)) {
+      "escalate"
+    } else {
+      policy$controls$on_prompt_block
+    }
     audit <- shieldr_audit(
       input_report = input_report,
       output_report = NULL,
@@ -199,8 +232,20 @@ secure_chat <- function(prompt,
       elapsed_ms = .elapsed_ms(t0),
       token_estimate = .count_tokens(input_report$text_clean),
       action = final_action,
-      content_mode = audit_content
+      content_mode = audit_content,
+      decision_id = decision_id,
+      policy_version = policy$version,
+      fingerprint_key = audit_key,
+      metrics = .audit_metrics(
+        total_ms = .elapsed_ms(t0), prompt_ms = prompt_ms,
+        token_estimate = .count_tokens(input_report$text_clean),
+        network_used = .reviewer_network_used(reviewer, checks),
+        network_scope = .reviewer_network_scope(reviewer, checks),
+        assistant_requests = 0L
+      )
     )
+    .emit_telemetry(telemetry, decision_id, "decision", "completed", input_report,
+                    audit$elapsed_ms, list(final_action = final_action, assistant_requests = 0L))
     return(shieldr_result(
       output = .controlled_output(final_action, policy$controls),
       audit = audit,
@@ -210,8 +255,10 @@ secure_chat <- function(prompt,
   }
 
   context_reports <- NULL
+  context_ms <- 0
   final_prompt <- input_report$text_clean
   if (!is.null(context)) {
+    context_started <- proc.time()[["elapsed"]]
     text_col <- .infer_context_text_col(context)
     source_col <- if ("source" %in% names(context)) "source" else NULL
     context_reports <- scan_context(
@@ -224,10 +271,20 @@ secure_chat <- function(prompt,
       redaction = redaction,
       scanners = scanners,
       show_tokens = show_tokens,
-      authorize = context_authorize
+      authorize = context_authorize,
+      context_policy = context_policy
     )
+    context_ms <- .elapsed_ms(context_started)
+    for (report in context_reports) {
+      .emit_telemetry(
+        telemetry, decision_id, "context", "completed", report,
+        context_ms / max(length(context_reports), 1L),
+        list(row_index = report$metadata$row_index, admission = report$metadata$admission)
+      )
+    }
     blocked_idx <- which(vapply(context_reports, function(report) report$action, character(1)) == "block")
     n_blocked <- length(blocked_idx)
+    reviewer_escalation <- .reports_request_escalation(context_reports)
     if (n_blocked > 0L) {
       rule_ids <- unique(.compact_chr(unlist(lapply(context_reports[blocked_idx], function(report) {
         vapply(report$findings, function(finding) finding$rule_id %||% NA_character_, character(1))
@@ -240,9 +297,9 @@ secure_chat <- function(prompt,
         "i" = "Triggered rule{?s}: {.val {rule_ids}}."
       ))
     }
-    if (n_blocked > 0L && policy$controls$on_context_block %in% c("block", "refuse", "escalate")) {
+    if (reviewer_escalation || (n_blocked > 0L && policy$controls$on_context_block %in% c("block", "refuse", "escalate"))) {
       .stats_text_tokens(stats, input_report$text_clean)
-      final_action <- policy$controls$on_context_block
+      final_action <- if (reviewer_escalation) "escalate" else policy$controls$on_context_block
       audit <- shieldr_audit(
         input_report = input_report,
         output_report = NULL,
@@ -252,8 +309,21 @@ secure_chat <- function(prompt,
         elapsed_ms = .elapsed_ms(t0),
         token_estimate = .count_tokens(input_report$text_clean),
         action = final_action,
-        content_mode = audit_content
+        content_mode = audit_content,
+        decision_id = decision_id,
+        policy_version = policy$version,
+        fingerprint_key = audit_key,
+        metrics = .audit_metrics(
+          total_ms = .elapsed_ms(t0), prompt_ms = prompt_ms,
+          context_ms = context_ms,
+          token_estimate = .count_tokens(input_report$text_clean),
+          network_used = .reviewer_network_used(reviewer, checks),
+          network_scope = .reviewer_network_scope(reviewer, checks),
+          assistant_requests = 0L
+        )
       )
+      .emit_telemetry(telemetry, decision_id, "decision", "completed", NULL,
+                      audit$elapsed_ms, list(final_action = final_action, assistant_requests = 0L))
       return(shieldr_result(
         output = .controlled_output(final_action, policy$controls),
         audit = audit,
@@ -289,31 +359,31 @@ secure_chat <- function(prompt,
     .validate_chat(chat)
   }
 
-  tool_guard <- .guard_chat_tools(chat, allowed_tools, policy, reviewer,
-                                  checks, redaction, scanners)
+  tool_guard <- .guard_chat_tools(chat, allowed_tools, tool_policy, tool_subject,
+                                  policy, reviewer, checks, redaction, scanners)
   on.exit(tool_guard$cleanup(), add = TRUE)
 
-  strict_estimate <- NULL
+  strict_estimate <- 0
   reserved_tokens <- 0
   reserved_requests <- 0L
   if (!is.null(policy$rate_guard)) {
-    if (isTRUE(policy$rate_guard$.strict)) {
-      strict_estimate <- .count_tokens(final_prompt)
-      policy$rate_guard$reserve(tokens = strict_estimate, requests = 1L)
-      reserved_tokens <- strict_estimate
-      reserved_requests <- 1L
-    } else {
-      policy$rate_guard$reserve(tokens = 0, requests = 1L)
-      reserved_requests <- 1L
-    }
+    strict_estimate <- if (isTRUE(policy$rate_guard$.strict)) .count_tokens(final_prompt) else 0
+    output_reservation <- policy$rate_guard$.max_output_tokens %||% 0
+    reserved_tokens <- strict_estimate + output_reservation
+    policy$rate_guard$reserve(tokens = reserved_tokens, requests = 1L)
+    reserved_requests <- 1L
   }
 
   chat_returned <- FALSE
+  model_started <- proc.time()[["elapsed"]]
   chat_stage <- tryCatch(
     {
       .stats_network_from_chat(stats, chat)
       usage_before <- if (isTRUE(show_tokens) || isTRUE(show_stats)) .ellmer_usage_snapshot(chat) else NULL
-      raw_output <- .call_chat(chat, final_prompt)
+      raw_output <- .with_elapsed_limit(
+        function() .call_chat(chat, final_prompt),
+        policy$rate_guard$.max_elapsed_seconds %||% NULL
+      )
       chat_returned <- TRUE
       usage_after <- if (isTRUE(show_tokens) || isTRUE(show_stats)) .ellmer_usage_snapshot(chat) else NULL
       output_report <- scan_output(
@@ -323,6 +393,7 @@ secure_chat <- function(prompt,
         checks = checks,
         redaction = redaction,
         scanners = scanners,
+        contract = output_contract,
         show_tokens = show_tokens
       )
       list(
@@ -333,7 +404,7 @@ secure_chat <- function(prompt,
       )
     },
     error = function(e) {
-      if (!is.null(policy$rate_guard) && !chat_returned && is.function(chat) &&
+      if (!is.null(policy$rate_guard) && !chat_returned &&
           (reserved_tokens > 0 || reserved_requests > 0L)) {
         policy$rate_guard$rollback(tokens = reserved_tokens, requests = reserved_requests)
       }
@@ -342,6 +413,23 @@ secure_chat <- function(prompt,
   )
   raw_output <- chat_stage$raw_output
   output_report <- chat_stage$output_report
+  if (!is.null(policy$rate_guard$.max_output_tokens %||% NULL) &&
+      .count_tokens(raw_output) > policy$rate_guard$.max_output_tokens) {
+    output_report <- .add_output_limit_finding(output_report, policy)
+  }
+  model_and_output_ms <- .elapsed_ms(model_started)
+  if (!is.null(grounding)) {
+    admitted_reports <- Filter(function(report) {
+      identical(report$metadata$admission %||% "admit", "admit") &&
+        !identical(report$action, "block")
+    }, context_reports %||% list())
+    source_ids <- vapply(admitted_reports, function(report) {
+      as.character(report$metadata$document_id %||% paste0("row-", report$metadata$row_index %||% "unknown"))
+    }, character(1))
+    grounding_report <- scan_grounding(output_report$text_clean, source_ids, grounding)
+    output_report <- .merge_reports(output_report, grounding_report, policy)
+  }
+  .emit_telemetry(telemetry, decision_id, "output", "completed", output_report, model_and_output_ms)
   tool_reports <- tool_guard$reports()
   tool_action <- if (length(tool_reports) > 0L) {
     .combine_actions(vapply(tool_reports, function(report) report$action, character(1)))
@@ -350,7 +438,11 @@ secure_chat <- function(prompt,
   }
   final_action <- .combine_actions(input_report$action, output_report$action, tool_action)
   if (identical(output_report$action, "block") || identical(tool_action, "block")) {
-    final_action <- policy$controls$on_output_block
+    final_action <- if (.reports_request_escalation(output_report, tool_reports)) {
+      "escalate"
+    } else {
+      policy$controls$on_output_block
+    }
   }
 
   token_estimate <- .ellmer_usage_delta(chat_stage$usage_before, chat_stage$usage_after) %||% .count_tokens(final_prompt, raw_output)
@@ -359,13 +451,11 @@ secure_chat <- function(prompt,
     stats$token_source <- if (is.null(.ellmer_usage_delta(chat_stage$usage_before, chat_stage$usage_after))) "estimate" else "provider"
   }
   if (!is.null(policy$rate_guard)) {
-    if (isTRUE(policy$rate_guard$.strict)) {
-      actual_delta <- token_estimate - (strict_estimate %||% .count_tokens(final_prompt))
-      if (actual_delta > 0) {
-        policy$rate_guard$update(tokens = actual_delta, requests = 0L)
-      }
-    } else {
-      policy$rate_guard$update(tokens = token_estimate, requests = 0L)
+    actual_delta <- token_estimate - reserved_tokens
+    if (actual_delta > 0) {
+      policy$rate_guard$update(tokens = actual_delta, requests = 0L)
+    } else if (actual_delta < 0) {
+      policy$rate_guard$rollback(tokens = -actual_delta, requests = 0L)
     }
   }
 
@@ -379,8 +469,29 @@ secure_chat <- function(prompt,
     token_estimate = token_estimate,
     action = final_action,
     content_mode = audit_content,
-    tool_reports = tool_reports
+    tool_reports = tool_reports,
+    decision_id = decision_id,
+    policy_version = policy$version,
+    fingerprint_key = audit_key,
+    metrics = .audit_metrics(
+      total_ms = .elapsed_ms(t0), prompt_ms = prompt_ms,
+      context_ms = context_ms,
+      model_and_output_ms = model_and_output_ms,
+      token_estimate = token_estimate,
+      network_used = .network_used(provider, chat),
+      network_scope = .network_scope(provider, chat),
+      assistant_requests = 1L,
+      tool_calls = sum(vapply(tool_reports, function(report) {
+        identical(report$metadata$stage, "tool_call")
+      }, logical(1)))
+    )
   )
+
+  for (report in tool_reports) {
+    .emit_telemetry(telemetry, decision_id, report$metadata$stage %||% "tool", "completed", report)
+  }
+  .emit_telemetry(telemetry, decision_id, "decision", "completed", output_report,
+                  audit$elapsed_ms, list(final_action = final_action, assistant_requests = 1L))
 
   shieldr_result(
     output = if (final_action %in% c("block", "escalate")) NULL else .controlled_output(final_action, policy$controls) %||% output_report$text_clean,
@@ -390,8 +501,8 @@ secure_chat <- function(prompt,
   )
 }
 
-.guard_chat_tools <- function(chat, allowed_tools, policy, reviewer, checks,
-                              redaction, scanners) {
+.guard_chat_tools <- function(chat, allowed_tools, tool_policy, tool_subject,
+                              policy, reviewer, checks, redaction, scanners) {
   no_cleanup <- function() invisible(NULL)
   no_guard <- list(cleanup = no_cleanup, reports = function() list())
   if (is.function(chat) || !is.function(tryCatch(chat$get_tools, error = function(e) NULL))) {
@@ -401,7 +512,11 @@ secure_chat <- function(prompt,
   if (length(registered) == 0L) {
     return(no_guard)
   }
-  if (length(allowed_tools) == 0L) {
+  effective_policy <- .as_tool_policy(tool_policy, allowed_tools)
+  if (!is.null(policy$rate_guard$.max_tool_calls %||% NULL)) {
+    effective_policy$max_calls <- min(effective_policy$max_calls, policy$rate_guard$.max_tool_calls)
+  }
+  if (length(effective_policy$allowed_tools) == 0L) {
     cli::cli_abort("Chat has registered tools. Supply {.arg allowed_tools} explicitly before calling the model.")
   }
   if (!is.function(tryCatch(chat$on_tool_request, error = function(e) NULL)) ||
@@ -410,13 +525,16 @@ secure_chat <- function(prompt,
   }
   state <- new.env(parent = emptyenv())
   state$reports <- list()
+  state$limits <- .tool_policy_state()
   remove_request <- chat$on_tool_request(function(request) {
     name <- .tool_event_field(request, "name")
     args <- .tool_event_field(request, "arguments")
     if (!is.character(name) || length(name) != 1L || is.na(name)) {
       cli::cli_abort("Tool request has no valid name; execution denied.")
     }
-    report <- scan_tool_call(name, args, allowed_tools = allowed_tools,
+    report <- scan_tool_call(name, args, allowed_tools = effective_policy$allowed_tools,
+                             tool_policy = effective_policy, subject = tool_subject,
+                             state = state$limits,
                              policy = policy, reviewer = reviewer, checks = checks,
                              redaction = redaction, scanners = scanners)
     state$reports[[length(state$reports) + 1L]] <- report
@@ -664,6 +782,18 @@ secure_chat <- function(prompt,
   NULL
 }
 
+.add_output_limit_finding <- function(report, policy) {
+  finding <- .synthetic_finding(
+    "llm06.output.token_limit", "llm06", "critical",
+    "Model output exceeds the configured maximum output token estimate.",
+    action = "block"
+  )
+  report$findings <- .dedupe_findings(c(report$findings, list(finding)))
+  report$risk_score <- .score_findings(report$findings)
+  report$action <- .resolve_action(report$risk_score, report$findings, .output_policy(policy))
+  report
+}
+
 .ellmer_usage_delta <- function(before, after) {
   if (!is.data.frame(after)) {
     return(NULL)
@@ -720,6 +850,60 @@ secure_chat <- function(prompt,
     }
   }
   out
+}
+
+.reports_request_escalation <- function(...) {
+  reports <- .collect_reports(list(...))
+  any(vapply(reports, function(report) {
+    identical(report$metadata$reviewer_failure_action %||% NULL, "escalate")
+  }, logical(1)))
+}
+
+.audit_metrics <- function(...) {
+  values <- list(...)
+  c(
+    list(
+      schema_version = "1.0",
+      upload_bytes = NA_real_,
+      download_bytes = NA_real_,
+      upload_rate_bytes_s = NA_real_,
+      download_rate_bytes_s = NA_real_,
+      retry_count = NA_integer_
+    ),
+    values
+  )
+}
+
+.network_scope <- function(provider = NULL, chat = NULL) {
+  if (!is.null(provider)) {
+    provider_name <- .ellmer_provider(.normalize_ellmer_provider(provider))
+    return(if (identical(provider_name, "ollama")) "loopback" else "external")
+  }
+  if (is.function(chat)) {
+    scope <- attr(chat, "llmshieldr_network_scope", exact = TRUE)
+    if (!is.null(scope)) return(as.character(scope)[[1L]])
+    used <- attr(chat, "llmshieldr_network", exact = TRUE)
+    if (identical(used, "no")) return("none")
+    return("unknown")
+  }
+  provider_value <- tryCatch(chat$get_provider(), error = function(e) NULL)
+  provider_text <- tolower(paste(as.character(provider_value), collapse = " "))
+  if (grepl("ollama|localhost|127\\.0\\.0\\.1", provider_text)) "loopback" else if (nzchar(provider_text)) "external" else "unknown"
+}
+
+.network_used <- function(provider = NULL, chat = NULL) {
+  scope <- .network_scope(provider, chat)
+  if (identical(scope, "none")) FALSE else if (identical(scope, "unknown")) NA else TRUE
+}
+
+.reviewer_network_scope <- function(reviewer, checks) {
+  if (!checks %in% c("llm", "both") || is.null(reviewer)) return("none")
+  .network_scope(NULL, reviewer)
+}
+
+.reviewer_network_used <- function(reviewer, checks) {
+  scope <- .reviewer_network_scope(reviewer, checks)
+  if (identical(scope, "none")) FALSE else if (identical(scope, "unknown")) NA else TRUE
 }
 
 .infer_context_text_col <- function(context) {

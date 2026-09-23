@@ -12,6 +12,8 @@ shieldr_rule(
   severity = "medium",
   action = "redact",
   description = "",
+  stages = c("prompt", "context", "output", "tool_call", "tool_output", "document"),
+  confidence = NULL,
   show_stats = FALSE
 )
 }
@@ -29,6 +31,11 @@ shieldr_rule(
 \item{action}{One of \code{"allow"}, \code{"redact"}, or \code{"block"}.}
 
 \item{description}{Human-readable rule description.}
+
+\item{stages}{Stages where the rule runs. Defaults to all text stages.}
+
+\item{confidence}{Optional detector confidence between 0 and 1. Severity
+remains an impact measure and action remains a policy decision.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }

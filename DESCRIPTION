@@ -38,6 +38,7 @@ Suggests:
     processx,
     filelock,
     htmltools,
+    jsonvalidate,
     covr,
     lintr,
     plumber,

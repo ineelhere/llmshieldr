@@ -10,6 +10,7 @@ build_policy(
   thresholds = list(),
   rate_guard = NULL,
   controls = NULL,
+  version = "1",
   show_stats = FALSE
 )
 }
@@ -25,6 +26,8 @@ build_policy(
 checks the guard before chat calls and updates it after successful calls.}
 
 \item{controls}{Optional controls from \code{\link[=policy_controls]{policy_controls()}}.}
+
+\item{version}{Policy configuration version.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }

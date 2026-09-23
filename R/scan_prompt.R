@@ -33,6 +33,8 @@
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
 #' @param show_stats Show elapsed time, token estimate, network status, and
 #'   transfer metrics when available.
+#' @param stage Internal trust-boundary stage. Advanced callers should normally
+#'   use the stage-specific public scanner instead.
 #'
 #' @return A `shieldr_report`.
 #' @examples
@@ -49,6 +51,7 @@ scan_prompt <- function(text,
                         redaction = NULL,
                         scanners = scanner_options(),
                         show_tokens = FALSE,
+                        stage = "prompt",
                         show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "scan_prompt")
   on.exit(.stats_end(stats), add = TRUE)
@@ -64,24 +67,25 @@ scan_prompt <- function(text,
   scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer_for_checks(reviewer, checks)
+  .check_choice(stage, "stage", c("prompt", "context", "tool_call", "document"))
 
   text_norm <- .normalise_text(text)
   findings <- list()
   reviewer_errors <- list()
-  findings <- c(findings, .run_scanners(text, text_norm, policy, scanners, stage = "prompt"))
+  findings <- c(findings, .run_scanners(text, text_norm, policy, scanners, stage = stage))
 
   if (checks %in% c("rules", "both")) {
-    findings <- c(findings, .run_rules(text_norm, policy))
+    findings <- c(findings, .run_rules(text_norm, policy, stage = stage))
   } else if (identical(checks, "nlp")) {
     findings <- c(findings, .run_nlp(text_norm, policy))
   }
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
-    semantic <- .semantic_review(text_norm, reviewer, policy$name)
+    semantic <- .semantic_review(text_norm, reviewer, policy$name, policy$controls)
     reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
     findings <- c(findings, semantic)
   }
   if (length(reviewer_errors) > 0L &&
-      identical(policy$controls$on_reviewer_error, "block")) {
+      policy$controls$on_reviewer_error %in% c("block", "escalate")) {
     findings <- c(findings, list(.reviewer_failure_finding()))
   }
 
@@ -99,8 +103,13 @@ scan_prompt <- function(text,
     checks = checks,
     tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL,
     metadata = .report_metadata(
-      stage = "prompt",
+      stage = stage,
+      policy_version = policy$version,
+      policy_fingerprint = policy$fingerprint,
+      decision_schema_version = policy$decision_schema_version,
       reviewer_errors = reviewer_errors,
+      review_status = .review_status(checks, reviewer, reviewer_errors),
+      reviewer_failure_action = if (length(reviewer_errors) > 0L) policy$controls$on_reviewer_error else NULL,
       scanners = scanners
     )
   )
@@ -112,6 +121,12 @@ scan_prompt <- function(text,
     "Required semantic reviewer failed or returned invalid findings.",
     action = "block"
   )
+}
+
+.review_status <- function(checks, reviewer, errors) {
+  if (!checks %in% c("llm", "both")) return("not_requested")
+  if (is.null(reviewer)) return("not_configured")
+  if (length(errors) > 0L) "failed" else "passed"
 }
 
 #' Preflight-check a prompt
@@ -166,12 +181,13 @@ preflight_check <- function(text,
 #'
 #' @return A list of finding lists.
 #' @keywords internal
-.run_rules <- function(text, policy) {
+.run_rules <- function(text, policy, stage = NULL) {
   .check_string(text, "text", allow_empty = TRUE)
   .check_policy(policy)
 
   findings <- list()
   for (rule in policy$rules) {
+    if (!is.null(stage) && !stage %in% (rule$stages %||% c("prompt", "context", "output", "tool_call", "tool_output", "document"))) next
     if (!is.null(rule$pattern)) {
       matches <- tryCatch(
         gregexpr(rule$pattern, text, perl = TRUE),
@@ -187,17 +203,21 @@ preflight_check <- function(text,
       }
       ends <- starts + lengths - 1L
       for (i in seq_along(starts)) {
-        findings[[length(findings) + 1L]] <- .finding(
+        finding <- .finding(
           rule = rule,
           match = substr(text, starts[[i]], ends[[i]]),
           start = starts[[i]],
           end = ends[[i]],
           source = "rules"
         )
+        finding$stage <- stage
+        findings[[length(findings) + 1L]] <- finding
       }
     } else if (!is.null(rule$fn)) {
       result <- rule$fn(text)
-      findings <- c(findings, .coerce_fn_findings(result, rule))
+      fn_findings <- .coerce_fn_findings(result, rule)
+      fn_findings <- lapply(fn_findings, function(finding) { finding$stage <- stage; finding })
+      findings <- c(findings, fn_findings)
     }
   }
 
@@ -219,7 +239,9 @@ preflight_check <- function(text,
     name = policy$name,
     rules = rules,
     thresholds = policy$thresholds,
-    trusted_sources = policy$trusted_sources
+    trusted_sources = policy$trusted_sources,
+    controls = policy$controls,
+    version = policy$version
   )
   .run_rules(text, nlp_policy)
 }
@@ -332,8 +354,9 @@ preflight_check <- function(text,
 #' `owasp`, `severity`, and `description`. Reviewers may also return
 #' `confidence`, `evidence`, `recommended_action`, and `span`. `span` may be a
 #' two-element numeric vector or an object with `start` and `end`. The reviewer
-#' can be a function or an object with `$chat()`. Malformed JSON is treated as a
-#' soft failure because deterministic rule findings should still be usable.
+#' can be a function or an object with `$chat()`. Malformed JSON and call
+#' failures are recorded and block by default; policy controls may escalate or
+#' explicitly allow a deterministic rules-only fallback.
 #' Custom reviewer instructions should be added by wrapping the reviewer and
 #' prepending context before delegating to the model, while keeping this JSON
 #' schema intact.
@@ -346,7 +369,7 @@ preflight_check <- function(text,
 #'
 #' @return A list of finding lists.
 #' @keywords internal
-.semantic_review <- function(text, reviewer, policy_name) {
+.semantic_review <- function(text, reviewer, policy_name, controls = policy_controls()) {
   prompt <- paste(
     .shieldr_reviewer_prompt,
     paste0("Policy: ", policy_name),
@@ -356,18 +379,20 @@ preflight_check <- function(text,
   )
 
   errors <- list()
-  response <- tryCatch(
-    .call_reviewer(reviewer, prompt),
-    error = function(e) {
-      errors[[length(errors) + 1L]] <<- .reviewer_error(
-        "call_failed",
-        conditionMessage(e)
-      )
-      cli::cli_warn("Semantic reviewer failed; continuing with rule findings only.")
-      NULL
-    }
+  controls <- .validate_policy_controls(controls)
+  response <- .retry_call(
+    function() .call_reviewer(reviewer, prompt),
+    retries = controls$reviewer_retries,
+    timeout_seconds = controls$reviewer_timeout_seconds
   )
+  if (inherits(response, "error")) {
+    error_type <- if (grepl("time limit|timeout|timed out", conditionMessage(response), ignore.case = TRUE)) "timeout" else "call_failed"
+    errors[[length(errors) + 1L]] <- .reviewer_error(error_type, conditionMessage(response))
+    cli::cli_warn("Semantic reviewer failed; applying {.val {controls$on_reviewer_error}} policy.")
+    return(.with_reviewer_errors(list(), errors))
+  }
   if (is.null(response)) {
+    errors[[length(errors) + 1L]] <- .reviewer_error("empty_response", "Reviewer returned NULL.")
     return(.with_reviewer_errors(list(), errors))
   }
   response <- paste(as.character(response), collapse = "\n")
@@ -714,7 +739,8 @@ names(.homoglyph_map) <- vapply(names(.homoglyph_map), function(hex) {
     match = match,
     start = start,
     end = end,
-    source = source
+    source = source,
+    confidence = rule$confidence %||% NA_real_
   )
 }
 

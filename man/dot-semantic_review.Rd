@@ -4,7 +4,7 @@
 \alias{.semantic_review}
 \title{Run semantic reviewer checks}
 \usage{
-.semantic_review(text, reviewer, policy_name)
+.semantic_review(text, reviewer, policy_name, controls = policy_controls())
 }
 \arguments{
 \item{text}{Text to review.}
@@ -24,8 +24,9 @@ The reviewer prompt asks for an array of objects containing \code{rule_id},
 \code{owasp}, \code{severity}, and \code{description}. Reviewers may also return
 \code{confidence}, \code{evidence}, \code{recommended_action}, and \code{span}. \code{span} may be a
 two-element numeric vector or an object with \code{start} and \code{end}. The reviewer
-can be a function or an object with \verb{$chat()}. Malformed JSON is treated as a
-soft failure because deterministic rule findings should still be usable.
+can be a function or an object with \verb{$chat()}. Malformed JSON and call
+failures are recorded and block by default; policy controls may escalate or
+explicitly allow a deterministic rules-only fallback.
 Custom reviewer instructions should be added by wrapping the reviewer and
 prepending context before delegating to the model, while keeping this JSON
 schema intact.

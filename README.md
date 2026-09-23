@@ -86,12 +86,12 @@ report_summary(agency)
 #> 1  block          1        1
 ```
 
-With the default `checks = "rules"`, excessive-agency detection uses known
-phrases and action verbs. It also catches first-person commitments such as
-“I will go ahead and delete the unblinded randomization file,” regardless of
-the object name. It is not a semantic guarantee; for broader paraphrases, use
-`checks = "both"` with a separately configured reviewer and evaluate it on
-your own data.
+With the default `checks = "rules"`, excessive-agency detection uses
+known phrases and action verbs. It also catches first-person commitments
+such as “I will go ahead and delete the unblinded randomization file,”
+regardless of the object name. It is not a semantic guarantee; for
+broader paraphrases, use `checks = "both"` with a separately configured
+reviewer and evaluate it on your own data.
 
 ------------------------------------------------------------------------
 
@@ -155,27 +155,23 @@ explicit opt-in.
 
 ## Ollama Mode
 
-Use `shield_ollama()` for the shortest local guarded chat path. It
-creates an Ollama assistant chat through `ellmer` and, for
-`checks = "llm"` or `"both"`, a separate local reviewer chat.
+Use the common provider path for local Ollama. `secure_chat()` creates
+an Ollama assistant through `ellmer` and, for `checks = "llm"` or
+`"both"`, a separate local reviewer chat.
 
 ``` r
 ollama_surface <- c(
-  "shield_ollama()" = "one-call guarded local Ollama chat",
+  "secure_chat(provider = 'ollama')" = "guarded local Ollama chat",
   "ollama_reviewer()" = "local Ollama semantic reviewer",
-  "secure_chat()" = "bring an existing ellmer::chat_ollama() object",
+  "secure_chat(chat = ...)" = "bring an existing ellmer::chat_ollama() object",
   "reviewer_prompt()" = "inspect the semantic reviewer instruction",
   "trust_boundary()" = "check allowed model, host, or local model hash"
 )
 
 exports <- paste0(getNamespaceExports("llmshieldr"), "()")
 ollama_surface[names(ollama_surface) %in% exports]
-#>                                  shield_ollama() 
-#>             "one-call guarded local Ollama chat" 
 #>                                ollama_reviewer() 
 #>                 "local Ollama semantic reviewer" 
-#>                                    secure_chat() 
-#> "bring an existing ellmer::chat_ollama() object" 
 #>                                reviewer_prompt() 
 #>      "inspect the semantic reviewer instruction" 
 #>                                 trust_boundary() 
@@ -200,32 +196,26 @@ that require a running Ollama service.
 
 ## Gemini Developer API
 
-`shield_gemini()` gives the same guarded workflow through the Gemini
-Developer API. Set `GEMINI_API_KEY` or `GOOGLE_API_KEY` in your
-environment. The assistant defaults to `gemini-2.5-flash` and the
-separate reviewer to `gemini-2.5-flash-lite`; both had free-tier access
-when documented. Check [Google’s current
+Use `secure_chat(provider = "gemini")` for the Gemini Developer API. Set
+`GEMINI_API_KEY` or `GOOGLE_API_KEY` in your environment. The example
+uses `gemini-2.5-flash` for the assistant and `gemini-2.5-flash-lite`
+for the separate reviewer; both had free-tier access when documented.
+Check [Google’s current
 pricing](https://ai.google.dev/gemini-api/docs/pricing) and [project
 rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) before
 running. The free tier may use submitted content to improve Google
 products, so use public or approved content in examples.
 
 ``` r
-result <- shield_gemini(
-  "Summarize this public note.",
-  checks = "both",
-  show_stats = TRUE
-)
-result$output
-
-# Or use the common provider interface.
 result <- secure_chat(
   "Summarize this public note.",
   provider = "gemini",
   model = "gemini-2.5-flash",
   reviewer_model = "gemini-2.5-flash-lite",
-  checks = "both"
+  checks = "both",
+  show_stats = TRUE
 )
+result$output
 ```
 
 For tenant-scoped RAG, pass `context_authorize` and configure
@@ -254,6 +244,10 @@ remain ellmer concerns. The assistant provider is not initialized until
 prompt and context checks permit a model call; semantic-review providers
 are initialized earlier only when `checks` requires them.
 
+`shield_ollama()` and `shield_gemini()` remain as deprecated
+compatibility wrappers. They issue R’s standard deprecation warning and
+delegate to this common provider interface.
+
 ------------------------------------------------------------------------
 
 ## Tune It
@@ -277,6 +271,7 @@ print(guardrails)
 #> rules: 14
 #> redact_at: 0.4
 #> block_at: 0.75
+#> version: 2026.1
 ```
 
 Add scanner options when you need stricter local rules:

@@ -161,7 +161,13 @@ cannot always determine whether a network request occurred and reports
 
 ```{r, eval = FALSE}
 scan_prompt("Summarize this public note.", show_stats = TRUE)
-result <- shield_gemini("Summarize this public note.", show_stats = TRUE)
+result <- secure_chat(
+  "Summarize this public note.",
+  provider = "gemini",
+  model = "gemini-2.5-flash",
+  checks = "rules",
+  show_stats = TRUE
+)
 ```
 
 Upload and download rates are shown only when the package can measure bytes

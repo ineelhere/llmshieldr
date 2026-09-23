@@ -26,8 +26,9 @@ organization's data rules before using private content.
 ```{r, eval = FALSE}
 library(llmshieldr)
 
-result <- shield_gemini(
+result <- secure_chat(
   "Summarize the public release note in three bullets.",
+  provider = "gemini",
   model = "gemini-2.5-flash",
   reviewer_model = "gemini-2.5-flash-lite",
   checks = "both",
@@ -37,19 +38,7 @@ result$output
 result$audit$token_estimate
 ```
 
-The same workflow is available through the common provider interface:
-
-```{r, eval = FALSE}
-result <- secure_chat(
-  "Summarize the public release note in three bullets.",
-  provider = "gemini",
-  model = "gemini-2.5-flash",
-  reviewer_model = "gemini-2.5-flash-lite",
-  checks = "both"
-)
-```
-
-That interface is not limited to Gemini and Ollama: `provider` accepts any
+The common interface is not limited to Gemini and Ollama: `provider` accepts any
 name supported by `ellmer::chat()`. The `"gemini"` spelling above is retained
 as a convenience alias for ellmer's `"google_gemini"` provider name.
 
@@ -73,8 +62,11 @@ context <- data.frame(
   stringsAsFactors = FALSE
 )
 
-result <- shield_gemini(
+result <- secure_chat(
   "Summarize the release notes.",
+  provider = "gemini",
+  model = "gemini-2.5-flash",
+  reviewer_model = "gemini-2.5-flash-lite",
   policy = guardrails,
   context = context,
   context_authorize = function(row) identical(row$tenant[[1]], "public"),
@@ -99,5 +91,6 @@ secure_chat(
 )
 ```
 
-Ollama remains available through `shield_ollama()` for local workflows. Model
-availability and quotas vary by project and may change.
+Ollama remains available through `secure_chat(provider = "ollama")` for local
+workflows. The older provider-specific wrappers are deprecated compatibility
+aliases. Model availability and quotas vary by project and may change.

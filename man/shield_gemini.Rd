@@ -2,7 +2,7 @@
 % Please edit documentation in R/shield_gemini.R
 \name{shield_gemini}
 \alias{shield_gemini}
-\title{Guard a Gemini Developer API chat workflow}
+\title{Guard a Gemini Developer API chat workflow (deprecated)}
 \usage{
 shield_gemini(
   prompt,
@@ -48,10 +48,11 @@ shield_gemini(
 A \code{shieldr_result}.
 }
 \description{
-Creates separate \code{ellmer} Gemini chats for the assistant and optional
-semantic reviewer, then calls \code{\link[=secure_chat]{secure_chat()}}. Requires the suggested
-\code{ellmer} package and \code{GEMINI_API_KEY} or \code{GOOGLE_API_KEY} in the environment.
-No request is made until this function is called.
+This compatibility wrapper delegates to \code{\link[=secure_chat]{secure_chat()}} with
+\code{provider = "gemini"}. New code should use that common provider path.
+It requires the suggested \code{ellmer} package and \code{GEMINI_API_KEY} or
+\code{GOOGLE_API_KEY} in the environment. No request is made until this function
+is called.
 }
 \details{
 The default model names had a free tier when this package was documented;

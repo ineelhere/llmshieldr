@@ -15,8 +15,15 @@ secure_chat(
   scanners = scanner_options(),
   show_tokens = FALSE,
   context_authorize = NULL,
+  context_policy = NULL,
   audit_content = c("metadata", "full"),
+  audit_key = NULL,
   allowed_tools = character(),
+  tool_policy = NULL,
+  tool_subject = NULL,
+  output_contract = NULL,
+  grounding = NULL,
+  telemetry = NULL,
   show_stats = FALSE,
   provider = NULL,
   model = NULL,
@@ -50,14 +57,33 @@ function. Supply either \code{chat} or a provider name, not both.}
 \item{context_authorize}{Optional function passed to \code{\link[=scan_context]{scan_context()}} to
 authorize each retrieved row before it is included in the model prompt.}
 
+\item{context_policy}{Optional provenance and authorization requirements from
+\code{\link[=context_policy]{context_policy()}}.}
+
 \item{audit_content}{\code{"metadata"} (default) omits prompt, output, finding
 excerpts and reviewer details from the audit. \code{"full"} retains them in
 memory; \code{\link[=write_audit_log]{write_audit_log()}} requires a separate explicit opt-in to write
 them.}
 
+\item{audit_key}{Optional secret key used for HMAC fingerprints in
+metadata-only audit findings. The key is never stored.}
+
 \item{allowed_tools}{Explicit names of registered \code{ellmer} tools allowed
 during this call. The default empty vector denies tool-enabled chats before
 calling the model. Allowed calls are scanned before tool execution.}
+
+\item{tool_policy}{Optional richer policy from \code{\link[=tool_policy]{tool_policy()}}. Its allowlist
+replaces \code{allowed_tools} and it adds schema, subject, spend, and loop limits.}
+
+\item{tool_subject}{Optional authorization context passed to \code{tool_policy}.}
+
+\item{output_contract}{Optional destination contract from \code{\link[=output_contract]{output_contract()}}.}
+
+\item{grounding}{Optional citation policy from \code{\link[=grounding_policy]{grounding_policy()}}. Citation
+IDs are checked against admitted context \code{document_id} values (or row IDs).}
+
+\item{telemetry}{Optional privacy-safe event exporter from
+\code{\link[=telemetry_options]{telemetry_options()}}.}
 
 \item{show_stats}{Show elapsed time, token use, network status, and
 transfer metrics when available.}

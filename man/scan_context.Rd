@@ -16,6 +16,7 @@ scan_context(
   scanners = scanner_options(),
   show_tokens = FALSE,
   authorize = NULL,
+  context_policy = NULL,
   show_stats = FALSE
 )
 }
@@ -44,6 +45,9 @@ If omitted, a likely text column is inferred.}
 \item{authorize}{Optional function receiving one context row as a one-row data
 frame. It must return exactly \code{TRUE} to admit the row. Errors and all other
 values deny admission. Enforce tenant scope in the retrieval query too.}
+
+\item{context_policy}{Optional provenance, tenant, ACL, trust, and freshness
+requirements from \code{\link[=context_policy]{context_policy()}}.}
 
 \item{show_stats}{Show elapsed time, token estimate, network status, and
 transfer metrics when available.}

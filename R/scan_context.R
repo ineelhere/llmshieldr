@@ -33,6 +33,8 @@
 #' @param authorize Optional function receiving one context row as a one-row data
 #'   frame. It must return exactly `TRUE` to admit the row. Errors and all other
 #'   values deny admission. Enforce tenant scope in the retrieval query too.
+#' @param context_policy Optional provenance, tenant, ACL, trust, and freshness
+#'   requirements from [context_policy()].
 #' @param anomaly_threshold Z-score threshold for anomaly findings.
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
@@ -57,6 +59,7 @@ scan_context <- function(data,
                          scanners = scanner_options(),
                          show_tokens = FALSE,
                          authorize = NULL,
+                         context_policy = NULL,
                          show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "scan_context")
   on.exit(.stats_end(stats), add = TRUE)
@@ -74,6 +77,7 @@ scan_context <- function(data,
   if (!is.null(authorize) && !is.function(authorize)) {
     cli::cli_abort("{.arg authorize} must be a function or {.code NULL}.")
   }
+  .validate_context_policy(context_policy, allow_null = TRUE)
 
   text_name <- if (missing(text_col) || is.null(text_col)) {
     .infer_scan_context_text_col(data)
@@ -104,7 +108,13 @@ scan_context <- function(data,
   reports <- vector("list", length(text))
   for (i in seq_along(text)) {
     extra <- list()
-    source_value <- if (!is.null(source_name)) as.character(data[[source_name]][[i]]) else NA_character_
+    source_value <- if (!is.null(source_name)) {
+      as.character(data[[source_name]][[i]])
+    } else if (!is.null(context_policy) && context_policy$source_col %in% names(data)) {
+      as.character(data[[context_policy$source_col]][[i]])
+    } else {
+      NA_character_
+    }
     source_allowed <- is.null(trusted_sources) ||
       (!is.na(source_value) && source_value %in% trusted_sources)
     authorized <- if (is.null(authorize)) {
@@ -112,7 +122,22 @@ scan_context <- function(data,
     } else {
       isTRUE(tryCatch(authorize(data[i, , drop = FALSE]), error = function(e) FALSE))
     }
-    admission <- if (source_allowed && authorized) "admit" else "drop"
+    context_decision <- if (is.null(context_policy)) {
+      list(admit = TRUE, reasons = character())
+    } else {
+      .context_policy_admission(data[i, , drop = FALSE], context_policy)
+    }
+    admission <- if (source_allowed && authorized && context_decision$admit) "admit" else "drop"
+    admission_reasons <- c(
+      if (!source_allowed) "source",
+      if (!authorized) "authorization",
+      context_decision$reasons
+    )
+    admission_reason <- if (length(admission_reasons) > 0L) {
+      paste(unique(admission_reasons), collapse = ",")
+    } else {
+      NULL
+    }
     if (is.finite(length_z[[i]]) && length_z[[i]] > anomaly_threshold || is.infinite(length_z[[i]])) {
       extra[[length(extra) + 1L]] <- .synthetic_finding(
         "llm08.anomaly.length",
@@ -142,6 +167,13 @@ scan_context <- function(data,
         "Context row was not authorized for this request.", action = "block"
       )), extra)
     }
+    if (!context_decision$admit) {
+      extra <- c(list(.synthetic_finding(
+        "llm09.context.admission", "llm09", "critical",
+        paste0("Context row failed admission requirements: ", paste(context_decision$reasons, collapse = ", "), "."),
+        action = "block"
+      )), extra)
+    }
 
     report <- scan_prompt(
       text[[i]],
@@ -150,7 +182,8 @@ scan_context <- function(data,
       checks = checks,
       redaction = redaction,
       scanners = scanners,
-      show_tokens = show_tokens
+      show_tokens = show_tokens,
+      stage = "context"
     )
     findings <- .dedupe_findings(c(extra, report$findings))
     risk_score <- .score_findings(findings)
@@ -166,13 +199,20 @@ scan_context <- function(data,
       tokens = report$tokens,
       metadata = .report_metadata(
         stage = "context",
+        policy_version = policy$version,
+        policy_fingerprint = policy$fingerprint,
+        decision_schema_version = policy$decision_schema_version,
         row_index = i,
         text_col = text_name,
         source_col = source_name,
         source = if (is.na(source_value)) NULL else source_value,
+        document_id = if ("document_id" %in% names(data)) as.character(data$document_id[[i]]) else NULL,
+        tenant = if (!is.null(context_policy) && context_policy$tenant_col %in% names(data)) as.character(data[[context_policy$tenant_col]][[i]]) else NULL,
         admission = admission,
-        admission_reason = if (!source_allowed) "source" else if (!authorized) "authorization" else NULL,
+        admission_reason = admission_reason,
         reviewer_errors = report$metadata$reviewer_errors %||% list(),
+        review_status = report$metadata$review_status %||% "not_requested",
+        reviewer_failure_action = report$metadata$reviewer_failure_action %||% NULL,
         scanners = scanners
       )
     )

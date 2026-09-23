@@ -1,9 +1,10 @@
-#' Guard a Gemini Developer API chat workflow
+#' Guard a Gemini Developer API chat workflow (deprecated)
 #'
-#' Creates separate `ellmer` Gemini chats for the assistant and optional
-#' semantic reviewer, then calls [secure_chat()]. Requires the suggested
-#' `ellmer` package and `GEMINI_API_KEY` or `GOOGLE_API_KEY` in the environment.
-#' No request is made until this function is called.
+#' This compatibility wrapper delegates to [secure_chat()] with
+#' `provider = "gemini"`. New code should use that common provider path.
+#' It requires the suggested `ellmer` package and `GEMINI_API_KEY` or
+#' `GOOGLE_API_KEY` in the environment. No request is made until this function
+#' is called.
 #'
 #' @details
 #' The default model names had a free tier when this package was documented;
@@ -47,6 +48,7 @@ shield_gemini <- function(prompt,
                           show_tokens = FALSE,
                           show_stats = FALSE,
                           audit_content = c("metadata", "full")) {
+  .Deprecated("secure_chat", package = "llmshieldr")
   secure_chat(
     prompt = prompt, provider = "gemini", policy = policy, checks = checks,
     model = model, reviewer_model = reviewer_model,
