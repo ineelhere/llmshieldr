@@ -413,3 +413,16 @@ test_that("a flagged tool result stops the guarded chat", {
   expect_error(secure_chat("hello", chat, allowed_tools = "search_docs"), "Tool output blocked")
   expect_null(event$result)
 })
+
+test_that("network scope handles object based ellmer providers", {
+  ollama_provider <- new.env(parent = emptyenv())
+  class(ollama_provider) <- "ProviderOllama"
+  ollama_chat <- list(get_provider = function() ollama_provider)
+
+  gemini_provider <- new.env(parent = emptyenv())
+  class(gemini_provider) <- "ProviderGoogleGemini"
+  gemini_chat <- list(get_provider = function() gemini_provider)
+
+  expect_equal(.network_scope(NULL, ollama_chat), "loopback")
+  expect_equal(.network_scope(NULL, gemini_chat), "external")
+})

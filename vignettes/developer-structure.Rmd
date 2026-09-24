@@ -1,0 +1,340 @@
+---
+title: "Package Structure for Developers"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Package Structure for Developers}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This vignette is a maintainer map for <code>llmshieldr</code>. It explains
+where behavior lives, how data moves through the package, and what needs to
+change when a contributor adds a detector, policy control, provider adapter,
+or public function.
+
+## Repository Map
+
+```text
+llmshieldr/
+├── R/                    package implementation and roxygen documentation
+├── man/                  generated Rd files; do not edit by hand
+├── tests/testthat/       unit and regression tests
+├── vignettes/            long-form user and developer guides
+├── inst/extdata/         packaged example and security-evaluation data
+├── inst/scripts/         opt-in benchmark scripts
+├── demo/                 interactive demonstrations
+├── DESCRIPTION           dependencies, package metadata, R version
+├── NAMESPACE             generated exports and S3 registration
+├── NEWS.md               user-facing development and release notes
+├── README.Rmd            README source
+├── README.md             generated repository landing page
+└── _pkgdown.yml          reference and article navigation
+```
+
+Edit files under <code>R/</code>, tests, vignettes, and README sources.
+Generate <code>man/</code> and <code>NAMESPACE</code> with roxygen2 after
+changing exported interfaces.
+
+## Runtime Layers
+
+The implementation is split by responsibility:
+
+| Layer | Main files |
+|---|---|
+| Core objects and findings | <code>R/rules.R</code> |
+| Built-in policies | <code>R/policy.R</code>, <code>R/policy_controls.R</code> |
+| Prompt and output scanning | <code>R/scan_prompt.R</code>, <code>R/scan_output.R</code> |
+| Retrieved context | <code>R/scan_context.R</code>, <code>R/context_policy.R</code> |
+| Conversation and documents | <code>R/conversation.R</code>, <code>R/documents.R</code> |
+| Tools | <code>R/tool_guardrails.R</code>, <code>R/tool_policy.R</code> |
+| Streaming | <code>R/streaming.R</code> |
+| URL and output boundaries | <code>R/url_policy.R</code>, <code>R/output_contract.R</code> |
+| Grounding | <code>R/grounding.R</code> |
+| Optional scanners | <code>R/scanner_options.R</code>, <code>R/providers.R</code>, <code>R/secrets.R</code> |
+| External adapters | <code>R/adapters.R</code>, <code>R/http.R</code> |
+| Provider orchestration | <code>R/secure_chat.R</code> |
+| Compatibility wrappers | <code>R/shield_gemini.R</code>, <code>R/shield_ollama.R</code> |
+| Resource and trust controls | <code>R/rate_guard.R</code>, <code>R/trust_boundary.R</code> |
+| Audit and telemetry | <code>R/audit.R</code>, <code>R/telemetry.R</code>, <code>R/stats.R</code> |
+| Evaluation and taxonomy | <code>R/evaluation.R</code>, <code>R/owasp.R</code> |
+| User explanations | <code>R/explain.R</code> |
+
+## Execution Model
+
+The high-level guarded flow is:
+
+```text
+prompt
+  │
+  ├─ scan_prompt()
+  │
+  ├─ scan_context() and context_policy()
+  │
+  ├─ rate_guard() reservation
+  │
+  ├─ assistant callback or ellmer provider
+  │
+  ├─ scan_output()
+  │
+  ├─ output_contract()
+  │
+  ├─ grounding_policy()
+  │
+  ├─ rate-guard update or rollback
+  │
+  └─ shieldr_result + shieldr_audit + telemetry events
+```
+
+<code>secure_chat()</code> owns this orchestration. Individual
+<code>scan_*()</code> functions remain independently useful when an
+application owns the model call or needs checks at one boundary.
+
+Tool calls form another path:
+
+```text
+model tool request
+  ├─ scan_tool_call()
+  ├─ tool allowlist, schema, authorization, spend, and loop checks
+  ├─ dispatcher
+  └─ scan_tool_output()
+```
+
+## Public Object Contracts
+
+The package uses inspectable S3 objects.
+
+### shieldr_rule
+
+One rule contains an ID, one regex or function, an OWASP category, severity,
+action, description, and applicable stages. Exactly one of
+<code>pattern</code> and <code>fn</code> must be present.
+
+### shieldr_policy
+
+A policy contains a name, rule list, thresholds, optional rate guard, optional
+trusted sources, orchestration controls, and version. Built-in policy names are
+resolved by <code>policy()</code>; application-owned policies are created with
+<code>build_policy()</code> or <code>shieldr_policy()</code>.
+
+### shieldr_report
+
+A scanner report contains the resolved action, cleaned text, findings, risk
+score, policy name, check mode, timestamp, optional token count, and
+surface-specific metadata.
+
+### shieldr_audit and shieldr_result
+
+An audit collects input, context, tool, and output reports plus timing, token,
+network, policy-version, and decision metadata. A result combines released
+output, the audit, an OWASP risk summary, and the final orchestration action.
+
+Keep these shapes backward compatible. When a new field is needed, prefer an
+optional field with a safe default and update audit scrubbing and persistence
+at the same time.
+
+## Finding Schema
+
+Detectors converge on a common finding structure:
+
+| Field | Purpose |
+|---|---|
+| <code>rule_id</code> | Stable machine-readable identifier |
+| <code>owasp</code> | Lowercase category such as <code>llm02</code> |
+| <code>severity</code> | low, medium, high, or critical |
+| <code>action</code> | allow, redact, or block |
+| <code>description</code> | Human-readable reason |
+| <code>match</code> | Optional matched evidence |
+| <code>start</code>, <code>end</code> | Optional one-based character span |
+| <code>source</code> | Rule, scanner, recognizer, provider, or reviewer |
+| <code>confidence</code> | Optional calibrated detector value |
+
+Content fields must be removed by metadata-only audit construction. New
+evidence-bearing fields require the same privacy review.
+
+## Adding a Deterministic Rule
+
+1. Choose a stable OWASP-prefixed ID.
+2. Limit the rule to relevant stages.
+3. Choose regex matching when exact spans are useful.
+4. Choose a function when structured logic is clearer.
+5. Add a risky positive case.
+6. Add a close benign case that guards against overblocking.
+7. Test redaction spans when the action is redact.
+8. Add a release note when built-in behavior changes.
+
+```{r}
+new_rule <- shieldr_rule(
+  id = "llm02.project.identifier",
+  pattern = "\\bPROJECT-[0-9]{6}\\b",
+  owasp = "llm02",
+  severity = "medium",
+  action = "redact",
+  description = "Internal project identifier.",
+  stages = c("prompt", "context", "output")
+)
+```
+
+Rule changes require detection and overblocking evidence. A broad expression
+that catches the reported example but blocks ordinary domain text is
+incomplete.
+
+## Adding an Entity Recognizer
+
+An entity recognizer receives one text string and returns one-based
+<code>start</code> and <code>end</code> offsets. Optional output fields include
+confidence, entity type, and normalized value.
+
+```{r}
+recognizer <- entity_recognizer(
+  id = "project/member-id",
+  entity_type = "MEMBER_ID",
+  version = "1.0",
+  recognize = function(text) {
+    hit <- regexpr("\\bMEM-[0-9]{4}\\b", text, perl = TRUE)
+    if (hit[[1]] < 0) {
+      return(data.frame())
+    }
+    data.frame(
+      start = as.integer(hit[[1]]),
+      end = as.integer(hit[[1]] + attr(hit, "match.length") - 1L)
+    )
+  }
+)
+```
+
+Validate every span before returning it. Recognizer errors are skipped with a
+warning, so tests should cover invalid and boundary offsets.
+
+## Adding a Guardrail Provider
+
+<code>guardrail_provider()</code> is the narrow extension contract for a local
+or remote detector. Its function receives <code>text</code>,
+<code>stage</code>, and <code>metadata</code>, then returns findings.
+
+```{r}
+provider <- guardrail_provider(
+  id = "project/detector",
+  version = "1.0",
+  stages = c("prompt", "output"),
+  on_error = "block",
+  scan = function(text, stage, metadata) {
+    list()
+  }
+)
+```
+
+Provider work should define:
+
+- whether content leaves the process;
+- supported stages;
+- version evidence;
+- timeout and retry behavior;
+- fail-closed or explicit fail-open behavior;
+- normalized findings;
+- tests with mocked responses and errors.
+
+Keep external services and executables optional. They belong in
+<code>Suggests</code> or behind runtime checks unless the core package cannot
+function without them.
+
+## Adding a Chat Provider Path
+
+The main path is provider neutral. <code>secure_chat()</code> delegates
+provider construction to <code>ellmer::chat()</code>. New provider-specific
+wrappers should be avoided unless they add a distinct safety boundary. Use:
+
+```{r}
+secure_chat(
+  prompt = "Approved prompt.",
+  provider = "provider_name",
+  model = "model-name",
+  provider_args = list()
+)
+```
+
+Credentials remain the provider SDK's responsibility. Never inspect, print, or
+store provider keys in reports or audits.
+
+## Tests
+
+Tests are grouped by behavior:
+
+| Test file | Main coverage |
+|---|---|
+| <code>test-policy.R</code> | Policy construction, rules, thresholds |
+| <code>test-scan-prompt.R</code> | Prompt rules, normalization, redaction |
+| <code>test-scan-context.R</code> | RAG anomalies, sources, authorization |
+| <code>test-scan-output.R</code> | Output findings and actions |
+| <code>test-secure-chat.R</code> | End-to-end orchestration |
+| <code>test-reviewer-checks.R</code> | Semantic-review contracts and failures |
+| <code>test-rate-guard.R</code> | Reservation, rollback, concurrency |
+| <code>test-audit.R</code> | Privacy modes and persistence |
+| <code>test-trust-boundary.R</code> | Model and host validation |
+| <code>test-roadmap-upgrades.R</code> | Cross-feature upgrade regressions |
+| <code>test-2026-stats.R</code> | OWASP 2026 metadata and statistics |
+
+Use mocks for model and HTTP behavior. The normal test suite must not require
+credentials, internet access, Ollama, Presidio, OPA, Gitleaks, or another
+external process.
+
+## Evaluation Data
+
+<code>inst/extdata/security_eval_cases.csv</code> is a compact, transparent
+starter corpus. Add a regression row when a behavior gap should remain visible
+across policies. Keep private or large application corpora outside the package.
+
+The opt-in benchmark at
+<code>inst/scripts/benchmark-security-eval.R</code> is for adoption and release
+checks that do not belong in routine unit tests.
+
+## Documentation Workflow
+
+Public functions need roxygen documentation, useful examples, and a place in
+the pkgdown reference index. User-facing behavior changes also need README,
+vignette, and NEWS updates where relevant.
+
+Typical commands are:
+
+```{r}
+devtools::document()
+devtools::test()
+devtools::check()
+pkgdown::build_site()
+```
+
+Do not put live API requests in evaluated examples. Provider examples should
+use <code>eval = FALSE</code>, read credentials from environment variables,
+and use placeholders rather than real secrets.
+
+## Compatibility and Deprecation
+
+Use R's standard deprecation mechanism when replacing a public path. Keep the
+compatibility wrapper long enough for users to migrate, name the replacement in
+the message, document the change, and add a regression test.
+
+<code>shield_gemini()</code> and <code>shield_ollama()</code> demonstrate this
+pattern by forwarding users to <code>secure_chat(provider = ...)</code>.
+
+## Review Checklist
+
+Before merging a change:
+
+1. Confirm the public contract and default behavior.
+2. Check failure behavior at every external boundary.
+3. Add positive, negative, and privacy regression tests.
+4. Confirm metadata-only audits remove new content fields.
+5. Confirm statistics do not expose prompts or credentials.
+6. Keep remote calls and optional binaries out of package checks.
+7. Review CRAN dependencies and conditional imports.
+8. Update generated documentation.
+9. Run package checks in a clean session.
+10. Record user-visible changes in <code>NEWS.md</code>.
+

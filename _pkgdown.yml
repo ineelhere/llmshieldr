@@ -115,17 +115,14 @@ articles:
     navbar: ~
     contents:
       - getting-started
-      - ollama-usage
-      - gemini-usage
       - policy-design
       - custom-rules
-      - rag-pipeline
-      - owasp-coverage
-      - evaluation
-      - threat-model
-      - operations
-      - architecture
-      - ecosystem-context
+      - rag-use-case
+      - developer-structure
+      - finance-use-case
+      - pharma-use-case
+      - providers-gemini-ollama
+      - faq
 
 search:
   enabled: true

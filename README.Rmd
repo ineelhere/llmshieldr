@@ -299,21 +299,21 @@ decision metadata and omit prompt and response content.
 
 Coverage varies by category and does not verify an embedding index, model
 supply chain, downstream renderer, or external authorization system. See
-`vignette("owasp-coverage")` for evidence levels and limitations.
+`vignette("policy-design")` for scoring, controls, and limitations.
 
 ## Documentation
 
-| Start here | Topic |
+| Guide | Focus |
 |:--|:--|
-| `vignette("getting-started")` | Reports, checks, redaction, and policies |
-| `vignette("gemini-usage")` | Gemini examples, free-tier considerations, and privacy boundaries |
-| `vignette("ollama-usage")` | Local Ollama and reviewer workflows |
-| `vignette("policy-design")` | Policy controls, thresholds, and custom rules |
-| `vignette("rag-pipeline")` | Context admission and RAG boundaries |
-| `vignette("owasp-coverage")` | OWASP 2026 mapping and known gaps |
-| `vignette("evaluation")` | Security evaluation and policy comparison |
-| `vignette("operations")` | Audit, telemetry, rate guards, and deployment |
-| `vignette("threat-model")` | Scope, assumptions, and residual risk |
+| `vignette("getting-started")` | First scans, guarded chat, reports, and audits |
+| `vignette("policy-design")` | Policies, scoring, controls, and rate guards |
+| `vignette("custom-rules")` | Regex, function, and span-aware rules |
+| `vignette("rag-use-case")` | Retrieved-context admission and RAG orchestration |
+| `vignette("developer-structure")` | Package architecture and contribution workflow |
+| `vignette("finance-use-case")` | End-to-end financial-research assistant |
+| `vignette("pharma-use-case")` | End-to-end pharmaceutical quality assistant |
+| `vignette("providers-gemini-ollama")` | Gemini `~/.Renviron` and local Ollama setup |
+| `vignette("faq")` | Operational and troubleshooting questions |
 
 ## Project Status
 

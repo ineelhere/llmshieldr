@@ -1,8 +1,8 @@
 ---
-title: "RAG Pipeline"
+title: "RAG Use Case"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{RAG Pipeline}
+  %\VignetteIndexEntry{RAG Use Case}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---

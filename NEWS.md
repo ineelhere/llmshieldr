@@ -48,6 +48,14 @@
   reported where body bytes and request duration are measurable.
 - Fixed UTF-8 evaluation-corpus loading and Unicode confusable normalization
   on non-UTF-8 Windows locales.
+- Fixed network-scope detection for existing `ellmer` chat objects whose
+  providers use S7 objects, including local Ollama chats.
+- Reorganized package documentation into focused guides for onboarding,
+  policy design, custom rules, RAG, package internals, finance, pharma,
+  Gemini and Ollama providers, and troubleshooting FAQs.
+- Limited rendered provider examples to one Gemini request and one Ollama
+  request, with all live provider calls disabled on GitHub Actions and during
+  package checks.
 
 # llmshieldr 0.1.0
 

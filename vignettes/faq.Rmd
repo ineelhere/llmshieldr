@@ -1,0 +1,357 @@
+---
+title: "Frequently Asked Questions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Frequently Asked Questions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+## Starting and Choosing a Path
+
+### 1. What does llmshieldr do?
+
+It adds inspectable checks around prompts, retrieved context, conversations,
+documents, tool calls, tool output, streams, and model responses. It also
+provides policies, output contracts, grounding checks, budgets, audits,
+telemetry, optional semantic review, and external-detector adapters.
+
+### 2. Which function should a new application start with?
+
+Use <code>secure_chat()</code> for a guarded end-to-end model call. Use
+individual <code>scan_*()</code> functions when the application owns
+orchestration or needs one boundary check.
+
+### 3. Does scanning text require internet access?
+
+Rules, local NLP checks, built-in recognizers, and policy construction run
+locally. Network use occurs only when you choose a remote chat, reviewer,
+Presidio service, OPA service, or another network-backed callback.
+
+### 4. Which policy should I choose?
+
+Choose the nearest domain preset, inspect its rules and controls, then measure
+it on application data. <code>comprehensive</code> is broad and can create more
+false positives. Policy names are starting configurations, not assurance or
+compliance levels.
+
+### 5. What is the baseline policy?
+
+<code>baseline</code> is a compatibility alias for
+<code>enterprise_default</code>.
+
+### 6. What do allow, redact, and block mean?
+
+They are scanner actions. Allow releases cleaned text, redact releases text
+after configured span handling, and block prevents release. At orchestration
+level, policy controls can map a block to <code>refuse</code> or
+<code>escalate</code>.
+
+## Providers and Credentials
+
+### 7. How do I use Gemini?
+
+Install <code>ellmer</code>, store <code>GEMINI_API_KEY</code> or
+<code>GOOGLE_API_KEY</code> in <code>~/.Renviron</code>, restart R, and call
+<code>secure_chat(provider = "gemini", model = "...")</code>.
+
+### 8. Is the Gemini key read from the project?
+
+It is read from the R process environment by the provider package. Keep the key
+in a user-level <code>~/.Renviron</code> or a deployment secret manager. Do not
+commit project credentials.
+
+### 9. Is Gemini's free tier guaranteed?
+
+No. Google controls account eligibility, model availability, quotas, regions,
+pricing, and data-use terms. Check the current Gemini Developer API
+documentation for the project and region.
+
+### 10. How do I use Ollama?
+
+Start Ollama, pull a model, and call
+<code>secure_chat(provider = "ollama", model = "model-name")</code>. A default
+local server normally needs no API key.
+
+### 11. Can I use another provider?
+
+Yes. Use a provider name understood by <code>ellmer::chat()</code>, pass
+provider options through <code>provider_args</code>, or provide an existing
+chat object or R callback.
+
+### 12. Why are shield_gemini() and shield_ollama() deprecated?
+
+The common <code>secure_chat(provider = ...)</code> path supports providers
+without duplicating orchestration. The old wrappers still forward calls and
+emit a standard deprecation warning.
+
+### 13. Can the assistant and semantic reviewer use different providers?
+
+Yes. Set <code>reviewer_provider</code>, <code>reviewer_model</code>, and
+<code>reviewer_provider_args</code>, or supply a reviewer function or chat
+object. Text may then be sent to a second service.
+
+## Detection and Findings
+
+### 14. What is the difference between rules, NLP, LLM, and both?
+
+Rules are deterministic policy rules and configured scanners. NLP runs local
+intent heuristics. LLM uses a supplied semantic reviewer. Both combines policy
+rules with semantic review.
+
+### 15. Why did a paraphrase pass a keyword rule?
+
+Deterministic rules only recognize encoded evidence. Add domain vocabulary and
+benign counterexamples, enable local NLP, or use a tested semantic reviewer.
+Put the missed text into the evaluation corpus before changing behavior.
+
+### 16. Can semantic review replace rules?
+
+Treat it as another layer. Reviewer responses can vary, time out, fail schema
+validation, or change with model updates. Keep deterministic controls for
+stable requirements.
+
+### 17. What happens if the reviewer fails?
+
+The default is conservative and blocks. Configure
+<code>policy_controls(on_reviewer_error = ...)</code> to block, escalate, or
+continue with rules only. A fail-open choice needs monitoring and a documented
+risk decision.
+
+### 18. Why did one finding immediately block?
+
+A critical finding or a rule with an explicit block action blocks regardless
+of the aggregate threshold. Inspect <code>report$findings</code> and the policy
+thresholds.
+
+### 19. Is risk_score a probability?
+
+No. It is a deterministic severity index from zero to one. Findings are
+deduplicated, severity contributions are summed, and the score is capped at
+one.
+
+### 20. Why is report$tokens NULL?
+
+Token reporting is opt-in. Set <code>show_tokens = TRUE</code>. Exact counts
+depend on provider support; otherwise the package may attach an estimate or
+leave the value unavailable.
+
+### 21. Why did explain_findings() print?
+
+Text format prints one set of console bullets and returns the character vector
+invisibly. Assignment captures the value but does not suppress the intentional
+console output.
+
+### 22. What can I pass to explain_findings()?
+
+Pass a complete <code>shieldr_report</code> or its list of findings. Markdown
+and HTML formats return content for reports or interfaces.
+
+### 23. Does the package find every PII, PHI, or secret?
+
+No. Patterns and recognizers have false positives and false negatives. Add
+domain recognizers, optional providers, and representative evaluation cases.
+Minimize data before it reaches the guardrail whenever possible.
+
+### 24. How do I support multiple languages?
+
+Supply a language detector through <code>language_fn</code>, configure allowed
+languages, add language-specific rules and recognizers, and evaluate each
+language separately.
+
+## Policies, Rules, and Redaction
+
+### 25. Should a custom rule use a regex or a function?
+
+Use regex for stable textual evidence and useful spans. Use a function for
+structured parsing or multi-condition logic. Keep both implementations
+bounded and test nearby benign language.
+
+### 26. How do I avoid overblocking?
+
+For every risky positive example, keep one or more close benign examples.
+Narrow the stage and expression, compare policies on the same corpus, and
+review every changed decision.
+
+### 27. Does redaction change the source record?
+
+No. It changes cleaned text in the report and orchestration path. Databases,
+documents, logs, caches, and upstream systems need separate controls.
+
+### 28. Is hash redaction anonymous?
+
+No. Deterministic hashes link repeated values, and small source spaces can be
+guessed. Treat them as sensitive pseudonymous metadata.
+
+### 29. Why did a function rule not redact text?
+
+Redaction needs character spans. A Boolean function finding can change the
+action but cannot identify exact text to replace. Return one-based
+<code>start</code> and <code>end</code> values for span-aware redaction.
+
+## RAG, Documents, and URLs
+
+### 30. Does context_policy() prevent cross-tenant retrieval?
+
+It rejects rows before model submission, but the query must already enforce
+tenant and ACL scope. This avoids retrieving unauthorized content in the first
+place.
+
+### 31. How should malicious retrieved text be handled?
+
+Treat every row as untrusted, preserve its source, scan it separately, and
+drop, block, refuse, or escalate according to policy. Instructions inside a
+document must not override application authorization.
+
+### 32. Can scan_document() read a PDF or image?
+
+It scans text in a <code>document_input</code>. Use a sandboxed extraction
+service for PDF, image, Office, and archive content, then preserve extraction,
+OCR, hidden-text, checksum, and source metadata.
+
+### 33. Do citations prove that an answer is true?
+
+No. Grounding can require admitted source IDs and use a custom validator.
+Citations alone do not prove source quality, entailment, current facts, or
+absence of contradiction.
+
+### 34. Does scan_url_target() stop SSRF by itself?
+
+No. It validates supplied URL, IP, and redirect evidence without making a
+request. DNS, redirect, connection, and egress enforcement belong in the HTTP
+client and network layer.
+
+## Tools, Output, and Streaming
+
+### 35. Why are all tool calls denied?
+
+The default empty allowlist denies tool-enabled chats. List approved names with
+<code>allowed_tools</code> or use <code>tool_policy()</code>.
+
+### 36. Does tool_policy() replace service authorization?
+
+No. The downstream service must authorize identity, tenant, object ownership,
+amount, and operation again at the point of execution.
+
+### 37. Is JSON Schema enough to make tool input safe?
+
+No. It validates shape and selected constraints. It does not make values safe
+for SQL, shell, filesystem, network, or business use.
+
+### 38. Can an output contract safely execute generated code?
+
+No. It validates text or structure. Execute code, SQL, commands, templates, or
+URLs only in separately designed sandboxes and destination controls.
+
+### 39. Can streamed chunks be displayed before finish()?
+
+That can expose unsafe output before the final decision. The conservative
+<code>stream_guard()</code> buffers chunks and emits cleaned text after
+<code>$finish()</code>.
+
+### 40. Why does streaming add latency?
+
+Safe release needs enough text to catch split payloads and a final whole-output
+scan. That trades token-by-token display for a clear release boundary.
+
+## Statistics, Audit, and Operations
+
+### 41. How do I display time, tokens, and network information?
+
+Set <code>show_stats = TRUE</code>. Statistics are messages and do not alter
+the returned object.
+
+### 42. Why are upload and download rates unavailable?
+
+Many provider transports do not expose request and response byte counts.
+The package reports unavailable instead of guessing wire traffic.
+
+### 43. Why is network use unknown for my callback?
+
+An arbitrary R function can use a network client without informing the
+package. Add application telemetry around that client when exact evidence is
+needed.
+
+### 44. What does metadata-only audit remove?
+
+It removes prompt and output text, finding excerpts, and reviewer details. It
+retains actions, IDs, scores, timestamps, source references, and operational
+metrics, which can still be sensitive.
+
+### 45. How do I persist full audit content?
+
+First request <code>audit_content = "full"</code> in
+<code>secure_chat()</code>, then set
+<code>include_content = TRUE</code> in <code>write_audit_log()</code>. Protect
+the destination and define retention.
+
+### 46. What is audit_key?
+
+It is a secret HMAC key for fingerprints of omitted content. The key is not
+stored. Load it from a secret manager and plan rotation because changing it
+changes correlation values.
+
+### 47. Does telemetry contain prompts?
+
+Package telemetry events omit prompts, output, finding matches, and reviewer
+excerpts. Review application-supplied attributes and exporter behavior too.
+
+### 48. Does rate_guard() coordinate multiple machines?
+
+The default backend is process-local. Optional file locking coordinates
+workers on one machine. Multi-host deployments need an application-owned
+shared atomic backend.
+
+### 49. Does the OWASP crosswalk prove compliance?
+
+No. It maps package controls to OWASP LLM Top 10 for 2026 categories.
+Compliance and security depend on the complete system, evidence, operations,
+and applicable requirements.
+
+## Troubleshooting and Evaluation
+
+### 50. Why did secure_chat() return no output?
+
+Inspect <code>result$action</code> and its audit. Prompt, context, budget,
+reviewer, tool, output, contract, or grounding controls may have stopped
+release.
+
+### 51. How should I fix a false positive?
+
+Keep the benign example, identify the exact finding, narrow the rule or stage,
+and rerun the complete case set. Avoid broad allowlists that suppress unrelated
+risk.
+
+### 52. How should I fix a false negative?
+
+Add the missed input and variants to the evaluation set, add benign
+counterexamples, then improve the rule, recognizer, NLP path, context control,
+or reviewer.
+
+### 53. How should I compare policy changes?
+
+Use <code>compare_policies()</code> on a versioned case set and review every
+changed action. Report malicious detection, sensitive redaction, benign false
+positives, action accuracy, and latency.
+
+### 54. Can package examples contact live services during CRAN checks?
+
+They should not. Keep provider, network, executable, secret, and private-service
+examples unevaluated. Routine examples and tests should be deterministic,
+local, fast, and credential free.
+
+### 55. What should a bug report include?
+
+Include package and R versions, operating system, policy name and version,
+check mode, a minimal sanitized input, expected and actual actions, and the
+finding summary. Add provider and model names for provider issues. Never
+publish credentials or private prompts.
+

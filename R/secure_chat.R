@@ -887,8 +887,36 @@ secure_chat <- function(prompt,
     return("unknown")
   }
   provider_value <- tryCatch(chat$get_provider(), error = function(e) NULL)
-  provider_text <- tolower(paste(as.character(provider_value), collapse = " "))
+  provider_text <- .provider_identity_text(provider_value)
   if (grepl("ollama|localhost|127\\.0\\.0\\.1", provider_text)) "loopback" else if (nzchar(provider_text)) "external" else "unknown"
+}
+
+.provider_identity_text <- function(provider) {
+  if (is.null(provider)) {
+    return("")
+  }
+
+  candidates <- list(
+    if (is.character(provider)) provider else NULL,
+    tryCatch(provider[["name"]], error = function(e) NULL),
+    tryCatch(provider[["base_url"]], error = function(e) NULL),
+    tryCatch(provider@name, error = function(e) NULL),
+    tryCatch(provider@base_url, error = function(e) NULL),
+    attr(provider, "name", exact = TRUE),
+    attr(provider, "base_url", exact = TRUE),
+    class(provider)
+  )
+  parts <- unlist(lapply(candidates, function(value) {
+    if (is.character(value)) {
+      return(value)
+    }
+    if (is.atomic(value)) {
+      return(tryCatch(as.character(value), error = function(e) character()))
+    }
+    character()
+  }), use.names = FALSE)
+  parts <- parts[!is.na(parts) & nzchar(parts)]
+  tolower(paste(parts, collapse = " "))
 }
 
 .network_used <- function(provider = NULL, chat = NULL) {

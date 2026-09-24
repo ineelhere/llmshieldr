@@ -1,0 +1,215 @@
+---
+title: "Gemini and Ollama Workflows"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Gemini and Ollama Workflows}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+
+.llmshieldr_is_check <- nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_"))
+.llmshieldr_is_github_actions <- identical(
+  tolower(Sys.getenv("GITHUB_ACTIONS", unset = "")),
+  "true"
+)
+.llmshieldr_has_ellmer <- requireNamespace("ellmer", quietly = TRUE)
+.llmshieldr_has_gemini <-
+  !.llmshieldr_is_check &&
+  !.llmshieldr_is_github_actions &&
+  .llmshieldr_has_ellmer &&
+  (
+    nzchar(Sys.getenv("GEMINI_API_KEY")) ||
+      nzchar(Sys.getenv("GOOGLE_API_KEY"))
+  )
+
+.llmshieldr_ollama_models <- NULL
+if (
+  !.llmshieldr_is_check &&
+    !.llmshieldr_is_github_actions &&
+    .llmshieldr_has_ellmer
+) {
+  .llmshieldr_ollama_models <- tryCatch(
+    suppressWarnings(suppressMessages(ellmer::models_ollama())),
+    error = function(error) NULL
+  )
+}
+.llmshieldr_has_ollama <- !is.null(.llmshieldr_ollama_models) &&
+  "id" %in% names(.llmshieldr_ollama_models) &&
+  length(.llmshieldr_ollama_models$id) > 0L &&
+  !is.na(.llmshieldr_ollama_models$id[[1]]) &&
+  nzchar(.llmshieldr_ollama_models$id[[1]])
+
+.llmshieldr_ollama_model <- trimws(
+  Sys.getenv("llmshieldr_ollama_model", unset = "")
+)
+if (!nzchar(.llmshieldr_ollama_model) && .llmshieldr_has_ollama) {
+  .llmshieldr_ollama_model <-
+    as.character(.llmshieldr_ollama_models$id[[1]])
+}
+if (!nzchar(.llmshieldr_ollama_model)) {
+  .llmshieldr_ollama_model <- NULL
+}
+
+.llmshieldr_run_example <- function(provider, code) {
+  old_options <- options(
+    cli.progress_show_after = Inf,
+    cli.unicode = FALSE
+  )
+  on.exit(options(old_options), add = TRUE)
+
+  tryCatch(
+    force(code),
+    error = function(error) {
+      first_line <- trimws(
+        strsplit(conditionMessage(error), "\n", fixed = TRUE)[[1]][[1]]
+      )
+      message(provider, " example was skipped: ", first_line)
+      invisible(NULL)
+    }
+  )
+}
+```
+
+`secure_chat()` is the common path for Gemini, Ollama, and other providers
+supported by `ellmer`. This guide intentionally runs no more than one request
+per provider.
+
+Live calls are disabled during package checks and whenever
+`GITHUB_ACTIONS=true`. A missing provider, unavailable model, quota error, or
+temporary service failure is reported without failing the documentation build.
+
+```{r provider-availability, echo = FALSE, eval = TRUE}
+data.frame(
+  provider = c("Gemini", "Ollama"),
+  live_example = c(
+    .llmshieldr_has_gemini,
+    .llmshieldr_has_ollama
+  )
+)
+```
+
+## Install ellmer
+
+```{r install-ellmer, eval = FALSE}
+install.packages("ellmer")
+```
+
+```{r load-live-providers, include = FALSE, eval = .llmshieldr_has_gemini || .llmshieldr_has_ollama}
+library(llmshieldr)
+```
+
+## Gemini
+
+Add one API key to the user-level `~/.Renviron` file:
+
+```text
+GEMINI_API_KEY=replace-with-your-real-key
+```
+
+`GOOGLE_API_KEY` is also accepted. Use the exact filename `.Renviron`, restart
+R after saving it, and never commit the file or print the key.
+
+The following chunk runs locally only when `ellmer` and a key are available:
+
+```{r gemini-example, eval = .llmshieldr_has_gemini}
+gemini_result <- .llmshieldr_run_example(
+  "Gemini",
+  secure_chat(
+    prompt = "Explain in one sentence why LLM output should be checked.",
+    provider = "gemini",
+    model = "gemini-3.8-flash",
+    checks = "rules",
+    show_stats = TRUE
+  )
+)
+
+if (!is.null(gemini_result)) {
+  data.frame(
+    action = gemini_result$action,
+    output = gemini_result$output
+  )
+}
+```
+
+Google controls model availability, quotas, pricing, regions, and data-use
+terms. Confirm the current terms before sending private or regulated data.
+
+## Ollama
+
+Start Ollama and pull a model outside R. For example:
+
+```text
+ollama serve
+ollama pull llama3.2
+```
+
+Choose the model in `~/.Renviron`:
+
+```text
+llmshieldr_ollama_model=llama3.2
+```
+
+Restart R after changing the file. When this variable is absent, the vignette
+uses the first model returned by `ellmer::models_ollama()`.
+
+The following chunk runs locally only when Ollama is reachable and has a model:
+
+```{r ollama-example, eval = .llmshieldr_has_ollama}
+ollama_result <- .llmshieldr_run_example(
+  "Ollama",
+  secure_chat(
+    prompt = "Explain in one sentence why LLM output should be checked.",
+    provider = "ollama",
+    model = .llmshieldr_ollama_model,
+    checks = "rules",
+    show_stats = TRUE
+  )
+)
+
+if (!is.null(ollama_result)) {
+  data.frame(
+    action = ollama_result$action,
+    output = ollama_result$output
+  )
+}
+```
+
+## Recommended Next Steps
+
+After the basic request works, try one change at a time:
+
+| Goal | Recommendation |
+|---|---|
+| Add semantic review | Set `checks = "both"` and provide `reviewer_model`. Start with a model that reliably returns JSON. |
+| Guard retrieved documents | Add `context` and a `context_policy()` before trying a full RAG workflow. |
+| Constrain responses | Add an `output_contract()` for the required format and size. |
+| Inspect usage | Set `show_tokens = TRUE` and keep `show_stats = TRUE`. |
+| Reuse an existing client | Pass an existing ellmer object through `chat` instead of `provider`. |
+| Guard tool use | Register only required tools and set `allowed_tools` explicitly. |
+| Evaluate a policy | Create benign and adversarial cases, then call `evaluate_security_cases()`. |
+
+The RAG, finance, pharma, policy design, and custom rules vignettes show these
+features without making additional provider calls during rendering.
+
+## Provider-Specific Wrappers
+
+`shield_gemini()` and `shield_ollama()` remain available for compatibility and
+issue a deprecation warning. Use `secure_chat(provider = ...)` in new code.
+
+## Troubleshooting
+
+- **Gemini key not found:** confirm the variable is in `~/.Renviron`, then
+  restart R.
+- **Gemini quota or model error:** check the active Google project, current
+  quota, and model availability.
+- **Ollama unavailable:** start the service and confirm `ollama list` returns
+  the configured model.
+- **Semantic reviewer returns malformed JSON:** try a stronger local model or
+  define the required failure behavior with `policy_controls()`.

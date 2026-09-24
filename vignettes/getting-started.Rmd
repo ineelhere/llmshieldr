@@ -177,43 +177,22 @@ result$action
 result$risk_summary
 ```
 
-To let `ellmer` construct the chat, supply any provider name it supports.
-Provider-specific options are forwarded without a llmshieldr allowlist.
+To use a real provider, replace the callback with a provider name and model.
+Keep the first experiment small:
 
-```{r, eval = FALSE}
-provider_result <- secure_chat(
-  prompt = "Summarize this support issue in a short paragraph.",
+```{r provider-next-step, eval = FALSE}
+secure_chat(
+  "Explain why LLM output should be checked.",
   provider = "gemini",
   model = "gemini-3.8-flash",
   checks = "rules"
 )
 ```
 
-The example uses a stable model currently listed for free-tier use. Gemini
-eligibility, quotas, model availability, and data-use terms depend on the
-account, project, and region. Check Google's current pricing, rate limits,
-and terms before sending private data.
-
-Use `reviewer_provider`, `reviewer_model`, and `reviewer_provider_args` when the
-semantic reviewer should use a different ellmer provider configuration.
-
-For local Ollama, use the same provider interface. This chunk is not evaluated
-during site builds because it requires a running Ollama service and a local
-model.
-
-```{r, eval = FALSE}
-ollama_result <- secure_chat(
-  prompt = "Summarize this support issue in a short paragraph.",
-  provider = "ollama",
-  policy = policy("baseline"),
-  checks = "rules",
-  show_tokens = TRUE
-)
-
-ollama_result$output
-ollama_result$action
-ollama_result$risk_summary
-```
+For Ollama, change `provider` to `"ollama"` and `model` to the local model
+name. The dedicated provider vignette contains one runnable example for each
+provider and the required `.Renviron` setup. No provider call is made from this
+getting-started vignette.
 
 If `secure_chat()` blocks retrieved context rows, those rows are excluded from
 the final prompt and a warning identifies the triggered rules. Included context
@@ -237,8 +216,8 @@ refusing_policy <- policy(
 )
 ```
 
-For more local LLM patterns, see
-`vignette("ollama-usage", package = "llmshieldr")`.
+For Gemini credentials and local Ollama patterns, see
+`vignette("providers-gemini-ollama", package = "llmshieldr")`.
 
 `risk_summary` aggregates triggered findings by OWASP 2026 category. Injection
 maps to `llm01`, sensitive information to `llm02`, excessive agency to
