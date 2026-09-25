@@ -82,31 +82,39 @@ report$risk_score   # 0 to 1
 explain_findings(report)
 ```
 
-Wrap any R function, existing chat object, Ollama model, or provider supported by `ellmer`:
+Use the same guarded workflow with a local Ollama model or a hosted Gemini model. Install the
+optional client first with `install.packages("ellmer")`.
+
+For Ollama, start the local service and pull a model (for example, `ollama pull llama3.2`), then run:
 
 ```r
-demo_model <- function(prompt) paste("MODEL RESPONSE:", prompt)
-
-result <- secure_chat(
-  "Summarize the approved release notes.",
-  chat = demo_model,
-  policy = "enterprise_default"
-)
-
-result$action
-result$output
-result$audit
-```
-
-For a hosted or local model, replace `chat` with `provider` and `model`:
-
-```r
-result <- secure_chat(
-  "Summarize this note.",
-  provider = "gemini",       # or "ollama", "anthropic", ...
-  model = "your-model",
+ollama_result <- secure_chat(
+  "Explain in one sentence why LLM output should be checked.",
+  provider = "ollama",
+  model = "llama3.2",
+  policy = "enterprise_default",
   checks = "rules"
 )
+
+ollama_result$action
+ollama_result$output
+ollama_result$audit
+```
+
+For Gemini, set `GEMINI_API_KEY` or `GOOGLE_API_KEY` in `.Renviron`, restart R, then run:
+
+```r
+gemini_result <- secure_chat(
+  "Explain in one sentence why LLM output should be checked.",
+  provider = "gemini",
+  model = "gemini-3.8-flash",
+  policy = "enterprise_default",
+  checks = "rules"
+)
+
+gemini_result$action
+gemini_result$output
+gemini_result$audit
 ```
 
 Keep credentials in environment variables or a deployment secret manager, not in R scripts. See
@@ -128,6 +136,27 @@ Most scan functions return a `shieldr_report` (or a list of them) with the same 
 `secure_chat()` returns a `shieldr_result`: cleaned `output`, final `action`, aggregated
 `risk_summary`, and an `audit`. Add `show_stats = TRUE` to any exported function for available
 timing, token, network, and transfer statistics.
+
+## Coverage with clear ownership
+
+`llmshieldr` is a transparent, local-first, model-neutral layer. Optional integrations are
+composable and opt-in. An OWASP label means **relevant signal**, not "this risk is fully mitigated."
+
+As of the 24 September 2026 implementation review, every package-level surface in the 21-item
+roadmap is implemented or has an explicit extension boundary. That is implementation evidence, not
+a formal security audit or production assurance. See the
+[research and implementation review](docs/research/guardrails-research-2026-09-20.html).
+
+| Boundary | What the package enforces | What your application or deployment still owns |
+|:--|:--|:--|
+| Prompt and reviewer | Deterministic, NLP, or semantic checks; explicit reviewer failure policy | Domain calibration and confirming that the selected client interrupts timeouts |
+| Retrieved context | Provenance, tenant/ACL, trust, freshness, and admission before prompt assembly | Tenant/ACL filters inside the retrieval query and upstream source integrity |
+| Tools | Default-deny names, argument schemas, subject authorization, spend/call limits, result scanning | Real dispatcher permissions and live tests for every provider/tool loop |
+| Streaming | Buffer first; emit only the final allowed or redacted text | Provider cancellation and any safely bounded incremental-release UX |
+| Output and URLs | Output contracts, HTML encoding, URL/host/IP/redirect policy | Sink-specific SQL/shell/code controls and connection-time DNS evidence |
+| PII and secrets | Native recognizers, secret registry, and optional Presidio/Gitleaks adapters | Per-language/domain evaluation and supported external-version matrices |
+| Resources and operations | Rate limits, metadata-only audits, metrics, and content-free telemetry | Shared-backend load tests, log access/retention, exporter setup, and key rotation |
+| Documents and grounding | Explicit extraction provenance, hidden-text status, and citation/source-ID checks | PDF/OCR/image extractors and evaluation of optional semantic validators |
 
 ## Function map
 
@@ -258,17 +287,25 @@ evidence, not a compliance claim.
 | `vignette("providers-gemini-ollama")` | Gemini credentials and local Ollama setup |
 | `vignette("faq")` | Operations and troubleshooting |
 
-## Project Status
+See [`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md) for the full development
+workflow, style expectations, and local check commands.
 
-`llmshieldr` is experimental. Guardrails reduce risk; they do not prove
-that an LLM application is secure, safe, or compliant. Test policies on
-your own traffic, keep application authorization outside model control,
-and layer guardrails with sandboxing, least privilege, output encoding,
-monitoring, and human review where impact warrants it.
+------------------------------------------------------------------------
 
-See [CONTRIBUTING.md](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md)
-for the development workflow and rule contribution requirements. Cite the
-package with `citation("llmshieldr")`.
+## ⚠️ Disclosure
 
-This independent project is not affiliated with or endorsed by any model
-provider or standards organization.
+This is an independent learning and exploratory project. It is not
+affiliated with, endorsed by, sponsored by, funded by, or assisted by
+any organization or company.
+
+The project draws on public documentation, open-source patterns, and
+community best practices. Portions of the code and documentation were
+created with LLM assistance and refined through human review. Do not
+treat the package as security, compliance, or regulated-use guidance
+without independent verification, testing, and expert review.
+
+------------------------------------------------------------------------
+
+More updates to come. Happy coding! 🎉
+
+![](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajkzYnB2YXVld25ub3k1Zm90ZzE4Nnk4MjNtNHJ2b2NqemRmcG8zaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dAjHiHrn3yH6TSrxj6/giphy.gif)
