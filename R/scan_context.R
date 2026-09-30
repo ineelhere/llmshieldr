@@ -190,7 +190,7 @@ scan_context <- function(data,
     action <- .resolve_action(risk_score, findings, policy)
     reports[[i]] <- shieldr_report(
       action = action,
-      text_clean = .apply_redaction(report$text_clean, findings, redaction),
+      text_clean = report$text_clean,
       findings = findings,
       risk_score = risk_score,
       policy = policy$name,

@@ -136,8 +136,8 @@ function executes these steps:
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
 \item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.
 \item If context is supplied, scan it with \code{\link[=scan_context]{scan_context()}} and append only
-allowed context rows to the cleaned prompt, using row IDs, source labels,
-and separators.
+allowed context rows to the cleaned prompt, using row IDs, opaque source
+references, and separators.
 \item Reserve request and token budget with the policy rate guard, if present.
 \item Call the chat object.
 \item Scan model output with \code{\link[=scan_output]{scan_output()}}.

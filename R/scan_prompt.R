@@ -69,21 +69,24 @@ scan_prompt <- function(text,
   .validate_reviewer_for_checks(reviewer, checks)
   .check_choice(stage, "stage", c("prompt", "context", "tool_call", "document"))
 
-  text_norm <- .normalise_text(text)
+  normalised <- .normalise_text_with_map(text)
+  text_norm <- normalised$text
   findings <- list()
   reviewer_errors <- list()
   findings <- c(findings, .run_scanners(text, text_norm, policy, scanners, stage = stage))
 
+  detection_findings <- list()
   if (checks %in% c("rules", "both")) {
-    findings <- c(findings, .run_rules(text_norm, policy, stage = stage))
+    detection_findings <- c(detection_findings, .run_rules(text_norm, policy, stage = stage))
   } else if (identical(checks, "nlp")) {
-    findings <- c(findings, .run_nlp(text_norm, policy))
+    detection_findings <- c(detection_findings, .run_nlp(text_norm, policy))
   }
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
     semantic <- .semantic_review(text_norm, reviewer, policy$name, policy$controls)
     reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
-    findings <- c(findings, semantic)
+    detection_findings <- c(detection_findings, semantic)
   }
+  findings <- c(findings, .map_findings_to_original(detection_findings, normalised, text))
   if (length(reviewer_errors) > 0L &&
       policy$controls$on_reviewer_error %in% c("block", "escalate")) {
     findings <- c(findings, list(.reviewer_failure_finding()))
@@ -92,7 +95,7 @@ scan_prompt <- function(text,
   findings <- .dedupe_findings(findings)
   risk_score <- .score_findings(findings)
   action <- .resolve_action(risk_score, findings, policy)
-  text_clean <- if (isTRUE(redact)) .apply_redaction(text_norm, findings, redaction) else text_norm
+  text_clean <- if (isTRUE(redact)) .apply_redaction(text, findings, redaction) else text
 
   shieldr_report(
     action = action,
@@ -643,23 +646,123 @@ names(.homoglyph_map) <- vapply(names(.homoglyph_map), function(hex) {
 }, character(1))
 
 .normalise_text <- function(text, collapse_whitespace = TRUE, collapse_delimited = TRUE) {
-  text <- stringi::stri_trans_nfkc(text)
-  text <- stringi::stri_replace_all_regex(text, "\\p{Cf}+", "", vectorize_all = FALSE)
-  if (isTRUE(collapse_whitespace)) {
-    text <- gsub("\\s+", " ", trimws(text), perl = TRUE)
+  .normalise_text_with_map(text, collapse_whitespace, collapse_delimited)$text
+}
+
+# Build a detection-only Unicode view while retaining offsets back to the
+# original string. Cleaned/released text is always derived from the original.
+.normalise_text_with_map <- function(text,
+                                     collapse_whitespace = TRUE,
+                                     collapse_delimited = TRUE) {
+  clusters <- stringi::stri_split_boundaries(text, type = "character")[[1L]]
+  if (length(clusters) == 0L) {
+    return(list(text = "", start = integer(), end = integer()))
   }
-  for (i in seq_along(.homoglyph_map)) {
-    text <- stringi::stri_replace_all_fixed(
-      text,
-      names(.homoglyph_map)[[i]],
-      .homoglyph_map[[i]],
-      vectorize_all = FALSE
-    )
+
+  cluster_lengths <- nchar(clusters, type = "chars")
+  cluster_starts <- cumsum(c(1L, utils::head(cluster_lengths, -1L)))
+  cluster_ends <- cluster_starts + cluster_lengths - 1L
+  normalised_clusters <- stringi::stri_trans_nfkc(clusters)
+  split_clusters <- lapply(normalised_clusters, function(value) {
+    if (!nzchar(value)) character() else strsplit(value, "", fixed = TRUE)[[1L]]
+  })
+  output_lengths <- lengths(split_clusters)
+  chars <- unlist(split_clusters, use.names = FALSE)
+  starts <- rep(cluster_starts, output_lengths)
+  ends <- rep(cluster_ends, output_lengths)
+
+  if (length(chars) > 0L) {
+    keep <- !stringi::stri_detect_regex(chars, "^\\p{Cf}$")
+    chars <- chars[keep]
+    starts <- starts[keep]
+    ends <- ends[keep]
   }
-  if (isTRUE(collapse_delimited)) {
-    text <- .collapse_delimited_words(text)
+
+  # Confusable folding is useful for mixed-script spoofing, but corrupts
+  # ordinary Cyrillic and Greek when applied globally.
+  current <- paste0(chars, collapse = "")
+  token_hits <- gregexpr("[\\p{L}\\p{M}\\p{N}_-]+", current, perl = TRUE)[[1L]]
+  if (length(token_hits) > 0L && !identical(token_hits[[1L]], -1L)) {
+    token_lengths <- attr(token_hits, "match.length")
+    for (i in seq_along(token_hits)) {
+      first <- as.integer(token_hits[[i]])
+      last <- first + as.integer(token_lengths[[i]]) - 1L
+      token <- substr(current, first, last)
+      scripts <- c(
+        latin = stringi::stri_detect_regex(token, "\\p{Latin}"),
+        cyrillic = stringi::stri_detect_regex(token, "\\p{Cyrillic}"),
+        greek = stringi::stri_detect_regex(token, "\\p{Greek}")
+      )
+      if (sum(scripts) < 2L) next
+      positions <- seq.int(first, last)
+      replacements <- unname(.homoglyph_map[chars[positions]])
+      replace <- !is.na(replacements)
+      chars[positions[replace]] <- replacements[replace]
+    }
   }
-  text
+
+  if (isTRUE(collapse_whitespace) && length(chars) > 0L) {
+    whitespace <- stringi::stri_detect_regex(chars, "^\\s$")
+    keep <- rep(TRUE, length(chars))
+    if (any(whitespace)) {
+      runs <- rle(whitespace)
+      run_ends <- cumsum(runs$lengths)
+      run_starts <- run_ends - runs$lengths + 1L
+      for (i in which(runs$values)) {
+        idx <- seq.int(run_starts[[i]], run_ends[[i]])
+        if (run_starts[[i]] == 1L || run_ends[[i]] == length(chars)) {
+          keep[idx] <- FALSE
+        } else {
+          chars[idx[[1L]]] <- " "
+          starts[idx[[1L]]] <- min(starts[idx])
+          ends[idx[[1L]]] <- max(ends[idx])
+          if (length(idx) > 1L) keep[idx[-1L]] <- FALSE
+        }
+      }
+      chars <- chars[keep]
+      starts <- starts[keep]
+      ends <- ends[keep]
+    }
+  }
+
+  if (isTRUE(collapse_delimited) && length(chars) > 0L) {
+    current <- paste0(chars, collapse = "")
+    matches <- gregexpr("\\b(?:[A-Za-z][ ._-]){2,}[A-Za-z]\\b", current, perl = TRUE)[[1L]]
+    if (length(matches) > 0L && !identical(matches[[1L]], -1L)) {
+      match_lengths <- attr(matches, "match.length")
+      keep <- rep(TRUE, length(chars))
+      for (i in seq_along(matches)) {
+        first <- as.integer(matches[[i]])
+        last <- first + as.integer(match_lengths[[i]]) - 1L
+        positions <- seq.int(first, last)
+        keep[positions[chars[positions] %in% c(" ", ".", "_", "-")]] <- FALSE
+      }
+      chars <- chars[keep]
+      starts <- starts[keep]
+      ends <- ends[keep]
+    }
+  }
+
+  list(text = paste0(chars, collapse = ""), start = starts, end = ends)
+}
+
+.map_findings_to_original <- function(findings, normalised, original) {
+  if (length(findings) == 0L || length(normalised$start) == 0L) return(findings)
+  lapply(findings, function(finding) {
+    start <- suppressWarnings(as.integer(finding$start %||% NA_integer_)[[1L]])
+    end <- suppressWarnings(as.integer(finding$end %||% NA_integer_)[[1L]])
+    if (is.na(start) || is.na(end) || start < 1L || end < start ||
+        start > length(normalised$start)) {
+      return(finding)
+    }
+    end <- min(end, length(normalised$end))
+    original_start <- min(normalised$start[seq.int(start, end)])
+    original_end <- max(normalised$end[seq.int(start, end)])
+    finding$start <- as.integer(original_start)
+    finding$end <- as.integer(original_end)
+    finding$match <- substr(original, original_start, original_end)
+    finding
+  })
 }
 
 .collapse_delimited_words <- function(text) {

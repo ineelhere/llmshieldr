@@ -18,8 +18,8 @@
 #' 1. Scan the prompt with [scan_prompt()].
 #' 2. If the prompt is blocked, return a [shieldr_result()] without calling the chat.
 #' 3. If context is supplied, scan it with [scan_context()] and append only
-#'    allowed context rows to the cleaned prompt, using row IDs, source labels,
-#'    and separators.
+#'    allowed context rows to the cleaned prompt, using row IDs, opaque source
+#'    references, and separators.
 #' 4. Reserve request and token budget with the policy rate guard, if present.
 #' 5. Call the chat object.
 #' 6. Scan model output with [scan_output()].
@@ -954,7 +954,12 @@ secure_chat <- function(prompt,
     row_index <- metadata$row_index %||% i
     source <- metadata$source %||% NA_character_
     source_label <- if (!is.na(source) && nzchar(source)) {
-      paste0(" source=", source)
+      # Context metadata is not part of the scanned text. Never interpolate it
+      # verbatim into the model prompt; use a stable opaque reference instead.
+      paste0(
+        " source_ref=",
+        substr(digest::digest(source, algo = "sha256", serialize = FALSE), 1L, 12L)
+      )
     } else {
       ""
     }

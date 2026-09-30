@@ -121,8 +121,9 @@ workflow, blocked context rows are omitted from the final prompt assembled by
 `secure_chat()`. When rows are blocked and excluded, `secure_chat()` emits a
 warning with the triggered rule ids.
 
-The assembled prompt includes explicit row labels, source labels, and separator
-lines, for example:
+The assembled prompt includes explicit row labels, opaque source references,
+and separator lines. Original source identifiers remain in report and audit
+metadata rather than being interpolated into model input. For example:
 
 ```text
 How should a password reset request be handled?
@@ -131,7 +132,7 @@ Context:
 
 ---
 
-[context row=1 source=kb]
+[context row=1 source_ref=74fec0c33e96]
 Password resets require identity verification.
 ```
 :::

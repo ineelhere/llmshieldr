@@ -99,6 +99,10 @@ gitleaks_provider <- function(command = "gitleaks",
     report_path <- tempfile(fileext = ".json")
     on.exit(unlink(c(source_path, report_path), force = TRUE), add = TRUE)
     writeLines(text, source_path, useBytes = TRUE)
+    file.create(report_path)
+    if (.Platform$OS.type != "windows") {
+      Sys.chmod(c(source_path, report_path), mode = "0600")
+    }
     args <- c("detect", "--no-git", "--source", source_path,
               "--report-format", "json", "--report-path", report_path,
               "--exit-code", "0")

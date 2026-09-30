@@ -196,8 +196,9 @@ getting-started vignette.
 
 If `secure_chat()` blocks retrieved context rows, those rows are excluded from
 the final prompt and a warning identifies the triggered rules. Included context
-rows are assembled with row labels, source labels, and separators. CSV audit
-logs include `context_row_index` and `context_source` for context-stage
+rows are assembled with row labels, opaque source references, and separators;
+unscanned source metadata is never copied verbatim into the model prompt. CSV
+audit logs include `context_row_index` and `context_source` for context-stage
 findings.
 
 Use `policy_controls()` to tune orchestration outcomes.

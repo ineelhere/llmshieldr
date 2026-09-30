@@ -63,9 +63,15 @@ scan_output <- function(text,
   .validate_reviewer_for_checks(reviewer, checks)
   .check_choice(stage, "stage", c("output", "tool_output"))
 
-  text_norm <- .normalise_text(text, collapse_whitespace = FALSE, collapse_delimited = FALSE)
+  normalised <- .normalise_text_with_map(
+    text,
+    collapse_whitespace = FALSE,
+    collapse_delimited = FALSE
+  )
+  text_norm <- normalised$text
   output_policy <- .output_policy(policy)
   findings <- list()
+  detection_findings <- list()
   reviewer_errors <- list()
   findings <- c(findings, .run_scanners(text, text_norm, output_policy, scanners, stage = stage))
 
@@ -81,26 +87,30 @@ scan_output <- function(text,
         )
         for (block in code_blocks) {
           block_findings <- .run_rules(block$text, code_policy, stage = stage)
-          findings <- c(findings, .offset_findings(block_findings, block$offset - 1L))
+          detection_findings <- c(
+            detection_findings,
+            .offset_findings(block_findings, block$offset - 1L)
+          )
         }
       }
     }
-    findings <- c(findings, .run_rules(text_norm, output_policy, stage = stage))
+    detection_findings <- c(detection_findings, .run_rules(text_norm, output_policy, stage = stage))
   } else if (identical(checks, "nlp")) {
-    findings <- c(findings, .run_nlp(text_norm, output_policy))
+    detection_findings <- c(detection_findings, .run_nlp(text_norm, output_policy))
   }
 
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
     semantic <- .semantic_review(text_norm, reviewer, policy$name, policy$controls)
     reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
-    findings <- c(findings, semantic)
+    detection_findings <- c(detection_findings, semantic)
   }
+  findings <- c(findings, .map_findings_to_original(detection_findings, normalised, text))
   if (length(reviewer_errors) > 0L &&
       policy$controls$on_reviewer_error %in% c("block", "escalate")) {
     findings <- c(findings, list(.reviewer_failure_finding()))
   }
 
-  text_clean <- .apply_redaction(text_norm, findings, redaction)
+  text_clean <- .apply_redaction(text, findings, redaction)
   if (!is.null(contract)) {
     contracted <- .apply_output_contract(text_clean, contract)
     text_clean <- contracted$text

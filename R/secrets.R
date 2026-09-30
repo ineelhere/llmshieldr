@@ -51,6 +51,8 @@ secret_registry <- function(signatures = NULL,
 
 .default_secret_signatures <- function() {
   c(
+    aws_access_key_id = "\\b(?:AKIA|ASIA)[A-Z0-9]{16}\\b",
+    aws_secret_access_key = "(?i)\\b(?:aws[_ -]?secret[_ -]?access[_ -]?key|secret[_ -]?access[_ -]?key)\\s*[:=]\\s*['\"]?[A-Za-z0-9/+=]{40}\\b",
     google_api_key = "\\bAIza[0-9A-Za-z_-]{35}\\b",
     github_token = "\\b(?:ghp|gho|ghu|ghs|ghr)_[0-9A-Za-z]{36,255}\\b",
     openai_key = "\\bsk-(?:proj-)?[0-9A-Za-z_-]{20,}\\b",

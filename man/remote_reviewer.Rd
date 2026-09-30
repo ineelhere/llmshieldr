@@ -10,6 +10,7 @@ remote_reviewer(
   body_field = "prompt",
   response_path = NULL,
   timeout = 30,
+  destination_policy = url_policy(),
   show_stats = FALSE
 )
 }
@@ -24,6 +25,9 @@ remote_reviewer(
 response, such as \code{c("data", "findings")}.}
 
 \item{timeout}{Request timeout in seconds.}
+
+\item{destination_policy}{URL policy applied to the endpoint before the
+reviewer function is created. The default permits public HTTPS endpoints.}
 
 \item{show_stats}{Show per-request time, token estimate, network status,
 and HTTP body transfer rates as messages.}
@@ -51,7 +55,9 @@ response body is returned as text and parsed by llmshieldr's semantic-review
 JSON extraction logic.
 
 This helper requires the optional \code{httr2} package and performs no network
-calls until the reviewer function is invoked.
+calls until the reviewer function is invoked. \code{destination_policy} performs
+a URL preflight without DNS lookup; deployments should still enforce egress
+policy and validate connection-time DNS and redirect evidence.
 }
 \examples{
 \dontrun{

@@ -3,6 +3,9 @@
 #' Contracts validate model output before an application treats it as JSON,
 #' HTML, Markdown, or a file path. They do not execute SQL, shell commands, or
 #' generated code. JSON Schema support is optional through `jsonvalidate`.
+#' Path contracts accept relative paths only, reject every parent (`..`)
+#' component, and resolve existing ancestors to prevent symlink or junction
+#' escapes from `allowed_root`.
 #'
 #' @param format One of `"text"`, `"json"`, `"html"`, `"markdown"`, or
 #'   `"path"`.
@@ -148,6 +151,9 @@ validate_output_contract <- function(text, contract, show_stats = FALSE) {
   } else {
     text
   }
+  if (length(findings) > 0L && identical(contract$on_invalid, "redact")) {
+    rendered <- if (identical(contract$format, "json")) "null" else "[REDACTED]"
+  }
   list(text = rendered, findings = findings)
 }
 
@@ -160,12 +166,58 @@ validate_output_contract <- function(text, contract, show_stats = FALSE) {
 }
 
 .path_within_root <- function(path, root) {
-  if (!is.character(path) || length(path) != 1L || is.na(path) || grepl("[\r\n]", path, perl = TRUE)) return(FALSE)
-  root_abs <- normalizePath(root, winslash = "/", mustWork = FALSE)
-  path_abs <- normalizePath(file.path(root_abs, path), winslash = "/", mustWork = FALSE)
-  if (.Platform$OS.type == "windows") {
-    root_abs <- tolower(root_abs)
-    path_abs <- tolower(path_abs)
+  if (!is.character(path) || length(path) != 1L || is.na(path) ||
+      !nzchar(path) || grepl("[\r\n]", path, perl = TRUE) ||
+      !is.character(root) || length(root) != 1L || is.na(root) ||
+      !dir.exists(root)) {
+    return(FALSE)
   }
-  identical(path_abs, root_abs) || startsWith(path_abs, paste0(sub("/$", "", root_abs), "/"))
+
+  # The contract returns the original relative path, so absolute, home-relative,
+  # drive-relative, and UNC forms must be rejected before joining to the root.
+  if (grepl("^(?:~|[A-Za-z]:|[/\\\\])", path, perl = TRUE) ||
+      (.Platform$OS.type == "windows" && grepl(":", path, fixed = TRUE))) {
+    return(FALSE)
+  }
+
+  relative <- gsub("\\\\", "/", path)
+  pieces <- strsplit(relative, "/", fixed = TRUE)[[1L]]
+  stack <- character()
+  for (piece in pieces) {
+    if (!nzchar(piece) || identical(piece, ".")) next
+    if (identical(piece, "..")) {
+      # Do not collapse parent traversal lexically: if an earlier component is
+      # a symlink, `link/../file` can resolve outside the configured root.
+      return(FALSE)
+    } else {
+      stack <- c(stack, piece)
+    }
+  }
+
+  root_abs <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  within <- function(candidate) {
+    expected_root <- root_abs
+    if (.Platform$OS.type == "windows") {
+      candidate <- tolower(candidate)
+      expected_root <- tolower(expected_root)
+    }
+    identical(candidate, expected_root) ||
+      startsWith(candidate, paste0(sub("/$", "", expected_root), "/"))
+  }
+
+  # Resolve every existing ancestor so a symlink or Windows junction cannot
+  # redirect a lexically safe relative path outside the configured root.
+  current <- root_abs
+  for (piece in stack) {
+    current <- file.path(current, piece)
+    if (file.exists(current) || dir.exists(current)) {
+      resolved <- normalizePath(current, winslash = "/", mustWork = TRUE)
+      if (!within(resolved)) return(FALSE)
+      current <- resolved
+    }
+  }
+
+  candidate <- if (length(stack) == 0L) root_abs else do.call(file.path, as.list(c(root_abs, stack)))
+  path_abs <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
+  within(path_abs)
 }

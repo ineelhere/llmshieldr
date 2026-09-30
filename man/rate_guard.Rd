@@ -35,8 +35,8 @@ call and enforced on the returned output estimate.}
 \item{strict}{Whether \code{\link[=secure_chat]{secure_chat()}} should reserve estimated prompt tokens
 before calling the model.}
 
-\item{concurrent}{Whether to protect \verb{$usage()} and \verb{$update()} with a
-file-based lock from the suggested \code{filelock} package.}
+\item{concurrent}{Whether to persist counters in a locked state file shared
+by worker processes on the same machine. Requires \code{filelock}.}
 
 \item{backend}{Optional shared quota backend as a list of \code{usage}, \code{reserve},
 and \code{rollback} functions. This lets server deployments provide Redis,
@@ -81,9 +81,9 @@ mutable state, because rate limiting is inherently session-based.
 The rate guard is not safe for concurrent use by default. Parallel or async R
 code (\code{future}, \code{parallel}, \code{callr}) that shares a single guard environment
 will produce inaccurate counts. Use \code{concurrent = TRUE} and install the
-\code{filelock} package to make each \verb{$usage()}, \verb{$reserve()}, \verb{$update()}, and
-\verb{$rollback()} call acquire a file-based lock within a single machine.
-Cross-machine coordination is not supported.
+\code{filelock} package to persist counters in a locked state file shared by
+serialized or forked copies of the guard on one machine. Cross-machine
+coordination requires \verb{backend=}.
 }
 
 \section{Pre-call Reservation}{

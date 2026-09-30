@@ -197,10 +197,10 @@ guard_tool <- function(tool_name,
     projected_side_effects <- state$side_effects + as.integer(name %in% policy$side_effect_tools)
     if (projected_calls > policy$max_calls) reject("llm06.tool.call_limit", "Tool request exceeds the configured call limit.")
     if (projected_side_effects > policy$max_side_effects) reject("llm03.tool.side_effect_limit", "Tool request exceeds the configured side-effect limit.")
-    if (length(findings) == 0L) {
-      state$calls <- projected_calls
-      state$side_effects <- projected_side_effects
-    }
+    # Limits bound attempts, not only successful dispatches. Otherwise a model
+    # can loop indefinitely on denied calls without consuming its call budget.
+    state$calls <- projected_calls
+    state$side_effects <- projected_side_effects
   }
   findings
 }
@@ -234,11 +234,14 @@ guard_tool <- function(tool_name,
   types <- rule$type %||% NULL
   if (!is.null(types)) {
     checks <- c(
-      string = is.character(value) && length(value) == 1L,
-      number = is.numeric(value) && length(value) == 1L,
-      integer = is.numeric(value) && length(value) == 1L && value == floor(value),
-      boolean = is.logical(value) && length(value) == 1L,
-      array = is.atomic(value) || (is.list(value) && is.null(names(value))),
+      string = is.character(value) && length(value) == 1L && !is.na(value),
+      number = is.numeric(value) && length(value) == 1L && is.finite(value),
+      integer = is.numeric(value) && length(value) == 1L && is.finite(value) && value == floor(value),
+      boolean = is.logical(value) && length(value) == 1L && !is.na(value),
+      # Atomic vectors of length one are R scalars and cannot safely represent a
+      # JSON array. Use an unnamed list for one-element arrays.
+      array = (is.atomic(value) && length(value) != 1L) ||
+        (is.list(value) && is.null(names(value))),
       object = is.list(value) && !is.null(names(value)),
       null = is.null(value)
     )
@@ -246,7 +249,13 @@ guard_tool <- function(tool_name,
   }
   if (!is.null(rule$enum) && !any(vapply(rule$enum, identical, logical(1), value))) return(list(valid = FALSE, message = paste0(name, " is outside its enum")))
   if (!is.null(rule$pattern) && (!is.character(value) || length(value) != 1L || !grepl(rule$pattern, value, perl = TRUE))) return(list(valid = FALSE, message = paste0(name, " does not match its pattern")))
-  if (!is.null(rule$minimum) && (!is.numeric(value) || value < rule$minimum)) return(list(valid = FALSE, message = paste0(name, " is below its minimum")))
-  if (!is.null(rule$maximum) && (!is.numeric(value) || value > rule$maximum)) return(list(valid = FALSE, message = paste0(name, " exceeds its maximum")))
+  if (!is.null(rule$minimum) &&
+      (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value < rule$minimum)) {
+    return(list(valid = FALSE, message = paste0(name, " is below its minimum")))
+  }
+  if (!is.null(rule$maximum) &&
+      (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value > rule$maximum)) {
+    return(list(valid = FALSE, message = paste0(name, " exceeds its maximum")))
+  }
   list(valid = TRUE, message = "")
 }

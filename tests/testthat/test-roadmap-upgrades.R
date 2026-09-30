@@ -32,6 +32,49 @@ test_that("tool policy blocks before dispatch and enforces call limits", {
   expect_equal(calls, 1L)
 })
 
+test_that("tool schemas reject non-finite scalars and ambiguous arrays", {
+  numeric_policy <- tool_policy(
+    allowed_tools = "calculate",
+    schemas = list(calculate = list(
+      properties = list(value = list(type = "number"))
+    )),
+    max_side_effects = Inf
+  )
+  expect_equal(scan_tool_call(
+    "calculate", list(value = Inf), tool_policy = numeric_policy
+  )$action, "block")
+
+  array_policy <- tool_policy(
+    allowed_tools = "batch",
+    schemas = list(batch = list(
+      properties = list(values = list(type = "array"))
+    )),
+    max_side_effects = Inf
+  )
+  expect_equal(scan_tool_call(
+    "batch", list(values = 1), tool_policy = array_policy
+  )$action, "block")
+  expect_equal(scan_tool_call(
+    "batch", list(values = list(1)), tool_policy = array_policy
+  )$action, "allow")
+})
+
+test_that("denied tool attempts consume the shared call budget", {
+  tools <- tool_policy(allowed_tools = "approved", max_calls = 1, max_side_effects = Inf)
+  state <- llmshieldr:::.tool_policy_state()
+
+  denied <- scan_tool_call("denied", list(), tool_policy = tools, state = state)
+  exhausted <- scan_tool_call("approved", list(), tool_policy = tools, state = state)
+
+  expect_equal(denied$action, "block")
+  expect_equal(exhausted$action, "block")
+  expect_true(any(vapply(
+    exhausted$findings,
+    function(x) identical(x$rule_id, "llm06.tool.call_limit"),
+    logical(1)
+  )))
+})
+
 test_that("context policy enforces provenance tenant ACL trust and freshness", {
   now <- as.POSIXct("2026-09-23 12:00:00", tz = "UTC")
   admission <- context_policy(
@@ -64,6 +107,20 @@ test_that("output contracts validate JSON and encode HTML", {
   expect_equal(validate_output_contract("{bad", output_contract("json"))$action, "block")
   html <- validate_output_contract("<script>x</script>", output_contract("html"))
   expect_equal(html$text_clean, "&lt;script&gt;x&lt;/script&gt;")
+})
+
+test_that("invalid output redaction is sink-safe and paths reject traversal", {
+  json <- validate_output_contract(
+    "{bad", output_contract("json", on_invalid = "redact")
+  )
+  expect_equal(json$action, "redact")
+  expect_equal(json$text_clean, "null")
+
+  root <- withr::local_tempdir()
+  contract <- output_contract("path", allowed_root = root)
+  expect_equal(validate_output_contract("safe/file.txt", contract)$action, "allow")
+  expect_equal(validate_output_contract("safe/../file.txt", contract)$action, "block")
+  expect_equal(validate_output_contract(normalizePath(root), contract)$action, "block")
 })
 
 test_that("output contracts enforce JSON Schema when requested", {
@@ -125,14 +182,52 @@ test_that("native recognizers and secret registry redact validated values", {
   expect_false(any(grepl("llm02.secret.high_entropy", vapply(placeholder$findings, `[[`, character(1), "rule_id"))))
 })
 
+test_that("secret registry recognizes AWS access and secret key formats", {
+  scanners <- scanner_options(secrets = secret_registry())
+  report <- scan_prompt(
+    paste(
+      "aws_access_key_id = AKIAABCDEFGHIJKLMNOP",
+      "aws_secret_access_key = abcdefghijklmnopqrstuvwxyz1234567890ABCD"
+    ),
+    scanners = scanners
+  )
+  ids <- vapply(report$findings, `[[`, character(1), "rule_id")
+
+  expect_true("llm02.secret.aws_access_key_id" %in% ids)
+  expect_true("llm02.secret.aws_secret_access_key" %in% ids)
+  expect_false(grepl("AKIAABCDEFGHIJKLMNOP", report$text_clean, fixed = TRUE))
+})
+
 test_that("URL policy rejects private, user-info, and redirect targets", {
   expect_equal(scan_url_target("https://example.com")$action, "allow")
   expect_equal(scan_url_target("http://2130706433/admin")$action, "block")
+  expect_equal(scan_url_target("http://0x7f000001/admin")$action, "block")
+  expect_equal(scan_url_target("http://0177.0.0.1/admin")$action, "block")
+  expect_equal(scan_url_target("http://[fc00::]/admin")$action, "block")
+  expect_equal(scan_url_target("http://[fe80::1]/admin")$action, "block")
+  expect_equal(scan_url_target("http://[::ffff:127.0.0.1]/admin")$action, "block")
+  expect_equal(scan_url_target("http://[64:ff9b::7f00:1]/admin")$action, "block")
+  expect_equal(scan_url_target("https://[2606:4700:4700::1111]/")$action, "allow")
   expect_equal(scan_url_target("https://user:pass@example.com")$action, "block")
   expect_equal(scan_url_target(
     "https://example.com", redirect_chain = "http://127.0.0.1/admin",
     policy = url_policy(allowed_schemes = c("http", "https"), max_redirects = 1)
   )$action, "block")
+})
+
+test_that("remote reviewers reject unsafe endpoints before use", {
+  skip_if_not_installed("httr2")
+  expect_error(remote_reviewer("http://127.0.0.1/review"), "rejected")
+  expect_no_error(remote_reviewer("https://policy.example.com/review"))
+
+  local_policy <- url_policy(
+    allowed_schemes = "http",
+    blocked_hosts = character(),
+    block_private = FALSE
+  )
+  expect_no_error(remote_reviewer(
+    "http://127.0.0.1/review", destination_policy = local_policy
+  ))
 })
 
 test_that("provider adapters record versions and fail closed", {
@@ -235,6 +330,14 @@ test_that("grounding flags fabricated citations", {
   report <- scan_grounding("Claim [source:made-up]", "doc-1")
   expect_equal(report$action, "block")
   expect_true(any(vapply(report$findings, function(x) x$rule_id == "llm07.grounding.fabricated_citation", logical(1))))
+})
+
+test_that("grounding redaction never releases unsupported text", {
+  grounding <- grounding_policy(unsupported_action = "redact")
+  report <- scan_grounding("Unsupported answer.", "doc-1", grounding)
+
+  expect_equal(report$action, "redact")
+  expect_equal(report$text_clean, "[REDACTED]")
 })
 
 test_that("audits carry decision metadata, keyed fingerprints, and telemetry", {

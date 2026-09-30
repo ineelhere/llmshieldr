@@ -381,9 +381,10 @@ contribution is capped at `0.3` per row before being added to normal rule
 findings; an explicit critical block action still blocks the row.
 
 When context is passed through `secure_chat()`, included rows are assembled
-with explicit `context row` labels, source labels when available, and separator
-lines. This keeps retrieved text visually distinct from the user prompt and
-preserves a row-level path back to audit data.
+with explicit `context row` labels, opaque source references when available,
+and separator lines. This keeps retrieved text visually distinct from the user
+prompt without interpolating unscanned source metadata, while preserving a
+row-level path back to audit data.
 
 ## Risk Summary
 

@@ -41,6 +41,9 @@ A \code{shieldr_output_contract} object.
 Contracts validate model output before an application treats it as JSON,
 HTML, Markdown, or a file path. They do not execute SQL, shell commands, or
 generated code. JSON Schema support is optional through \code{jsonvalidate}.
+Path contracts accept relative paths only, reject every parent (\code{..})
+component, and resolve existing ancestors to prevent symlink or junction
+escapes from \code{allowed_root}.
 }
 \examples{
 contract <- output_contract("json")

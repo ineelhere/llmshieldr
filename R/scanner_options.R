@@ -176,17 +176,24 @@ scanner_options <- function(invisible_text = TRUE,
 }
 
 .scan_invisible_text <- function(text) {
-  if (!stringi::stri_detect_regex(text, "\\p{Cf}")) {
-    return(list())
-  }
-  list(.scanner_finding(
-    rule_id = "llm01.scanner.invisible_text",
-    owasp = "llm01",
-    severity = "medium",
-    action = "redact",
-    description = "Text contains invisible Unicode format characters.",
-    match = NA_character_
-  ))
+  hits <- gregexpr("\\p{Cf}+", text, perl = TRUE)[[1L]]
+  if (length(hits) == 0L || identical(hits[[1L]], -1L)) return(list())
+  lengths <- attr(hits, "match.length")
+  lapply(seq_along(hits), function(i) {
+    start <- as.integer(hits[[i]])
+    end <- start + as.integer(lengths[[i]]) - 1L
+    finding <- .scanner_finding(
+      rule_id = "llm01.scanner.invisible_text",
+      owasp = "llm01",
+      severity = "medium",
+      action = "redact",
+      description = "Text contains invisible Unicode format characters.",
+      match = substr(text, start, end)
+    )
+    finding$start <- start
+    finding$end <- end
+    finding
+  })
 }
 
 .scan_encoded_payloads <- function(text, policy) {
@@ -234,7 +241,10 @@ scanner_options <- function(invisible_text = TRUE,
     for (i in seq_along(base64_hits)) {
       raw_value <- substr(text, base64_hits[[i]], base64_hits[[i]] + lengths[[i]] - 1L)
       decoded <- tryCatch(
-        rawToChar(jsonlite::base64_dec(raw_value)),
+        {
+          value <- rawToChar(jsonlite::base64_dec(raw_value))
+          if (!isTRUE(stringi::stri_enc_isutf8(value))) "" else value
+        },
         error = function(e) ""
       )
       candidates <- c(candidates, decoded)

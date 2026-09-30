@@ -221,23 +221,106 @@ scan_url_target <- function(url,
   if (host %in% c("localhost", "localhost.localdomain", "::", "::1") || endsWith(host, ".localhost")) {
     return(TRUE)
   }
-  if (grepl("^(fc|fd|fe8|fe9|fea|feb)", host) && grepl(":", host, fixed = TRUE)) return(TRUE)
-  if (grepl("^::ffff:", host)) return(.is_private_target(sub("^::ffff:", "", host)))
-  if (grepl("^0x[0-9a-f]+$", host)) {
-    value <- suppressWarnings(strtoi(sub("^0x", "", host), base = 16L))
-    if (!is.na(value)) host <- paste((value %/% c(16777216, 65536, 256, 1)) %% 256, collapse = ".")
-  } else if (grepl("^[0-9]+$", host)) {
-    value <- suppressWarnings(as.numeric(host))
-    if (is.finite(value) && value >= 0 && value <= 4294967295) {
-      host <- paste(floor(value / c(16777216, 65536, 256, 1)) %% 256, collapse = ".")
-    }
+  ipv4 <- .parse_ipv4_target(host)
+  if (!is.null(ipv4)) return(.is_private_ipv4(ipv4))
+
+  ipv6 <- .parse_ipv6_target(host)
+  if (is.null(ipv6)) return(FALSE)
+  if (all(ipv6 == 0) || identical(ipv6, c(rep(0, 7L), 1))) return(TRUE)
+  if (ipv6[[1L]] >= 0xfc00 && ipv6[[1L]] <= 0xfdff) return(TRUE)
+  if (ipv6[[1L]] >= 0xfe80 && ipv6[[1L]] <= 0xfebf) return(TRUE)
+  if (ipv6[[1L]] >= 0xff00) return(TRUE)
+
+  embedded <- c(
+    floor(ipv6[[7L]] / 256), ipv6[[7L]] %% 256,
+    floor(ipv6[[8L]] / 256), ipv6[[8L]] %% 256
+  )
+  ipv4_mapped <- all(ipv6[1:5] == 0) && ipv6[[6L]] == 0xffff
+  ipv4_compatible <- all(ipv6[1:6] == 0)
+  nat64_wkp <- identical(ipv6[1:6], c(0x64, 0xff9b, 0, 0, 0, 0))
+  nat64_local <- identical(ipv6[1:3], c(0x64, 0xff9b, 1))
+  if (ipv4_mapped || ipv4_compatible || nat64_wkp || nat64_local) {
+    return(.is_private_ipv4(embedded))
   }
-  if (!grepl("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", host)) return(FALSE)
-  octets <- suppressWarnings(as.integer(strsplit(host, ".", fixed = TRUE)[[1L]]))
-  if (anyNA(octets) || any(octets > 255L)) return(TRUE)
+  FALSE
+}
+
+.is_private_ipv4 <- function(octets) {
   octets[[1L]] == 10L || octets[[1L]] == 127L || octets[[1L]] == 0L ||
     (octets[[1L]] == 169L && octets[[2L]] == 254L) ||
     (octets[[1L]] == 172L && octets[[2L]] >= 16L && octets[[2L]] <= 31L) ||
     (octets[[1L]] == 192L && octets[[2L]] == 168L) ||
     (octets[[1L]] == 100L && octets[[2L]] >= 64L && octets[[2L]] <= 127L)
+}
+
+.parse_ipv4_target <- function(host) {
+  parts <- strsplit(host, ".", fixed = TRUE)[[1L]]
+  if (length(parts) < 1L || length(parts) > 4L || any(!nzchar(parts))) return(NULL)
+  values <- vapply(parts, .parse_ipv4_component, numeric(1))
+  if (any(!is.finite(values))) return(NULL)
+
+  value <- switch(
+    as.character(length(values)),
+    "1" = if (values[[1L]] <= 4294967295) values[[1L]] else NA_real_,
+    "2" = if (values[[1L]] <= 255 && values[[2L]] <= 16777215) values[[1L]] * 16777216 + values[[2L]] else NA_real_,
+    "3" = if (all(values[1:2] <= 255) && values[[3L]] <= 65535) values[[1L]] * 16777216 + values[[2L]] * 65536 + values[[3L]] else NA_real_,
+    "4" = if (all(values <= 255)) sum(values * c(16777216, 65536, 256, 1)) else NA_real_
+  )
+  if (!is.finite(value)) return(NULL)
+  floor(value / c(16777216, 65536, 256, 1)) %% 256
+}
+
+.parse_ipv4_component <- function(value) {
+  if (grepl("^0[xX][0-9A-Fa-f]+$", value)) {
+    digits <- strsplit(tolower(sub("^0[xX]", "", value)), "", fixed = TRUE)[[1L]]
+    numbers <- match(digits, c(as.character(0:9), letters[1:6])) - 1L
+    return(Reduce(function(total, digit) total * 16 + digit, numbers, init = 0))
+  }
+  if (grepl("^0[0-7]+$", value) && nchar(value) > 1L) {
+    digits <- as.numeric(strsplit(value, "", fixed = TRUE)[[1L]])
+    return(Reduce(function(total, digit) total * 8 + digit, digits, init = 0))
+  }
+  if (grepl("^[0-9]+$", value)) return(suppressWarnings(as.numeric(value)))
+  NA_real_
+}
+
+.parse_ipv6_target <- function(host) {
+  host <- sub("%.*$", "", host)
+  compression_hits <- gregexpr("::", host, fixed = TRUE)[[1L]]
+  compression_count <- if (identical(compression_hits[[1L]], -1L)) 0L else length(compression_hits)
+  if (!grepl(":", host, fixed = TRUE) || compression_count > 1L) {
+    return(NULL)
+  }
+  if (compression_count == 1L) {
+    separator <- compression_hits[[1L]]
+    left_text <- if (separator > 1L) substr(host, 1L, separator - 1L) else ""
+    right_start <- separator + 2L
+    right_text <- if (right_start <= nchar(host)) substr(host, right_start, nchar(host)) else ""
+    left <- if (nzchar(left_text)) strsplit(left_text, ":", fixed = TRUE)[[1L]] else character()
+    right <- if (nzchar(right_text)) strsplit(right_text, ":", fixed = TRUE)[[1L]] else character()
+  } else {
+    left <- strsplit(host, ":", fixed = TRUE)[[1L]]
+    right <- character()
+  }
+
+  expand_ipv4 <- function(parts) {
+    if (length(parts) == 0L || !grepl("\\.", utils::tail(parts, 1L))) return(parts)
+    ipv4 <- .parse_ipv4_target(utils::tail(parts, 1L))
+    if (is.null(ipv4)) return(NULL)
+    c(utils::head(parts, -1L), sprintf("%x", c(ipv4[[1L]] * 256 + ipv4[[2L]], ipv4[[3L]] * 256 + ipv4[[4L]])))
+  }
+  left <- expand_ipv4(left)
+  right <- expand_ipv4(right)
+  if (is.null(left) || is.null(right)) return(NULL)
+  all_parts <- c(left, right)
+  if (any(!grepl("^[0-9a-f]{1,4}$", all_parts))) return(NULL)
+  if (compression_count == 0L) {
+    if (length(all_parts) != 8L) return(NULL)
+    expanded <- all_parts
+  } else {
+    missing <- 8L - length(all_parts)
+    if (missing < 1L) return(NULL)
+    expanded <- c(left, rep("0", missing), right)
+  }
+  as.numeric(vapply(expanded, function(part) strtoi(part, base = 16L), integer(1)))
 }

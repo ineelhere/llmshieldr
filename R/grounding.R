@@ -97,9 +97,10 @@ scan_grounding <- function(text,
   }
   risk <- .score_findings(findings)
   policy_obj <- shieldr_policy("grounding", list(), list(redact_at = 0.3, block_at = 0.7))
+  action <- .resolve_action(risk, findings, policy_obj)
   shieldr_report(
-    action = .resolve_action(risk, findings, policy_obj),
-    text_clean = text,
+    action = action,
+    text_clean = if (identical(action, "redact")) "[REDACTED]" else text,
     findings = findings,
     risk_score = risk,
     policy = "grounding",
@@ -134,6 +135,7 @@ scan_grounding <- function(text,
   policy_obj <- .as_policy(policy)
   if (identical(primary$metadata$stage, "output")) policy_obj <- .output_policy(policy_obj)
   primary$action <- .resolve_action(primary$risk_score, findings, policy_obj)
+  if (identical(extra$action, "redact")) primary$text_clean <- extra$text_clean
   primary$metadata$grounding <- extra$metadata
   primary
 }

@@ -19,7 +19,9 @@
 #' JSON extraction logic.
 #'
 #' This helper requires the optional `httr2` package and performs no network
-#' calls until the reviewer function is invoked.
+#' calls until the reviewer function is invoked. `destination_policy` performs
+#' a URL preflight without DNS lookup; deployments should still enforce egress
+#' policy and validate connection-time DNS and redirect evidence.
 #'
 #' @param url Endpoint URL.
 #' @param headers Named character vector or list of HTTP headers.
@@ -27,6 +29,8 @@
 #' @param response_path Optional character vector path to extract from a JSON
 #'   response, such as `c("data", "findings")`.
 #' @param timeout Request timeout in seconds.
+#' @param destination_policy URL policy applied to the endpoint before the
+#'   reviewer function is created. The default permits public HTTPS endpoints.
 #' @param show_stats Show per-request time, token estimate, network status,
 #'   and HTTP body transfer rates as messages.
 #'
@@ -47,10 +51,16 @@ remote_reviewer <- function(url,
                             body_field = "prompt",
                             response_path = NULL,
                             timeout = 30,
+                            destination_policy = url_policy(),
                             show_stats = FALSE) {
   .validate_flag(show_stats, "show_stats")
   .check_httr2()
   .check_string(url, "url")
+  .validate_url_policy(destination_policy)
+  endpoint_report <- scan_url_target(url, policy = destination_policy)
+  if (!identical(endpoint_report$action, "allow")) {
+    cli::cli_abort("Remote reviewer endpoint was rejected by {.fn url_policy}.")
+  }
   .check_string(body_field, "body_field")
   .validate_nullable_limit(timeout, "timeout", allow_null = FALSE)
   if (!is.null(response_path) && !is.character(response_path)) {
