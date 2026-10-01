@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE, eval = TRUE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -56,25 +56,6 @@ if (!nzchar(.llmshieldr_ollama_model) && .llmshieldr_has_ollama) {
 if (!nzchar(.llmshieldr_ollama_model)) {
   .llmshieldr_ollama_model <- NULL
 }
-
-.llmshieldr_run_example <- function(provider, code) {
-  old_options <- options(
-    cli.progress_show_after = Inf,
-    cli.unicode = FALSE
-  )
-  on.exit(options(old_options), add = TRUE)
-
-  tryCatch(
-    force(code),
-    error = function(error) {
-      first_line <- trimws(
-        strsplit(conditionMessage(error), "\n", fixed = TRUE)[[1]][[1]]
-      )
-      message(provider, " example was skipped: ", first_line)
-      invisible(NULL)
-    }
-  )
-}
 ```
 
 `secure_chat()` is the common path for Gemini, Ollama, and other providers
@@ -119,15 +100,21 @@ R after saving it, and never commit the file or print the key.
 The following chunk runs locally only when `ellmer` and a key are available:
 
 ```{r gemini-example, eval = .llmshieldr_has_gemini}
-gemini_result <- .llmshieldr_run_example(
-  "Gemini",
+gemini_result <- tryCatch(
   secure_chat(
     prompt = "Explain in one sentence why LLM output should be checked.",
     provider = "gemini",
     model = "gemini-3.8-flash",
     checks = "rules",
     show_stats = TRUE
-  )
+  ),
+  error = function(error) {
+    message(
+      "Gemini example was skipped: ",
+      trimws(strsplit(conditionMessage(error), "\n", fixed = TRUE)[[1]][[1]])
+    )
+    NULL
+  }
 )
 
 if (!is.null(gemini_result)) {
@@ -147,13 +134,13 @@ Start Ollama and pull a model outside R. For example:
 
 ```text
 ollama serve
-ollama pull llama3.2
+ollama pull gemma3:1b
 ```
 
 Choose the model in `~/.Renviron`:
 
 ```text
-llmshieldr_ollama_model=llama3.2
+llmshieldr_ollama_model=gemma3:1b
 ```
 
 Restart R after changing the file. When this variable is absent, the vignette
@@ -162,15 +149,21 @@ uses the first model returned by `ellmer::models_ollama()`.
 The following chunk runs locally only when Ollama is reachable and has a model:
 
 ```{r ollama-example, eval = .llmshieldr_has_ollama}
-ollama_result <- .llmshieldr_run_example(
-  "Ollama",
+ollama_result <- tryCatch(
   secure_chat(
     prompt = "Explain in one sentence why LLM output should be checked.",
     provider = "ollama",
     model = .llmshieldr_ollama_model,
     checks = "rules",
     show_stats = TRUE
-  )
+  ),
+  error = function(error) {
+    message(
+      "Ollama example was skipped: ",
+      trimws(strsplit(conditionMessage(error), "\n", fixed = TRUE)[[1]][[1]])
+    )
+    NULL
+  }
 )
 
 if (!is.null(ollama_result)) {

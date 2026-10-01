@@ -34,23 +34,11 @@ boundary.
 decision includes the action, cleaned text, findings, risk score, and
 metadata - useful for debugging, policy reviews, and audits.
 
-``` mermaid
-flowchart LR
-    U[User prompt] --> P{Prompt scan}
-    K[(Retrieved context)] --> C{Provenance + context scan}
-    P -->|allow / redact| M[LLM]
-    C -->|admitted rows| M
-    M --> T{Tool policy}
-    T -->|approved| X[Tool]
-    X --> O{Tool-output scan}
-    O --> M
-    M --> R{Output + grounding + contract}
-    R -->|safe release| A[Application]
-    P -->|block| S[Stop]
-    C -->|deny row| S
-    T -->|deny| S
-    R -->|block| S
-```
+<div align="center">
+  <img src="man/figures/security-workflow.svg"
+       alt="Guarded request workflow: prompts and context are scanned before the LLM; tool calls and outputs are checked; responses are verified before release; blocked paths stop."
+       width="100%" />
+</div>
 
 ## Install
 
@@ -88,13 +76,13 @@ Gemini model. Install the optional client first with
 `install.packages("ellmer")`.
 
 For Ollama, start the local service and pull a model (for example,
-`ollama pull llama3.2`), then run:
+`ollama pull gemma3:1b`), then run:
 
 ``` r
 ollama_result <- secure_chat(
   "Explain in one sentence why LLM output should be checked.",
   provider = "ollama",
-  model = "llama3.2",
+  model = "gemma3:1b",
   policy = "enterprise_default",
   checks = "rules"
 )
