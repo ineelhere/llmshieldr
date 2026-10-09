@@ -465,15 +465,16 @@ remove_rule <- function(policy, id, show_stats = FALSE) {
 #'
 #' @details
 #' The `has_pattern` and `has_fn` columns identify whether each rule is regex
-#' based or function based. Regex rules can produce redaction spans directly.
-#' Function rules may produce findings without spans unless the function
-#' returns span metadata.
+#' based or function based. `redaction_span_guaranteed` is `TRUE` for
+#' non-redaction rules and regex redaction rules. It is `FALSE` for function
+#' redaction rules because their output cannot be proven to contain spans by
+#' inspecting the rule object; runtime scanning still validates actual spans.
 #'
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
 #' @param show_stats Show listing time and available usage metrics.
 #'
 #' @return A data frame with columns `id`, `owasp`, `severity`, `action`,
-#'   `has_pattern`, and `has_fn`.
+#'   `has_pattern`, `has_fn`, and `redaction_span_guaranteed`.
 #' @examples
 #' list_rules(policy("custom"))
 #' @export
@@ -488,6 +489,11 @@ list_rules <- function(policy, show_stats = FALSE) {
     action = vapply(policy$rules, `[[`, character(1), "action"),
     has_pattern = vapply(policy$rules, function(rule) !is.null(rule$pattern), logical(1)),
     has_fn = vapply(policy$rules, function(rule) !is.null(rule$fn), logical(1)),
+    redaction_span_guaranteed = vapply(
+      policy$rules,
+      function(rule) !identical(rule$action, "redact") || !is.null(rule$pattern),
+      logical(1)
+    ),
     stringsAsFactors = FALSE
   )
 }

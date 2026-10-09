@@ -35,18 +35,19 @@ decision includes the action, cleaned text, findings, risk score, and
 metadata - useful for debugging, policy reviews, and audits.
 
 <div align="center">
-  <img src="man/figures/security-workflow.svg"
+
+<img src="man/figures/security-workflow.svg"
        alt="Guarded request workflow: prompts and context are scanned before the LLM; tool calls and outputs are checked; responses are verified before release; blocked paths stop."
        width="100%" />
+
 </div>
 
 ## Install
 
 ``` r
-# install from CRAN (stable version)
 install.packages("llmshieldr")
 
-# install from GitHub (development version)
+# Development version
 remotes::install_github("ineelhere/llmshieldr")
 ```
 
@@ -145,16 +146,16 @@ security audit or production assurance. See the [research and
 implementation
 review](docs/research/guardrails-research-2026-09-20.html).
 
-| Boundary                 | What the package enforces                                                                       | What your application or deployment still owns                                    |
-|:-------------------------|:------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------|
-| Prompt and reviewer      | Deterministic, NLP, or semantic checks; explicit reviewer failure policy                        | Domain calibration and confirming that the selected client interrupts timeouts    |
-| Retrieved context        | Provenance, tenant/ACL, trust, freshness, and admission before prompt assembly                  | Tenant/ACL filters inside the retrieval query and upstream source integrity       |
-| Tools                    | Default-deny names, argument schemas, subject authorization, spend/call limits, result scanning | Real dispatcher permissions and live tests for every provider/tool loop           |
-| Streaming                | Buffer first; emit only the final allowed or redacted text                                      | Provider cancellation and any safely bounded incremental-release UX               |
-| Output and URLs          | Output contracts, HTML encoding, URL/host/IP/redirect policy                                    | Sink-specific SQL/shell/code controls and connection-time DNS evidence            |
-| PII and secrets          | Native recognizers, secret registry, and optional Presidio/Gitleaks adapters                    | Per-language/domain evaluation and supported external-version matrices            |
-| Resources and operations | Rate limits, metadata-only audits, metrics, and content-free telemetry                          | Shared-backend load tests, log access/retention, exporter setup, and key rotation |
-| Documents and grounding  | Explicit extraction provenance, hidden-text status, and citation/source-ID checks               | PDF/OCR/image extractors and evaluation of optional semantic validators           |
+| Boundary                 | What the package enforces                                                                                       | What your application or deployment still owns                                                                      |
+|:-------------------------|:----------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------|
+| Prompt and reviewer      | Deterministic, NLP, classifier-provider, or semantic checks; explicit failure policy                            | Domain calibration, long-input classifier chunking, and confirming that selected clients interrupt timeouts         |
+| Retrieved context        | Provenance, tenant/ACL, trust, freshness, and admission before prompt assembly                                  | Tenant/ACL filters inside the retrieval query and upstream source integrity                                         |
+| Tools                    | Default-deny names, argument schemas, subject authorization, approval hooks, spend/call limits, result scanning | Real dispatcher permissions, approver authentication/replay prevention, and live tests for every provider/tool loop |
+| Streaming                | Buffer first; emit only the final allowed or redacted text                                                      | Provider cancellation and any safely bounded incremental-release UX                                                 |
+| Output and URLs          | Output contracts, HTML encoding, URL/host/IP/redirect policy                                                    | Sink-specific SQL/shell/code controls and connection-time DNS evidence                                              |
+| PII and secrets          | Native recognizers, secret registry, and optional Presidio/Gitleaks adapters                                    | Per-language/domain evaluation and supported external-version matrices                                              |
+| Resources and operations | Rate limits, metadata-only audits, metrics, and content-free telemetry                                          | Shared-backend load tests, log access/retention, exporter setup, and key rotation                                   |
+| Documents and grounding  | Explicit extraction provenance, hidden-text status, and citation/source-ID checks                               | PDF/OCR/image extractors and evaluation of optional semantic validators                                             |
 
 ## Function map
 
@@ -164,7 +165,7 @@ the full reference.
 
 <details>
 <summary>
-<strong>Open the complete function map (all 72 exports)</strong>
+<strong>Open the complete function map (all 73 exports)</strong>
 </summary>
 
 <br>
@@ -216,50 +217,51 @@ the full reference.
 
 ### Rules, recognizers, and reviewers
 
-| Function                    | Purpose                                                   | Main input                                                | Output               |
-|:----------------------------|:----------------------------------------------------------|:----------------------------------------------------------|:---------------------|
-| `rule_injection_basic()`    | Detect direct prompt-injection phrases                    | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_injection_indirect()` | Detect instructions embedded in untrusted context/output  | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_nlp_intent()`         | Flag suspicious instruction intent                        | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_pii_email()`          | Detect email addresses                                    | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_pii_phone()`          | Detect phone numbers                                      | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_pii_ssn()`            | Detect US Social Security numbers                         | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_secrets_api_key()`    | Detect generic API-key assignments                        | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_secrets_bearer()`     | Detect bearer tokens                                      | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_secrets_aws()`        | Detect AWS access-key patterns                            | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_secrets_password()`   | Detect password assignments                               | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_phi_condition()`      | Detect health-condition language                          | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_agency_language()`    | Detect claims of autonomous real-world action             | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_system_prompt_leak()` | Detect likely system-prompt disclosure                    | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_diagnosis_claim()`    | Detect unqualified diagnosis claims                       | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `rule_financial_advice()`   | Detect directive financial advice                         | No input beyond `show_stats`                              | `shieldr_rule`       |
-| `entity_recognizer()`       | Adapt a custom span recognizer                            | Function returning start/end offsets plus entity metadata | `shieldr_recognizer` |
-| `native_recognizers()`      | Supply local Luhn card, IBAN, and IPv4 recognizers        | Optional recognizer names                                 | List of recognizers  |
-| `guardrail_provider()`      | Adapt any external/local detector to the scanner contract | Provider ID and scan function                             | `shieldr_provider`   |
-| `presidio_provider()`       | Use a caller-managed Presidio Analyzer service            | Endpoint and entity/score settings                        | `shieldr_provider`   |
-| `gitleaks_provider()`       | Scan secrets with a local Gitleaks executable             | Command/config and failure behavior                       | `shieldr_provider`   |
-| `opa_provider()`            | Ask an OPA Data API for a policy decision                 | Endpoint and input builder                                | `shieldr_provider`   |
-| `remote_reviewer()`         | Use an HTTP endpoint for semantic review                  | URL, headers, request/response mapping                    | Reviewer function    |
-| `ollama_reviewer()`         | Use a local Ollama model for semantic review              | Optional local model and provider args                    | `ellmer` chat object |
-| `reviewer_prompt()`         | Inspect the package's default semantic-review instruction | No input beyond `show_stats`                              | Single prompt string |
+| Function                    | Purpose                                                            | Main input                                                | Output               |
+|:----------------------------|:-------------------------------------------------------------------|:----------------------------------------------------------|:---------------------|
+| `rule_injection_basic()`    | Detect direct prompt-injection phrases                             | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_injection_indirect()` | Detect instructions embedded in untrusted context/output           | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_nlp_intent()`         | Flag suspicious instruction intent                                 | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_pii_email()`          | Detect email addresses                                             | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_pii_phone()`          | Detect phone numbers                                               | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_pii_ssn()`            | Detect US Social Security numbers                                  | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_secrets_api_key()`    | Detect generic API-key assignments                                 | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_secrets_bearer()`     | Detect bearer tokens                                               | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_secrets_aws()`        | Detect AWS access-key patterns                                     | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_secrets_password()`   | Detect password assignments                                        | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_phi_condition()`      | Detect health-condition language                                   | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_agency_language()`    | Detect claims of autonomous real-world action                      | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_system_prompt_leak()` | Detect likely system-prompt disclosure                             | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_diagnosis_claim()`    | Detect unqualified diagnosis claims                                | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `rule_financial_advice()`   | Detect directive financial advice                                  | No input beyond `show_stats`                              | `shieldr_rule`       |
+| `entity_recognizer()`       | Adapt a custom span recognizer                                     | Function returning start/end offsets plus entity metadata | `shieldr_recognizer` |
+| `native_recognizers()`      | Supply local Luhn card, IBAN, and IPv4 recognizers                 | Optional recognizer names                                 | List of recognizers  |
+| `guardrail_provider()`      | Adapt any external/local detector to the scanner contract          | Provider ID and scan function                             | `shieldr_provider`   |
+| `prompt_guard_provider()`   | Adapt a binary prompt-injection classifier with fail-closed errors | Classifier function, model version, labels, and threshold | `shieldr_provider`   |
+| `presidio_provider()`       | Use a caller-managed Presidio Analyzer service                     | Endpoint and entity/score settings                        | `shieldr_provider`   |
+| `gitleaks_provider()`       | Scan secrets with a local Gitleaks executable                      | Command/config and failure behavior                       | `shieldr_provider`   |
+| `opa_provider()`            | Ask an OPA Data API for a policy decision                          | Endpoint and input builder                                | `shieldr_provider`   |
+| `remote_reviewer()`         | Use an HTTP endpoint for semantic review                           | URL, headers, request/response mapping                    | Reviewer function    |
+| `ollama_reviewer()`         | Use a local Ollama model for semantic review                       | Optional local model and provider args                    | `ellmer` chat object |
+| `reviewer_prompt()`         | Inspect the package's default semantic-review instruction          | No input beyond `show_stats`                              | Single prompt string |
 
 ### Results, audit, and evaluation
 
-| Function                          | Purpose                                                                         | Main input                                                            | Output                      |
-|:----------------------------------|:--------------------------------------------------------------------------------|:----------------------------------------------------------------------|:----------------------------|
-| `shieldr_report()`                | Construct a scanner result                                                      | Action, cleaned text, findings, risk, metadata                        | `shieldr_report`            |
-| `shieldr_audit()`                 | Construct a guarded-run audit                                                   | Input/output/context/tool reports and run metadata                    | `shieldr_audit`             |
-| `shieldr_result()`                | Construct the high-level guarded-chat result                                    | Output, audit, risk summary, final action                             | `shieldr_result`            |
-| `explain_findings()`              | Present findings as console text, Markdown, or HTML                             | Report/findings plus format                                           | Formatted character vector  |
-| `telemetry_options()`             | Export content-free decision metadata                                           | Exporter callback and service attributes                              | `shieldr_telemetry`         |
-| `write_audit_log()`               | Persist an audit as JSONL, CSV, or RDS                                          | Audit, path, format, explicit content opt-in                          | Path, invisibly             |
-| `evaluate_security_cases()`       | Run labeled prompt/context/output regression cases                              | Data frame with `stage`, `text`, `expected_action`, or bundled corpus | Per-case results data frame |
-| `summarize_security_evaluation()` | Calculate accuracy, sensitivity, false positives, confidence intervals, latency | Evaluation results data frame                                         | One-row metrics data frame  |
-| `compare_policies()`              | Diff two policies on the same corpus                                            | Cases plus baseline/candidate policies                                | Comparison data frame       |
-| `example_prompts()`               | Load small examples for demos/tests                                             | No input beyond `show_stats`                                          | Example data frame          |
-| `owasp_crosswalk()`               | Inspect OWASP LLM Top 10:2026 mappings and predecessor labels                   | No input beyond `show_stats`                                          | Crosswalk data frame        |
-| `shield_gemini()`                 | Deprecated Gemini wrapper; use `secure_chat()`                                  | Prompt/model/check settings                                           | `shieldr_result`            |
-| `shield_ollama()`                 | Deprecated Ollama wrapper; use `secure_chat()`                                  | Prompt/model/check settings                                           | `shieldr_result`            |
+| Function                          | Purpose                                                                         | Main input                                                            | Output                                |
+|:----------------------------------|:--------------------------------------------------------------------------------|:----------------------------------------------------------------------|:--------------------------------------|
+| `shieldr_report()`                | Construct a scanner result                                                      | Action, cleaned text, findings, risk, metadata                        | `shieldr_report`                      |
+| `shieldr_audit()`                 | Construct a guarded-run audit                                                   | Input/output/context/tool reports and run metadata                    | `shieldr_audit`                       |
+| `shieldr_result()`                | Construct the high-level guarded-chat result                                    | Output, audit, risk summary, final action                             | `shieldr_result`                      |
+| `explain_findings()`              | Present findings as console text, Markdown, or HTML                             | Report/findings plus format                                           | Formatted character vector            |
+| `telemetry_options()`             | Export content-free decision metadata                                           | Exporter callback and service attributes                              | `shieldr_telemetry`                   |
+| `write_audit_log()`               | Persist an audit as JSONL, CSV, or RDS                                          | Audit, path, format, explicit content opt-in                          | Path, invisibly                       |
+| `evaluate_security_cases()`       | Run labeled prompt/context/output regression cases                              | Data frame with `stage`, `text`, `expected_action`, or bundled corpus | Per-case results data frame           |
+| `summarize_security_evaluation()` | Calculate accuracy, sensitivity, false positives, confidence intervals, latency | Evaluation results data frame                                         | Overall or grouped metrics data frame |
+| `compare_policies()`              | Diff two policies on the same corpus                                            | Cases plus baseline/candidate policies                                | Comparison data frame                 |
+| `example_prompts()`               | Load small examples for demos/tests                                             | No input beyond `show_stats`                                          | Example data frame                    |
+| `owasp_crosswalk()`               | Inspect OWASP LLM Top 10:2026 mappings and predecessor labels                   | No input beyond `show_stats`                                          | Crosswalk data frame                  |
+| `shield_gemini()`                 | Deprecated Gemini wrapper; use `secure_chat()`                                  | Prompt/model/check settings                                           | `shieldr_result`                      |
+| `shield_ollama()`                 | Deprecated Ollama wrapper; use `secure_chat()`                                  | Prompt/model/check settings                                           | `shieldr_result`                      |
 
 </details>
 
@@ -272,8 +274,50 @@ the full reference.
 | `"llm"`   | A separately configured semantic reviewer | Context-sensitive review               |
 | `"both"`  | Rules plus semantic review                | Higher-risk workflows after evaluation |
 
+The deterministic and lightweight NLP paths catch common, comparatively
+unsophisticated attacks. They are not exhaustive detectors: paraphrases,
+untested languages, novel encodings, and adaptive attacks can bypass
+them. Use `prompt_guard_provider()` for a caller-managed classifier such
+as Llama Prompt Guard 2, or configure a semantic reviewer, then measure
+the complete stack on representative traffic. The classifier recipe and
+its long-input limitations are documented in
+`vignette("policy-design")`.
+
 Measure every configuration on your own benign and adversarial traffic.
 OWASP mappings are review evidence, not a compliance claim.
+
+## Measured baseline
+
+The table below reports the development source as measured on 2 October
+2026 with `policy = "comprehensive"`, `checks = "rules"`, default
+scanners, R 4.5.2, and no classifier or semantic reviewer. Recall treats
+`redact` or `block` as a detected risk; exact action accuracy also
+requires the expected action to match. Intervals are Wilson 95%
+confidence intervals.
+
+| Corpus                                 | Category         |   n |    Detection recall | Benign false-positive rate | Exact action accuracy |
+|:---------------------------------------|:-----------------|----:|--------------------:|---------------------------:|----------------------:|
+| Bundled starter corpus                 | malicious        |  11 |     100% (74.1-100) |                         \- |                  100% |
+| Bundled starter corpus                 | sensitive        |   5 |     100% (56.6-100) |                         \- |                   80% |
+| Bundled starter corpus                 | benign           |   7 |                  \- |                0% (0-35.4) |                  100% |
+| `deepset/prompt-injections` test split | prompt injection |  60 | **6.7% (2.6-15.9)** |                         \- |                  6.7% |
+| `deepset/prompt-injections` test split | benign           |  56 |                  \- |                 0% (0-6.4) |                  100% |
+
+The public deepset result is deliberately prominent: rules-only overall
+exact action accuracy was 51.7% (42.7-60.6), showing that the
+deterministic defaults miss most varied injections even though they pass
+the tiny packaged corpus. This is evidence against treating the built-in
+rules as production-grade injection detection.
+
+Reproduce the public run with
+`inst/scripts/benchmark-public-injection.R`; it downloads the Apache-2.0
+[`deepset/prompt-injections` held-out
+split](https://huggingface.co/datasets/deepset/prompt-injections/tree/4928447/data).
+For a caller-obtained PINT-format CSV, use
+`inst/scripts/benchmark-pint-export.R`. The package does not bundle or
+claim a score on the full PINT corpus. Use
+`summarize_security_evaluation(..., by = "category")` to publish
+per-category results for either corpus.
 
 ## Go deeper
 
@@ -288,8 +332,10 @@ OWASP mappings are review evidence, not a compliance claim.
 | `vignette("providers-gemini-ollama")` | Gemini credentials and local Ollama setup         |
 | `vignette("faq")`                     | Operations and troubleshooting                    |
 
-See [`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md) for the full development
-workflow, style expectations, and local check commands.
+See
+[`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md)
+for the full development workflow, style expectations, and local check
+commands.
 
 ------------------------------------------------------------------------
 

@@ -7,6 +7,7 @@
 summarize_security_evaluation(
   results,
   positive_actions = c("redact", "block"),
+  by = NULL,
   show_stats = FALSE
 )
 }
@@ -15,10 +16,15 @@ summarize_security_evaluation(
 
 \item{positive_actions}{Actions counted as a detected risk.}
 
+\item{by}{Optional result columns used to group metrics, such as
+\code{"category"}, \code{"stage"}, or \code{c("stage", "category")}. \code{NULL} returns the
+original one-row overall summary.}
+
 \item{show_stats}{Show calculation time and available usage metrics.}
 }
 \value{
-A one-row data frame of metrics.
+A data frame of metrics with one overall row, or one row per group
+when \code{by} is supplied.
 }
 \description{
 Calculates detection sensitivity, benign false-positive rate, action

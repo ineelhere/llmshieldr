@@ -48,6 +48,7 @@ Suggests:
     rmarkdown,
     withr,
     dplyr,
+    reticulate,
     tokenizers,
     SnowballC
 Roxygen: list(markdown = TRUE)

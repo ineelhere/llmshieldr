@@ -14,6 +14,8 @@ tool_policy(
   max_side_effects = 0L,
   spend_limits = numeric(),
   spend_argument = "amount",
+  approval_required = character(),
+  approve = NULL,
   show_stats = FALSE
 )
 }
@@ -39,6 +41,11 @@ functions. Supported schema fields are \code{required}, \code{properties}, and
 
 \item{spend_argument}{Name of the numeric argument carrying spend.}
 
+\item{approval_required}{Tools that require an explicit approval decision.}
+
+\item{approve}{Optional approval function receiving \verb{(subject, tool_name, arguments)}. The application is responsible for authenticating the human
+approver and preventing approval replay.}
+
 \item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
@@ -48,7 +55,9 @@ A \code{shieldr_tool_policy} object.
 Tool policy combines a default-deny allowlist with per-tool argument schemas,
 subject authorization, custom validators, and call, side-effect, and spend
 limits. Custom validators receive \verb{(arguments, subject, tool_name)} and must
-return \code{TRUE}, \code{FALSE}, a message, or \code{list(valid, message)}.
+return \code{TRUE}, \code{FALSE}, a message, or \code{list(valid, message)}. Tools listed in
+\code{approval_required} are dispatched only when the \code{approve} hook explicitly
+returns \code{TRUE} or \code{list(approved = TRUE, id = ...)}.
 }
 \examples{
 tools <- tool_policy(

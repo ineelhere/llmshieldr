@@ -55,8 +55,9 @@ A \code{shieldr_report}.
 \description{
 \code{scan_tool_call()} validates tool-call intent and arguments before an
 application executes the tool. It serializes the tool name and arguments,
-scans that text with \code{\link[=scan_prompt]{scan_prompt()}}, and adds an explicit finding when the
-tool is outside an allowlist. The default empty allowlist denies every tool.
+scans that text with \code{\link[=scan_prompt]{scan_prompt()}}, and applies the configured allowlist,
+schema, authorization, validator, budget, and approval policy. The default
+empty allowlist denies every tool.
 }
 \details{
 This helper does not execute tools. It is designed to sit immediately before

@@ -3,7 +3,9 @@
 #' Tool policy combines a default-deny allowlist with per-tool argument schemas,
 #' subject authorization, custom validators, and call, side-effect, and spend
 #' limits. Custom validators receive `(arguments, subject, tool_name)` and must
-#' return `TRUE`, `FALSE`, a message, or `list(valid, message)`.
+#' return `TRUE`, `FALSE`, a message, or `list(valid, message)`. Tools listed in
+#' `approval_required` are dispatched only when the `approve` hook explicitly
+#' returns `TRUE` or `list(approved = TRUE, id = ...)`.
 #'
 #' @param allowed_tools Explicit tool allowlist.
 #' @param schemas Named list of compact JSON-Schema-like lists or validator
@@ -17,6 +19,10 @@
 #' @param max_side_effects Maximum side-effecting requests in one guarded chat.
 #' @param spend_limits Named numeric vector of maximum spend per tool.
 #' @param spend_argument Name of the numeric argument carrying spend.
+#' @param approval_required Tools that require an explicit approval decision.
+#' @param approve Optional approval function receiving `(subject, tool_name,
+#'   arguments)`. The application is responsible for authenticating the human
+#'   approver and preventing approval replay.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_tool_policy` object.
@@ -40,10 +46,12 @@ tool_policy <- function(allowed_tools = character(),
                         max_side_effects = 0L,
                         spend_limits = numeric(),
                         spend_argument = "amount",
+                        approval_required = character(),
+                        approve = NULL,
                         show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "tool_policy")
   on.exit(.stats_end(stats), add = TRUE)
-  for (item in c("allowed_tools", "side_effect_tools")) {
+  for (item in c("allowed_tools", "side_effect_tools", "approval_required")) {
     value <- get(item)
     if (!is.character(value) || anyNA(value)) cli::cli_abort("{.arg {item}} must be a character vector without missing values.")
   }
@@ -55,6 +63,7 @@ tool_policy <- function(allowed_tools = character(),
   }
   if (any(!vapply(validators, is.function, logical(1)))) cli::cli_abort("Every {.arg validators} entry must be a function.")
   if (!is.null(authorize) && !is.function(authorize)) cli::cli_abort("{.arg authorize} must be a function or {.code NULL}.")
+  if (!is.null(approve) && !is.function(approve)) cli::cli_abort("{.arg approve} must be a function or {.code NULL}.")
   if (!is.numeric(max_calls) || length(max_calls) != 1L || is.na(max_calls) || max_calls < 0) cli::cli_abort("{.arg max_calls} must be a non-negative number.")
   if (!is.numeric(max_side_effects) || length(max_side_effects) != 1L || is.na(max_side_effects) || max_side_effects < 0) cli::cli_abort("{.arg max_side_effects} must be a non-negative number.")
   if (!is.numeric(spend_limits) || anyNA(spend_limits) || any(spend_limits < 0) || (length(spend_limits) > 0L && (is.null(names(spend_limits)) || any(!nzchar(names(spend_limits)))))) {
@@ -71,7 +80,9 @@ tool_policy <- function(allowed_tools = character(),
       max_calls = max_calls,
       max_side_effects = max_side_effects,
       spend_limits = spend_limits,
-      spend_argument = spend_argument
+      spend_argument = spend_argument,
+      approval_required = unique(approval_required),
+      approve = approve
     ),
     class = "shieldr_tool_policy"
   )
@@ -164,6 +175,13 @@ guard_tool <- function(tool_name,
 
 .tool_policy_findings <- function(name, arguments, policy, subject, state = NULL) {
   findings <- list()
+  approval <- list(
+    required = name %in% policy$approval_required,
+    checked = FALSE,
+    granted = NA,
+    id = NULL,
+    message = NULL
+  )
   reject <- function(id, description) {
     findings[[length(findings) + 1L]] <<- .synthetic_finding(id, "llm03", "critical", description, action = "block")
   }
@@ -202,6 +220,31 @@ guard_tool <- function(tool_name,
     state$calls <- projected_calls
     state$side_effects <- projected_side_effects
   }
+  if (isTRUE(approval$required) && length(findings) == 0L) {
+    if (is.null(policy$approve)) {
+      approval$granted <- FALSE
+      approval$message <- "approval hook is not configured"
+      reject("llm03.tool.approval_missing", "Tool request requires human approval, but no approval hook is configured.")
+    } else {
+      result <- tryCatch(policy$approve(subject, name, arguments), error = identity)
+      approval$checked <- TRUE
+      approval$granted <- !inherits(result, "error") && isTRUE(
+        if (is.list(result)) result$approved else result
+      )
+      approval$id <- if (is.list(result)) result$id %||% result$approval_id %||% NULL else NULL
+      approval$message <- if (inherits(result, "error")) {
+        conditionMessage(result)
+      } else if (is.list(result)) {
+        result$message %||% NULL
+      } else {
+        NULL
+      }
+      if (!isTRUE(approval$granted)) {
+        reject("llm03.tool.approval_denied", "Tool request did not receive the required human approval.")
+      }
+    }
+  }
+  attr(findings, "approval") <- approval
   findings
 }
 

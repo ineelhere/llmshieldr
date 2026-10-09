@@ -2,8 +2,9 @@
 #'
 #' `scan_tool_call()` validates tool-call intent and arguments before an
 #' application executes the tool. It serializes the tool name and arguments,
-#' scans that text with [scan_prompt()], and adds an explicit finding when the
-#' tool is outside an allowlist. The default empty allowlist denies every tool.
+#' scans that text with [scan_prompt()], and applies the configured allowlist,
+#' schema, authorization, validator, budget, and approval policy. The default
+#' empty allowlist denies every tool.
 #'
 #' @details
 #' This helper does not execute tools. It is designed to sit immediately before
@@ -84,6 +85,9 @@ scan_tool_call <- function(tool_name,
     if (is.null(allowed_tools)) tool_name else allowed_tools
   )
   extra <- .tool_policy_findings(tool_name, arguments, effective_policy, subject, state)
+  approval <- attr(extra, "approval") %||% list(
+    required = FALSE, checked = FALSE, granted = NA, id = NULL, message = NULL
+  )
   allowed <- length(extra) == 0L
 
   findings <- .dedupe_findings(c(extra, report$findings))
@@ -107,11 +111,18 @@ scan_tool_call <- function(tool_name,
       allowed = allowed,
       schema_checked = tool_name %in% names(effective_policy$schemas),
       authorization_checked = !is.null(effective_policy$authorize),
+      approval_required = approval$required,
+      approval_checked = approval$checked,
+      approval_granted = approval$granted,
+      approval_id = approval$id,
+      approval_message = approval$message,
       call_count = if (is.null(state)) NULL else state$calls,
       side_effect_count = if (is.null(state)) NULL else state$side_effects,
       reviewer_errors = report$metadata$reviewer_errors %||% list(),
       review_status = report$metadata$review_status %||% "not_requested",
       reviewer_failure_action = report$metadata$reviewer_failure_action %||% NULL,
+      redaction_complete = report$metadata$redaction_complete %||% TRUE,
+      invalid_redaction_rule_ids = report$metadata$invalid_redaction_rule_ids %||% character(),
       scanners = scanners
     )
   )

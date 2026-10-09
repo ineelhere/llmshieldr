@@ -102,6 +102,20 @@ scan_document <- function(document,
   report$findings <- findings
   report$risk_score <- .score_findings(findings)
   report$action <- .resolve_action(report$risk_score, findings, policy_obj)
+  redaction_integrity <- .enforce_redaction_integrity(
+    report$action, findings, text = document$text, enabled = isTRUE(redact)
+  )
+  if (length(redaction_integrity$findings) > length(findings)) {
+    report$findings <- redaction_integrity$findings
+    report$risk_score <- .score_findings(report$findings)
+    report$action <- .resolve_action(report$risk_score, report$findings, policy_obj)
+  }
+  redaction_rule_ids <- unique(c(
+    report$metadata$invalid_redaction_rule_ids %||% character(),
+    redaction_integrity$rule_ids
+  ))
+  redaction_complete <- !identical(report$metadata$redaction_complete, FALSE) &&
+    isTRUE(redaction_integrity$complete)
   report$metadata <- utils::modifyList(report$metadata, .report_metadata(
     stage = "document",
     source_id = document$source_id,
@@ -109,6 +123,8 @@ scan_document <- function(document,
     extraction_method = document$extraction_method,
     ocr_used = document$ocr_used,
     hidden_text_checked = document$hidden_text_checked,
+    redaction_complete = redaction_complete,
+    invalid_redaction_rule_ids = redaction_rule_ids,
     provenance = document$metadata
   ))
   report

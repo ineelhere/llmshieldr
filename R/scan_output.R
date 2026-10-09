@@ -111,14 +111,23 @@ scan_output <- function(text,
   }
 
   text_clean <- .apply_redaction(text, findings, redaction)
+  findings <- .dedupe_findings(findings)
+  risk_score <- .score_findings(findings)
+  action <- .resolve_action(risk_score, findings, output_policy)
+  redaction_integrity <- .enforce_redaction_integrity(action, findings, text = text)
+  if (length(redaction_integrity$findings) > length(findings)) {
+    findings <- redaction_integrity$findings
+    risk_score <- .score_findings(findings)
+    action <- .resolve_action(risk_score, findings, output_policy)
+  }
   if (!is.null(contract)) {
     contracted <- .apply_output_contract(text_clean, contract)
     text_clean <- contracted$text
     findings <- c(findings, contracted$findings)
+    findings <- .dedupe_findings(findings)
+    risk_score <- .score_findings(findings)
+    action <- .resolve_action(risk_score, findings, output_policy)
   }
-  findings <- .dedupe_findings(findings)
-  risk_score <- .score_findings(findings)
-  action <- .resolve_action(risk_score, findings, output_policy)
 
   shieldr_report(
     action = action,
@@ -137,6 +146,8 @@ scan_output <- function(text,
       reviewer_errors = reviewer_errors,
       review_status = .review_status(checks, reviewer, reviewer_errors),
       reviewer_failure_action = if (length(reviewer_errors) > 0L) policy$controls$on_reviewer_error else NULL,
+      redaction_complete = redaction_integrity$complete,
+      invalid_redaction_rule_ids = redaction_integrity$rule_ids,
       scanners = scanners
     )
   )

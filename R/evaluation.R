@@ -120,15 +120,20 @@ evaluate_security_cases <- function(cases = NULL,
 #'
 #' @param results Evaluation result data frame.
 #' @param positive_actions Actions counted as a detected risk.
+#' @param by Optional result columns used to group metrics, such as
+#'   `"category"`, `"stage"`, or `c("stage", "category")`. `NULL` returns the
+#'   original one-row overall summary.
 #' @param show_stats Show calculation time and available usage metrics.
 #'
-#' @return A one-row data frame of metrics.
+#' @return A data frame of metrics with one overall row, or one row per group
+#'   when `by` is supplied.
 #' @examples
 #' results <- evaluate_security_cases()
 #' summarize_security_evaluation(results)
 #' @export
 summarize_security_evaluation <- function(results,
                                           positive_actions = c("redact", "block"),
+                                          by = NULL,
                                           show_stats = FALSE) {
   stats <- .stats_begin(show_stats, "summarize_security_evaluation")
   on.exit(.stats_end(stats), add = TRUE)
@@ -136,6 +141,36 @@ summarize_security_evaluation <- function(results,
   required <- c("label", "actual_action", "matched", "latency_ms")
   missing <- setdiff(required, names(results))
   if (length(missing) > 0L) cli::cli_abort("{.arg results} is missing required column{?s}: {.field {missing}}.")
+  if (!is.null(by)) {
+    if (!is.character(by) || length(by) == 0L || anyNA(by) || any(!nzchar(by))) {
+      cli::cli_abort("{.arg by} must be a non-empty character vector or {.code NULL}.")
+    }
+    missing_by <- setdiff(by, names(results))
+    if (length(missing_by) > 0L) {
+      cli::cli_abort("{.arg results} is missing grouping column{?s}: {.field {missing_by}}.")
+    }
+    keys <- lapply(results[by], function(value) {
+      value <- as.character(value)
+      value[is.na(value)] <- "<NA>"
+      value
+    })
+    groups <- interaction(keys, drop = TRUE, lex.order = TRUE)
+    indices <- split(seq_len(nrow(results)), groups, drop = TRUE)
+    rows <- lapply(indices, function(index) {
+      metrics <- .security_evaluation_metrics(results[index, , drop = FALSE], positive_actions)
+      data.frame(
+        results[index[[1L]], by, drop = FALSE],
+        metrics,
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+    })
+    return(do.call(rbind, unname(rows)))
+  }
+  .security_evaluation_metrics(results, positive_actions)
+}
+
+.security_evaluation_metrics <- function(results, positive_actions) {
   benign <- tolower(as.character(results$label)) == "benign"
   detected <- results$actual_action %in% positive_actions
   positive <- !benign

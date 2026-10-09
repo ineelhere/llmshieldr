@@ -1,5 +1,15 @@
 # llmshieldr (development version)
 
+- Added a fail-closed `prompt_guard_provider()` adapter for caller-managed
+  prompt-injection classifiers, with a documented Llama Prompt Guard 2 recipe.
+- `redact` findings with missing or invalid spans now block instead of returning
+  unchanged text as sanitized; `list_rules()` flags rules that cannot guarantee
+  redaction spans.
+- Tool policies can require explicit application-managed human approval before
+  selected tools dispatch, and reports retain the approval decision metadata.
+- Evaluation summaries can be grouped by category or stage. Added opt-in
+  deepset and PINT-export benchmark scripts and published the measured
+  rules-only deepset baseline, including its low injection recall.
 - `explain_findings()` now accepts a report directly and returns text
   explanations invisibly after printing them once.
 - Expanded the excessive-agency output rule to catch first-person commitments

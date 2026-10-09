@@ -188,6 +188,18 @@ scan_context <- function(data,
     findings <- .dedupe_findings(c(extra, report$findings))
     risk_score <- .score_findings(findings)
     action <- .resolve_action(risk_score, findings, policy)
+    redaction_integrity <- .enforce_redaction_integrity(action, findings, text = text[[i]])
+    if (length(redaction_integrity$findings) > length(findings)) {
+      findings <- redaction_integrity$findings
+      risk_score <- .score_findings(findings)
+      action <- .resolve_action(risk_score, findings, policy)
+    }
+    redaction_rule_ids <- unique(c(
+      report$metadata$invalid_redaction_rule_ids %||% character(),
+      redaction_integrity$rule_ids
+    ))
+    redaction_complete <- !identical(report$metadata$redaction_complete, FALSE) &&
+      isTRUE(redaction_integrity$complete)
     reports[[i]] <- shieldr_report(
       action = action,
       text_clean = report$text_clean,
@@ -213,6 +225,8 @@ scan_context <- function(data,
         reviewer_errors = report$metadata$reviewer_errors %||% list(),
         review_status = report$metadata$review_status %||% "not_requested",
         reviewer_failure_action = report$metadata$reviewer_failure_action %||% NULL,
+        redaction_complete = redaction_complete,
+        invalid_redaction_rule_ids = redaction_rule_ids,
         scanners = scanners
       )
     )

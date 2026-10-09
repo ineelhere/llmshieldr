@@ -19,8 +19,11 @@
 #' policy rules with semantic review. Reviewer failures block by default;
 #' `policy_controls(on_reviewer_error = "rules_only")` allows a rules-only fallback.
 #'
-#' Redaction replaces matched spans with `[REDACTED]`. Function-based findings
-#' can influence score and action even when they do not provide exact spans.
+#' Redaction replaces matched spans with `[REDACTED]`. A `redact` finding that
+#' does not provide a valid span is promoted to a blocking redaction-integrity
+#' finding by default, so `text_clean` is never presented as sanitized while
+#' the detected text remains present. Use `list_rules()` to identify custom
+#' redact rules that cannot guarantee spans.
 #'
 #' @param text Prompt text.
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
@@ -96,6 +99,14 @@ scan_prompt <- function(text,
   risk_score <- .score_findings(findings)
   action <- .resolve_action(risk_score, findings, policy)
   text_clean <- if (isTRUE(redact)) .apply_redaction(text, findings, redaction) else text
+  redaction_integrity <- .enforce_redaction_integrity(
+    action, findings, text = text, enabled = isTRUE(redact)
+  )
+  if (length(redaction_integrity$findings) > length(findings)) {
+    findings <- redaction_integrity$findings
+    risk_score <- .score_findings(findings)
+    action <- .resolve_action(risk_score, findings, policy)
+  }
 
   shieldr_report(
     action = action,
@@ -113,9 +124,54 @@ scan_prompt <- function(text,
       reviewer_errors = reviewer_errors,
       review_status = .review_status(checks, reviewer, reviewer_errors),
       reviewer_failure_action = if (length(reviewer_errors) > 0L) policy$controls$on_reviewer_error else NULL,
+      redaction_complete = redaction_integrity$complete,
+      invalid_redaction_rule_ids = redaction_integrity$rule_ids,
       scanners = scanners
     )
   )
+}
+
+.enforce_redaction_integrity <- function(action, findings, text = NULL, enabled = TRUE) {
+  ids <- .invalid_redaction_rule_ids(findings, text)
+  complete <- !identical(action, "redact") || (isTRUE(enabled) && length(ids) == 0L)
+  if (!isTRUE(enabled) || !identical(action, "redact") || length(ids) == 0L) {
+    return(list(findings = findings, rule_ids = ids, complete = complete))
+  }
+  failure <- .synthetic_finding(
+    "llm02.redaction.incomplete", "llm02", "critical",
+    paste0(
+      "Redaction was requested but one or more findings had a missing or invalid span: ",
+      paste(ids, collapse = ", "), "."
+    ),
+    action = "block"
+  )
+  failure$invalid_rule_ids <- ids
+  list(
+    findings = .dedupe_findings(c(findings, list(failure))),
+    rule_ids = ids,
+    complete = FALSE
+  )
+}
+
+.invalid_redaction_rule_ids <- function(findings, text = NULL) {
+  if (length(findings) == 0L) return(character())
+  text_length <- if (is.null(text)) NULL else nchar(text, type = "chars")
+  missing <- vapply(findings, function(finding) {
+    if (!identical(finding$action %||% "redact", "redact")) return(FALSE)
+    start <- if (is.null(finding$start) || length(finding$start) == 0L) {
+      NA_integer_
+    } else {
+      suppressWarnings(as.integer(finding$start[[1L]]))
+    }
+    end <- if (is.null(finding$end) || length(finding$end) == 0L) {
+      NA_integer_
+    } else {
+      suppressWarnings(as.integer(finding$end[[1L]]))
+    }
+    is.na(start) || is.na(end) || start < 1L || end < start ||
+      (!is.null(text_length) && (start > text_length || end > text_length))
+  }, logical(1))
+  unique(vapply(findings[missing], function(finding) finding$rule_id %||% "unknown", character(1)))
 }
 
 .reviewer_failure_finding <- function() {

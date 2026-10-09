@@ -247,6 +247,133 @@ test_that("provider adapters record versions and fail closed", {
   expect_equal(scan_prompt("hello", scanners = scanner_options(providers = list(failed)))$action, "block")
 })
 
+test_that("Prompt Guard provider maps binary classifier output and fails closed", {
+  malicious <- prompt_guard_provider(
+    function(text) list(list(label = "LABEL_1", score = 0.91)),
+    threshold = 0.8,
+    version = "test"
+  )
+  blocked <- scan_prompt(
+    "novel paraphrase",
+    scanners = scanner_options(providers = list(malicious))
+  )
+  finding <- Filter(function(x) identical(x$rule_id, "llm01.classifier.prompt_guard"), blocked$findings)[[1L]]
+  expect_equal(blocked$action, "block")
+  expect_equal(finding$confidence, 0.91)
+  expect_equal(finding$provider_version, "test")
+
+  distribution <- prompt_guard_provider(
+    function(text) list(
+      list(label = "LABEL_0", score = 0.15),
+      list(label = "LABEL_1", score = 0.85)
+    ),
+    threshold = 0.8
+  )
+  expect_equal(
+    scan_prompt("novel paraphrase", scanners = scanner_options(providers = list(distribution)))$action,
+    "block"
+  )
+
+  benign <- prompt_guard_provider(function(text) c(LABEL_0 = 0.95), threshold = 0.8)
+  expect_equal(
+    scan_prompt("ordinary request", scanners = scanner_options(providers = list(benign)))$action,
+    "allow"
+  )
+
+  malformed <- prompt_guard_provider(function(text) list(unexpected = TRUE))
+  expect_equal(
+    scan_prompt("ordinary request", scanners = scanner_options(providers = list(malformed)))$action,
+    "block"
+  )
+})
+
+test_that("spanless redact findings block instead of returning unsanitized text", {
+  spanless <- shieldr_rule(
+    "llm02.test.spanless", fn = function(text) TRUE,
+    severity = "medium", action = "redact"
+  )
+  guardrails <- build_policy(rules = list(spanless))
+
+  report <- scan_prompt("secret material", guardrails)
+
+  expect_equal(report$action, "block")
+  expect_equal(report$text_clean, "secret material")
+  expect_false(report$metadata$redaction_complete)
+  expect_equal(report$metadata$invalid_redaction_rule_ids, spanless$id)
+  expect_true(any(vapply(
+    report$findings,
+    function(x) identical(x$rule_id, "llm02.redaction.incomplete"),
+    logical(1)
+  )))
+
+  explicit_opt_out <- scan_prompt("secret material", guardrails, redact = FALSE)
+  expect_equal(explicit_opt_out$action, "redact")
+  expect_false(explicit_opt_out$metadata$redaction_complete)
+
+  out_of_bounds <- shieldr_rule(
+    "llm02.test.out-of-bounds",
+    fn = function(text) list(list(start = nchar(text) + 1L, end = nchar(text) + 2L)),
+    severity = "medium", action = "redact"
+  )
+  invalid <- scan_prompt("secret material", build_policy(rules = list(out_of_bounds)))
+  expect_equal(invalid$action, "block")
+  expect_equal(invalid$text_clean, "secret material")
+  expect_equal(invalid$metadata$invalid_redaction_rule_ids, out_of_bounds$id)
+})
+
+test_that("redacting output contracts remain safe without span metadata", {
+  report <- validate_output_contract(
+    "not-json",
+    output_contract("json", on_invalid = "redact")
+  )
+  expect_equal(report$action, "redact")
+  expect_equal(report$text_clean, "null")
+})
+
+test_that("tool policies require explicit approval for selected tools", {
+  no_hook <- tool_policy(
+    allowed_tools = "delete_record",
+    approval_required = "delete_record"
+  )
+  missing <- scan_tool_call("delete_record", list(id = 1), tool_policy = no_hook)
+  expect_equal(missing$action, "block")
+  expect_true(missing$metadata$approval_required)
+  expect_false(missing$metadata$approval_checked)
+  expect_false(missing$metadata$approval_granted)
+
+  approved_policy <- tool_policy(
+    allowed_tools = "delete_record",
+    approval_required = "delete_record",
+    approve = function(subject, tool_name, arguments) {
+      list(approved = identical(subject$user, "reviewer"), id = "approval-42")
+    }
+  )
+  approved <- scan_tool_call(
+    "delete_record", list(id = 1), tool_policy = approved_policy,
+    subject = list(user = "reviewer")
+  )
+  expect_equal(approved$action, "allow")
+  expect_true(approved$metadata$approval_checked)
+  expect_true(approved$metadata$approval_granted)
+  expect_equal(approved$metadata$approval_id, "approval-42")
+
+  denied <- scan_tool_call(
+    "delete_record", list(id = 1), tool_policy = approved_policy,
+    subject = list(user = "model")
+  )
+  expect_equal(denied$action, "block")
+  expect_false(denied$metadata$approval_granted)
+
+  ambiguous_policy <- tool_policy(
+    allowed_tools = "delete_record",
+    approval_required = "delete_record",
+    approve = function(...) list(valid = TRUE)
+  )
+  ambiguous <- scan_tool_call("delete_record", list(id = 1), tool_policy = ambiguous_policy)
+  expect_equal(ambiguous$action, "block")
+  expect_false(ambiguous$metadata$approval_granted)
+})
+
 test_that("rules keep stage scope confidence severity and action separate", {
   output_only <- shieldr_rule(
     "llm10.test.output-only", pattern = "unsafe", owasp = "llm10",
@@ -388,4 +515,21 @@ test_that("policy versions, diffs, evaluation intervals, and OWASP crosswalk are
   crosswalk <- owasp_crosswalk()
   expect_equal(nrow(crosswalk), 10L)
   expect_equal(crosswalk$name_2026[crosswalk$id_2026 == "LLM03:2026"], "Excessive Agency")
+})
+
+test_that("evaluation summaries can be grouped by category", {
+  results <- data.frame(
+    category = c("benign", "injection", "injection"),
+    label = c("benign", "malicious", "malicious"),
+    actual_action = c("allow", "block", "allow"),
+    matched = c(TRUE, TRUE, FALSE),
+    latency_ms = c(1, 2, 3),
+    stringsAsFactors = FALSE
+  )
+
+  summary <- summarize_security_evaluation(results, by = "category")
+
+  expect_equal(summary$cases[summary$category == "injection"], 2L)
+  expect_equal(summary$sensitivity[summary$category == "injection"], 0.5)
+  expect_equal(summary$false_positive_rate[summary$category == "benign"], 0)
 })

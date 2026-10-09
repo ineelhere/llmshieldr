@@ -64,8 +64,11 @@ only the semantic reviewer when one is supplied. \code{checks = "both"} combines
 policy rules with semantic review. Reviewer failures block by default;
 \code{policy_controls(on_reviewer_error = "rules_only")} allows a rules-only fallback.
 
-Redaction replaces matched spans with \verb{[REDACTED]}. Function-based findings
-can influence score and action even when they do not provide exact spans.
+Redaction replaces matched spans with \verb{[REDACTED]}. A \code{redact} finding that
+does not provide a valid span is promoted to a blocking redaction-integrity
+finding by default, so \code{text_clean} is never presented as sanitized while
+the detected text remains present. Use \code{list_rules()} to identify custom
+redact rules that cannot guarantee spans.
 }
 \examples{
 scan_prompt("hello")
