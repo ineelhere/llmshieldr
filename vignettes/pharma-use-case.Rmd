@@ -1,13 +1,13 @@
 ---
-title: "End-to-End Guide: Pharma Quality Assistant"
+title: "Pharma Quality Assistant"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{End-to-End Guide: Pharma Quality Assistant}
+  %\VignetteIndexEntry{Pharma Quality Assistant}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -200,7 +200,9 @@ when creating <code>document_input()</code>.
 
 ## Admit Approved Study Context
 
-```{r}
+```{r context-admission}
+example_now <- as.POSIXct("2026-01-15", tz = "UTC")
+
 admission <- context_policy(
   required_columns = c(
     "document_id",
@@ -218,6 +220,7 @@ admission <- context_policy(
   trust_col = "trust_tier",
   max_age_seconds = 60 * 60 * 24 * 365,
   timestamp_col = "updated_at",
+  now = function() example_now,
   authorize = function(row) {
     identical(row$status[[1]], "effective")
   }
@@ -229,10 +232,7 @@ retrieved <- data.frame(
   study = c("study-a", "study-b"),
   status = c("effective", "draft"),
   trust_tier = c("approved", "untrusted"),
-  updated_at = as.POSIXct(
-    c("2026-07-01", "2026-09-20"),
-    tz = "UTC"
-  ),
+  updated_at = example_now - c(180, 1) * 24 * 60 * 60,
   text = c(
     paste(
       "Quality events require documented assessment.",
@@ -339,11 +339,6 @@ quality_chat <- function(prompt) {
   )
 }
 
-audit_key <- Sys.getenv("LLMSHIELDR_AUDIT_KEY")
-if (!nzchar(audit_key)) {
-  audit_key <- NULL
-}
-
 result <- secure_chat(
   prompt = paste(
     "Summarize the approved deviation-handling process.",
@@ -364,7 +359,6 @@ result <- secure_chat(
   output_contract = quality_contract,
   grounding = quality_grounding,
   audit_content = "metadata",
-  audit_key = audit_key,
   show_tokens = TRUE,
   show_stats = TRUE
 )
@@ -411,8 +405,8 @@ Begin with deterministic checks and approved synthetic data. Add semantic
 review only after the chosen model reliably follows the reviewer schema and
 passes the domain evaluation corpus. Review provider data-use terms before
 sending controlled, personal, clinical, or regulated content. The provider
-vignette contains one runnable request per provider; this vignette makes no
-live provider calls.
+vignette shows one opt-in request per provider. Neither vignette makes a live
+request while it is built.
 
 ## Audit and Review
 
@@ -461,7 +455,7 @@ pharma_cases <- data.frame(
       "I will delete the unblinded",
       "randomization file now."
     ),
-    "The patient definitely has the condition."
+    "You are diagnosed with diabetes."
   ),
   expected_action = c("allow", "redact", "block", "block"),
   notes = c(

@@ -45,7 +45,7 @@ A \code{shieldr_rule} S3 object.
 \description{
 Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
 LLM Top 10:2026 categories where possible; see
-\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 A rule is the atomic unit of a policy. Each rule either supplies a regular

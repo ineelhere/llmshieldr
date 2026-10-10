@@ -1,13 +1,13 @@
 ---
-title: "End-to-End Guide: Finance Research Assistant"
+title: "Finance Research Assistant"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{End-to-End Guide: Finance Research Assistant}
+  %\VignetteIndexEntry{Finance Research Assistant}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -163,7 +163,9 @@ scan_prompt(
 Apply tenant, source, trust, and freshness requirements after the retrieval
 query:
 
-```{r}
+```{r context-admission}
+example_now <- as.POSIXct("2026-01-15", tz = "UTC")
+
 admission <- context_policy(
   required_columns = c(
     "document_id",
@@ -179,18 +181,16 @@ admission <- context_policy(
   allowed_trust_tiers = c("approved", "regulatory"),
   trust_col = "trust_tier",
   max_age_seconds = 60 * 60 * 24 * 90,
-  timestamp_col = "updated_at"
+  timestamp_col = "updated_at",
+  now = function() example_now
 )
 
 retrieved <- data.frame(
-  document_id = c("filing-2026-q2", "forum-884"),
+  document_id = c("filing-q2", "forum-884"),
   source = c("regulatory_filing", "unapproved_forum"),
   tenant = c("research", "research"),
   trust_tier = c("regulatory", "untrusted"),
-  updated_at = as.POSIXct(
-    c("2026-09-10", "2026-09-20"),
-    tz = "UTC"
-  ),
+  updated_at = example_now - c(30, 1) * 24 * 60 * 60,
   text = c(
     paste(
       "Revenue increased year over year.",
@@ -295,7 +295,7 @@ research_chat <- function(prompt) {
   paste(
     "The filing reports year-over-year revenue growth",
     "and identifies material market risks",
-    "[source:filing-2026-q2]."
+    "[source:filing-q2]."
   )
 }
 
@@ -307,11 +307,6 @@ telemetry <- telemetry_options(
   service_name = "finance-research-assistant",
   attributes = list(environment = "example")
 )
-
-audit_key <- Sys.getenv("LLMSHIELDR_AUDIT_KEY")
-if (!nzchar(audit_key)) {
-  audit_key <- NULL
-}
 
 result <- secure_chat(
   prompt = paste(
@@ -334,7 +329,6 @@ result <- secure_chat(
   grounding = finance_grounding,
   telemetry = telemetry,
   audit_content = "metadata",
-  audit_key = audit_key,
   show_tokens = TRUE,
   show_stats = TRUE
 )
@@ -352,9 +346,9 @@ After the callback workflow passes its tests, try Gemini or Ollama by supplying
 `finance_grounding` unchanged.
 
 Start with `checks = "rules"`. Add a semantic reviewer only after evaluating
-the selected model against representative finance cases. See the provider
-vignette for one runnable request per provider. This vignette makes no live
-provider calls.
+the selected model against representative finance cases. The provider vignette
+shows one opt-in request per provider. Neither vignette makes a live request
+while it is built.
 
 ## Inspect and Persist the Audit
 
@@ -402,7 +396,7 @@ finance_cases <- data.frame(
     "Returns can fall and capital is at risk.",
     "This strategy guarantees a risk-free return.",
     "Review CLIENT-12345678.",
-    "I placed the trade and transferred the funds."
+    "I will now transfer the funds."
   ),
   expected_action = c("allow", "block", "redact", "block"),
   notes = c(

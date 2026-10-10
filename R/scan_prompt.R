@@ -2,7 +2,7 @@
 #'
 #' Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
 #' Findings retain OWASP LLM Top 10:2026 categories when known; see
-#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
 #'
 #' @details
 #' `scan_prompt()` is usually the first guardrail in a workflow. It normalizes

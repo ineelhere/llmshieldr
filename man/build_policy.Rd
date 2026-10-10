@@ -37,7 +37,8 @@ A \code{shieldr_policy}.
 \description{
 \code{build_policy()} combines validated \code{shieldr_rule} objects with threshold
 settings for the scanner layer. OWASP LLM Top 10 references are preserved on
-each rule; see \url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
+each rule; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 A policy is intentionally small and inspectable. It contains a policy name,

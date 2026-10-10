@@ -1,13 +1,13 @@
 ---
-title: "RAG Use Case"
+title: "Guard a RAG Workflow"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{RAG Use Case}
+  %\VignetteIndexEntry{Guard a RAG Workflow}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 

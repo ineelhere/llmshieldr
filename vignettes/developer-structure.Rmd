@@ -1,13 +1,13 @@
 ---
-title: "Package Structure for Developers"
+title: "Developer Guide"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Package Structure for Developers}
+  %\VignetteIndexEntry{Developer Guide}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -30,7 +30,6 @@ llmshieldr/
 ├── vignettes/            long-form user and developer guides
 ├── inst/extdata/         packaged example and security-evaluation data
 ├── inst/scripts/         opt-in benchmark scripts
-├── demo/                 interactive demonstrations
 ├── DESCRIPTION           dependencies, package metadata, R version
 ├── NAMESPACE             generated exports and S3 registration
 ├── NEWS.md               user-facing development and release notes
@@ -265,21 +264,11 @@ store provider keys in reports or audits.
 
 ## Tests
 
-Tests are grouped by behavior:
-
-| Test file | Main coverage |
-|---|---|
-| <code>test-policy.R</code> | Policy construction, rules, thresholds |
-| <code>test-scan-prompt.R</code> | Prompt rules, normalization, redaction |
-| <code>test-scan-context.R</code> | RAG anomalies, sources, authorization |
-| <code>test-scan-output.R</code> | Output findings and actions |
-| <code>test-secure-chat.R</code> | End-to-end orchestration |
-| <code>test-reviewer-checks.R</code> | Semantic-review contracts and failures |
-| <code>test-rate-guard.R</code> | Reservation, rollback, concurrency |
-| <code>test-audit.R</code> | Privacy modes and persistence |
-| <code>test-trust-boundary.R</code> | Model and host validation |
-| <code>test-roadmap-upgrades.R</code> | Cross-feature upgrade regressions |
-| <code>test-2026-stats.R</code> | OWASP 2026 metadata and statistics |
+Tests in `tests/testthat/` are organized by public surface and regression
+theme: policies and rules, prompt/context/output scanning, orchestration,
+reviewers, rate limits, audits, trust boundaries, normalization, and adoption
+surfaces. Keep related tests together and name new files after the behavior
+they verify.
 
 Use mocks for model and HTTP behavior. The normal test suite must not require
 credentials, internet access, Ollama, Presidio, OPA, Gitleaks, or another
@@ -310,9 +299,10 @@ devtools::check()
 pkgdown::build_site()
 ```
 
-Do not put live API requests in evaluated examples. Provider examples should
-use <code>eval = FALSE</code>, read credentials from environment variables,
-and use placeholders rather than real secrets.
+Do not put live API requests, credential reads, service probes, downloads, or
+optional executables in evaluated examples. Keep provider chunks
+`eval = FALSE` and document placeholder environment variables without reading
+them during the build.
 
 ## Compatibility and Deprecation
 

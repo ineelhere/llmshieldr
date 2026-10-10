@@ -151,17 +151,16 @@ and \code{redact} beats \code{allow}. Policy controls can map blocked prompt or 
 reports to final actions of \code{refuse} or \code{escalate}.
 }
 \examples{
+local_chat <- function(prompt) paste("Checked:", prompt)
+result <- secure_chat(
+  "Summarize this public note.",
+  chat = local_chat,
+  checks = "rules"
+)
+result[c("action", "output")]
+
 \dontrun{
-model <- ellmer::models_ollama()$id[1]
-if (is.na(model)) {
-  stop(
-    "Check if you have any Ollama models available, ",
-    "or enter a specific name as a string for the model argument."
-  )
-}
-chat <- ellmer::chat_ollama(model = model)
-secure_chat("hello", chat, show_tokens = TRUE)
-secure_chat("hello", provider = "ollama", model = model, checks = "rules")
-secure_chat("hello", provider = "anthropic", checks = "rules")
+secure_chat("hello", provider = "ollama", model = "gemma3:1b")
+secure_chat("hello", provider = "anthropic")
 }
 }

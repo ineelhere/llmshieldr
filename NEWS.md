@@ -63,9 +63,9 @@
 - Reorganized package documentation into focused guides for onboarding,
   policy design, custom rules, RAG, package internals, finance, pharma,
   Gemini and Ollama providers, and troubleshooting FAQs.
-- Limited rendered provider examples to one Gemini request and one Ollama
-  request, with all live provider calls disabled on GitHub Actions and during
-  package checks.
+- Made all provider example chunks non-evaluating, so documentation builds
+  never install packages, read credentials, probe services, download models,
+  or send provider requests.
 
 # llmshieldr 0.1.0
 

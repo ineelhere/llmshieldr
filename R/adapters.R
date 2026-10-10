@@ -4,19 +4,18 @@
 #' Presidio Analyzer HTTP service. The adapter is opt-in and transmits content
 #' only when a scan using it runs.
 #'
-#' @param endpoint Presidio analyze endpoint URL.
-#' @param language Presidio language code.
-#' @param entities Optional requested entity types.
-#' @param min_score Minimum Presidio score retained.
-#' @param on_error Provider failure behavior.
-#' @param timeout_seconds HTTP timeout.
+#' @param endpoint Scalar URL for a Presidio `/analyze` endpoint.
+#' @param language Scalar language code sent to Presidio.
+#' @param entities Optional character vector of entity types to request.
+#' @param min_score Minimum confidence from 0 to 1 to retain.
+#' @param on_error Whether adapter failures create a blocking finding or warn
+#'   and skip the adapter.
+#' @param timeout_seconds Positive request timeout in seconds.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_provider` for [scanner_options()].
 #' @examples
-#' \dontrun{
 #' presidio <- presidio_provider("http://127.0.0.1:5002/analyze")
-#' }
 #' @export
 presidio_provider <- function(endpoint,
                               language = "en",
@@ -70,17 +69,16 @@ presidio_provider <- function(endpoint,
 #' No network call is made by this adapter. The temporary file and report are
 #' removed on exit.
 #'
-#' @param command Gitleaks executable path or command name.
-#' @param config Optional Gitleaks configuration path.
-#' @param on_error Provider failure behavior.
-#' @param timeout_seconds Process timeout.
+#' @param command Scalar Gitleaks executable path or command name.
+#' @param config Optional scalar path to a Gitleaks configuration file.
+#' @param on_error Whether adapter failures create a blocking finding or warn
+#'   and skip the adapter.
+#' @param timeout_seconds Positive process timeout in seconds.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_provider` for [scanner_options()].
 #' @examples
-#' \dontrun{
 #' gitleaks <- gitleaks_provider()
-#' }
 #' @export
 gitleaks_provider <- function(command = "gitleaks",
                               config = NULL,
@@ -135,18 +133,18 @@ gitleaks_provider <- function(command = "gitleaks",
 #' Sends metadata and, only when `include_text = TRUE`, text to an OPA Data API
 #' decision endpoint. A false decision creates a blocking tool/guardrail finding.
 #'
-#' @param endpoint Full OPA Data API URL.
-#' @param input_builder Optional function receiving `(text, stage, metadata)`.
+#' @param endpoint Scalar URL for an OPA Data API decision endpoint.
+#' @param input_builder Optional function receiving `(text, stage, metadata)`
+#'   and returning the value to send as `input`.
 #' @param include_text Whether raw text is included in the default OPA input.
-#' @param on_error Provider failure behavior.
-#' @param timeout_seconds HTTP timeout.
+#' @param on_error Whether adapter failures create a blocking finding or warn
+#'   and skip the adapter.
+#' @param timeout_seconds Positive request timeout in seconds.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_provider` for [scanner_options()].
 #' @examples
-#' \dontrun{
 #' opa <- opa_provider("http://127.0.0.1:8181/v1/data/llmshieldr/allow")
-#' }
 #' @export
 opa_provider <- function(endpoint,
                          input_builder = NULL,

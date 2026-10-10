@@ -5,10 +5,11 @@ bibentry(
     person(
       given = "Indraneel",
       family = "Chakraborty",
-      email = "hello.indraneel@gmail.com"
+      email = "hello.indraneel@gmail.com",
+      comment = c(ORCID = "0000-0001-6958-8269")
     )
   ),
   year = "2026",
-  note = "R package version 0.1.0",
+  note = sprintf("R package version %s", meta$Version),
   url = "https://CRAN.R-project.org/package=llmshieldr"
 )

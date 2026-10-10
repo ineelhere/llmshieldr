@@ -32,8 +32,9 @@ A callable chat wrapper.
 }
 \description{
 Validates chat identity before calls cross into an LLM service. This
-covers supply-chain and model-integrity concerns related to OWASP LLM04:2026; see
-\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
+covers supply-chain and model-integrity concerns related to OWASP
+LLM04:2026; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 \code{trust_boundary()} returns a chat wrapper. The wrapper validates the chat on
@@ -45,8 +46,8 @@ attributes.
 
 \code{allowed_models} and \code{allowed_hosts} are allowlists. If the chat exposes a
 model or host and it is outside the allowlist, the wrapper raises an OWASP
-LLM04:2026 error. \code{require_hash} is intended for local Ollama workflows where the
-model manifest can be checked with \verb{ollama show --modelfile}.
+LLM04:2026 error. \code{require_hash} is intended for local Ollama workflows where
+the model manifest can be checked with \verb{ollama show --modelfile}.
 
 This function is not a network firewall. It is an application-level
 assertion that the chat object being called is the chat object you intended

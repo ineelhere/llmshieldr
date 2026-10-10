@@ -15,17 +15,18 @@ presidio_provider(
 )
 }
 \arguments{
-\item{endpoint}{Presidio analyze endpoint URL.}
+\item{endpoint}{Scalar URL for a Presidio \verb{/analyze} endpoint.}
 
-\item{language}{Presidio language code.}
+\item{language}{Scalar language code sent to Presidio.}
 
-\item{entities}{Optional requested entity types.}
+\item{entities}{Optional character vector of entity types to request.}
 
-\item{min_score}{Minimum Presidio score retained.}
+\item{min_score}{Minimum confidence from 0 to 1 to retain.}
 
-\item{on_error}{Provider failure behavior.}
+\item{on_error}{Whether adapter failures create a blocking finding or warn
+and skip the adapter.}
 
-\item{timeout_seconds}{HTTP timeout.}
+\item{timeout_seconds}{Positive request timeout in seconds.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }
@@ -38,7 +39,5 @@ Presidio Analyzer HTTP service. The adapter is opt-in and transmits content
 only when a scan using it runs.
 }
 \examples{
-\dontrun{
 presidio <- presidio_provider("http://127.0.0.1:5002/analyze")
-}
 }

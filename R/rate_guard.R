@@ -2,7 +2,7 @@
 #'
 #' Rate guards are explicit stateful environments used to cap token and request
 #' budgets for LLM workflows. Unbounded consumption is OWASP LLM06:2026; see
-#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
 #'
 #' @details
 #' Calling `rate_guard()` with limits creates a new `shieldr_rate_guard`

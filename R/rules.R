@@ -43,7 +43,7 @@ reviewer_prompt <- function(show_stats = FALSE) {
 #'
 #' Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
 #' LLM Top 10:2026 categories where possible; see
-#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>.
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
 #'
 #' @details
 #' A rule is the atomic unit of a policy. Each rule either supplies a regular

@@ -52,7 +52,7 @@ checking a guard, \code{TRUE} if usage is within limits.
 \description{
 Rate guards are explicit stateful environments used to cap token and request
 budgets for LLM workflows. Unbounded consumption is OWASP LLM06:2026; see
-\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 Calling \code{rate_guard()} with limits creates a new \code{shieldr_rate_guard}

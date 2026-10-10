@@ -59,13 +59,11 @@ The compatibility defaults retain the Gemini 2.5 model names used when this
 wrapper was introduced. Google may limit those models for new projects; new
 code should pass a current model explicitly to \code{\link[=secure_chat]{secure_chat()}}. Google
 determines free-tier eligibility, quotas, model availability, and data-use
-terms by account, project, and region. Check
+terms by account, project, and region. Review
 \url{https://ai.google.dev/gemini-api/docs/pricing} and
-\url{https://ai.google.dev/gemini-api/docs/rate-limits} for your project.
+\url{https://ai.google.dev/gemini-api/docs/rate-limits}, the provider's current
+data-use terms, and organizational policy before sending private content.
 Gemini requests transmit the cleaned prompt and admitted context to Google.
-Google's current pricing table marks free-tier content as eligible for
-product improvement. Review current terms and organizational data rules
-before sending private content.
 }
 \examples{
 \dontrun{
@@ -73,7 +71,7 @@ before sending private content.
 result <- shield_gemini(
   "Summarize this public note.",
   model = "gemini-3.8-flash",
-  reviewer_model = "gemini-3.5-flash-lite",
+  reviewer_model = "gemini-3.8-flash",
   show_stats = TRUE
 )
 result$output

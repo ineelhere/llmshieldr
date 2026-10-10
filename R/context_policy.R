@@ -4,20 +4,23 @@
 #' Applications must also enforce tenant and ACL scope inside the retrieval
 #' query so unauthorized rows are never selected in the first place.
 #'
-#' @param required_columns Metadata columns that must exist and be non-missing.
-#' @param tenant_id Optional tenant required for every row.
-#' @param tenant_col Tenant column name.
-#' @param principals Optional subject or role identifiers.
+#' @param required_columns Character vector of metadata columns that must exist
+#'   and contain a value in every row.
+#' @param tenant_id Optional scalar tenant identifier required for every row.
+#' @param tenant_col Scalar name of the tenant column.
+#' @param principals Optional character vector of subject or role identifiers.
 #' @param acl_col Optional ACL column. Values may be character vectors, list
 #'   column entries, or comma-separated strings.
-#' @param trusted_sources Optional source allowlist.
-#' @param source_col Source column name.
-#' @param allowed_trust_tiers Optional trust-tier allowlist.
-#' @param trust_col Trust-tier column name.
-#' @param max_age_seconds Optional maximum context age.
-#' @param timestamp_col Freshness timestamp column name.
-#' @param authorize Optional final row authorization function.
-#' @param now Function returning the current time, useful for deterministic tests.
+#' @param trusted_sources Optional character vector of allowed source values.
+#' @param source_col Scalar name of the source column.
+#' @param allowed_trust_tiers Optional character vector of allowed trust tiers.
+#' @param trust_col Scalar name of the trust-tier column.
+#' @param max_age_seconds Optional non-negative maximum age in seconds.
+#' @param timestamp_col Scalar name of the freshness timestamp column.
+#' @param authorize Optional function that receives a one-row data frame and
+#'   returns `TRUE` only when the row is authorized.
+#' @param now Zero-argument function returning the current time. Override it
+#'   for deterministic tests and examples.
 #' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_context_policy` object.

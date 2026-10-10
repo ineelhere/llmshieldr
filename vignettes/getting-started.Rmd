@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 
@@ -190,9 +190,9 @@ secure_chat(
 ```
 
 For Ollama, change `provider` to `"ollama"` and `model` to the local model
-name. The dedicated provider vignette contains one runnable example for each
-provider and the required `.Renviron` setup. No provider call is made from this
-getting-started vignette.
+name. The dedicated provider vignette shows one opt-in request for each
+provider and the required `.Renviron` setup. Neither vignette makes a provider
+call while it is built.
 
 If `secure_chat()` blocks retrieved context rows, those rows are excluded from
 the final prompt and a warning identifies the triggered rules. Included context
@@ -220,11 +220,9 @@ refusing_policy <- policy(
 For Gemini credentials and local Ollama patterns, see
 `vignette("providers-gemini-ollama", package = "llmshieldr")`.
 
-`risk_summary` aggregates triggered findings by OWASP 2026 category. Injection
-maps to `llm01`, sensitive information to `llm02`, excessive agency to
-`llm03`, resource limits to `llm06`, misinformation to `llm07`, hidden-context
-exposure to `llm08`, retrieved-context weaknesses to `llm09`, and improper
-output handling to `llm10`.
+`risk_summary` groups triggered findings by stable lowercase category code.
+Use `owasp_crosswalk()` for all OWASP LLM Top 10:2026 names, edition-qualified
+IDs, and predecessor mappings.
 
 ## Inspect Output
 

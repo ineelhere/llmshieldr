@@ -22,32 +22,35 @@ context_policy(
 )
 }
 \arguments{
-\item{required_columns}{Metadata columns that must exist and be non-missing.}
+\item{required_columns}{Character vector of metadata columns that must exist
+and contain a value in every row.}
 
-\item{tenant_id}{Optional tenant required for every row.}
+\item{tenant_id}{Optional scalar tenant identifier required for every row.}
 
-\item{tenant_col}{Tenant column name.}
+\item{tenant_col}{Scalar name of the tenant column.}
 
-\item{principals}{Optional subject or role identifiers.}
+\item{principals}{Optional character vector of subject or role identifiers.}
 
 \item{acl_col}{Optional ACL column. Values may be character vectors, list
 column entries, or comma-separated strings.}
 
-\item{trusted_sources}{Optional source allowlist.}
+\item{trusted_sources}{Optional character vector of allowed source values.}
 
-\item{source_col}{Source column name.}
+\item{source_col}{Scalar name of the source column.}
 
-\item{allowed_trust_tiers}{Optional trust-tier allowlist.}
+\item{allowed_trust_tiers}{Optional character vector of allowed trust tiers.}
 
-\item{trust_col}{Trust-tier column name.}
+\item{trust_col}{Scalar name of the trust-tier column.}
 
-\item{max_age_seconds}{Optional maximum context age.}
+\item{max_age_seconds}{Optional non-negative maximum age in seconds.}
 
-\item{timestamp_col}{Freshness timestamp column name.}
+\item{timestamp_col}{Scalar name of the freshness timestamp column.}
 
-\item{authorize}{Optional final row authorization function.}
+\item{authorize}{Optional function that receives a one-row data frame and
+returns \code{TRUE} only when the row is authorized.}
 
-\item{now}{Function returning the current time, useful for deterministic tests.}
+\item{now}{Zero-argument function returning the current time. Override it
+for deterministic tests and examples.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }

@@ -40,6 +40,9 @@
         .label, .edge-label { fill: #e5e7eb; }
         .deny-label { fill: #fca5a5; }
         .flow { stroke: #94a3b8; }
+        .blocked, .blocked-end { stroke: #f87171; }
+        #arrow path { fill: #94a3b8; }
+        #arrow-stop path { fill: #f87171; }
       }
     </style>
   </defs>
@@ -62,6 +65,7 @@
   <path class="blocked" d="M285 145 L250 180 V490 H560"/>
   <path class="blocked" d="M300 295 L330 330 V490 H560"/>
   <path class="blocked" d="M800 230 V290 H1180 V490 H560"/>
+  <path class="blocked" d="M1030 420 V460 H1180"/>
   <path class="blocked-end" d="M560 420 V535"/>
 
   <!-- Input nodes -->
@@ -115,5 +119,5 @@
   <text class="deny-label" x="260" y="171">block</text>
   <text class="deny-label" x="340" y="326">deny row</text>
   <text class="deny-label" x="570" y="449">deny</text>
-  <text class="deny-label" x="1125" y="284">block</text>
+  <text class="deny-label" x="1042" y="449">block</text>
 </svg>

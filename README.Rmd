@@ -24,8 +24,6 @@ editor_options:
 **Inspectable guardrails for LLM applications in R.** Scan prompts, RAG context, documents, tool
 calls, streams, URLs, and model output before they cross a trust boundary.
 
-> Your LLM is eager to help. Unfortunately, so is the prompt injection hiding in that PDF.
-
 ## Why does this exist?
 
 Imagine a support assistant that retrieves customer notes, calls a refund tool, and writes into a
@@ -128,12 +126,9 @@ timing, token, network, and transfer statistics.
 ## Coverage with clear ownership
 
 `llmshieldr` is a transparent, local-first, model-neutral layer. Optional integrations are
-composable and opt-in. An OWASP label means **relevant signal**, not "this risk is fully mitigated."
-
-As of the 24 September 2026 implementation review, every package-level surface in the 21-item
-roadmap is implemented or has an explicit extension boundary. That is implementation evidence, not
-a formal security audit or production assurance. See the
-[research and implementation review](docs/research/guardrails-research-2026-09-20.html).
+composable and opt-in. Mappings follow the
+[OWASP LLM Top 10:2026](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final),
+but a category label identifies relevant risk; it does not prove that the risk is mitigated.
 
 | Boundary | What the package enforces | What your application or deployment still owns |
 |:--|:--|:--|
@@ -152,7 +147,7 @@ The tables below are the compact API map. Inputs name the important contract, no
 tuning argument; open `?function_name` for the full reference.
 
 <details>
-<summary><strong>Open the complete function map (all 73 exports)</strong></summary>
+<summary><strong>Open the complete function map</strong></summary>
 
 <br>
 
@@ -317,9 +312,7 @@ score on the full PINT corpus. Use `summarize_security_evaluation(..., by =
 See [`CONTRIBUTING.md`](https://github.com/ineelhere/llmshieldr/blob/main/CONTRIBUTING.md) for the full development
 workflow, style expectations, and local check commands.
 
-------------------------------------------------------------------------
-
-## ⚠️ Disclosure
+## Disclosure
 
 This is an independent learning and exploratory project. It is not
 affiliated with, endorsed by, sponsored by, funded by, or assisted by
@@ -330,9 +323,3 @@ community best practices. Portions of the code and documentation were
 created with LLM assistance and refined through human review. Do not
 treat the package as security, compliance, or regulated-use guidance
 without independent verification, testing, and expert review.
-
-------------------------------------------------------------------------
-
-More updates to come. Happy coding! 🎉
-
-![](https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExajkzYnB2YXVld25ub3k1Zm90ZzE4Nnk4MjNtNHJ2b2NqemRmcG8zaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dAjHiHrn3yH6TSrxj6/giphy.gif)

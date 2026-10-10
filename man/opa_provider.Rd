@@ -14,15 +14,17 @@ opa_provider(
 )
 }
 \arguments{
-\item{endpoint}{Full OPA Data API URL.}
+\item{endpoint}{Scalar URL for an OPA Data API decision endpoint.}
 
-\item{input_builder}{Optional function receiving \verb{(text, stage, metadata)}.}
+\item{input_builder}{Optional function receiving \verb{(text, stage, metadata)}
+and returning the value to send as \code{input}.}
 
 \item{include_text}{Whether raw text is included in the default OPA input.}
 
-\item{on_error}{Provider failure behavior.}
+\item{on_error}{Whether adapter failures create a blocking finding or warn
+and skip the adapter.}
 
-\item{timeout_seconds}{HTTP timeout.}
+\item{timeout_seconds}{Positive request timeout in seconds.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }
@@ -34,7 +36,5 @@ Sends metadata and, only when \code{include_text = TRUE}, text to an OPA Data AP
 decision endpoint. A false decision creates a blocking tool/guardrail finding.
 }
 \examples{
-\dontrun{
 opa <- opa_provider("http://127.0.0.1:8181/v1/data/llmshieldr/allow")
-}
 }

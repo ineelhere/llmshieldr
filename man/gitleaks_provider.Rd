@@ -13,13 +13,14 @@ gitleaks_provider(
 )
 }
 \arguments{
-\item{command}{Gitleaks executable path or command name.}
+\item{command}{Scalar Gitleaks executable path or command name.}
 
-\item{config}{Optional Gitleaks configuration path.}
+\item{config}{Optional scalar path to a Gitleaks configuration file.}
 
-\item{on_error}{Provider failure behavior.}
+\item{on_error}{Whether adapter failures create a blocking finding or warn
+and skip the adapter.}
 
-\item{timeout_seconds}{Process timeout.}
+\item{timeout_seconds}{Positive process timeout in seconds.}
 
 \item{show_stats}{Show construction time and available usage metrics.}
 }
@@ -32,7 +33,5 @@ No network call is made by this adapter. The temporary file and report are
 removed on exit.
 }
 \examples{
-\dontrun{
 gitleaks <- gitleaks_provider()
-}
 }

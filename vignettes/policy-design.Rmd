@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 
@@ -79,8 +79,8 @@ deterministic and makes redaction spans possible for regex rules.
 The built-in rules are sourced from a small number of security and governance
 concerns that recur across LLM applications:
 
-- OWASP GenAI / LLM Top 10:
-  <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10>
+- OWASP LLM Top 10:2026:
+  <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>
 - Prompt-injection patterns: direct override language, hidden instructions,
   role confusion, and system-prompt extraction attempts
 - NLP intent signals: token and stem patterns for override, secret exposure,
@@ -444,16 +444,16 @@ row-level path back to audit data.
 category.
 
 ```text
-llm01 = prompt injection and instruction override findings
-llm02 = sensitive information and secret findings
-llm03 = excessive agency and unsafe tool-use findings
-llm04 = model and provider supply-chain findings
-llm05 = context provenance and poisoning findings
-llm06 = resource exhaustion and rate-guard findings
-llm07 = misinformation and grounding findings
-llm08 = hidden-context exposure findings
-llm09 = retrieved-context and vector-isolation findings
-llm10 = improper output handling findings
+LLM01:2026 = prompt injection and instruction override findings
+LLM02:2026 = sensitive information and secret findings
+LLM03:2026 = excessive agency and unsafe tool-use findings
+LLM04:2026 = model and provider supply-chain findings
+LLM05:2026 = context provenance and poisoning findings
+LLM06:2026 = resource exhaustion and rate-guard findings
+LLM07:2026 = misinformation and grounding findings
+LLM08:2026 = hidden-context exposure findings
+LLM09:2026 = retrieved-context and vector-isolation findings
+LLM10:2026 = improper output handling findings
 ```
 
 Each category is capped at `1.0`. The value is useful for dashboards and audit
@@ -461,7 +461,7 @@ summaries because it shows which risk category dominated a run.
 
 ## Rate Guard Semantics
 
-`rate_guard()` now checks projected usage before counters are incremented.
+`rate_guard()` checks projected usage before counters are incremented.
 `secure_chat()` reserves one request before the chat call. With
 `strict = TRUE`, it also reserves an estimated prompt token count before the
 call and records only the positive post-call delta after output scanning. If

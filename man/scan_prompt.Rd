@@ -47,7 +47,7 @@ A \code{shieldr_report}.
 \description{
 Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
 Findings retain OWASP LLM Top 10:2026 categories when known; see
-\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10}.
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 \code{scan_prompt()} is usually the first guardrail in a workflow. It normalizes
