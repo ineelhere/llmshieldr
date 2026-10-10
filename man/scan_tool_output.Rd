@@ -12,7 +12,8 @@ scan_tool_output(
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ scan_tool_output(
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{show_stats}{Show execution statistics as messages.}
 }
 \value{
 A \code{shieldr_report}.

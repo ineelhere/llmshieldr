@@ -10,7 +10,7 @@ development:
 
 home:
   title: llmshieldr
-  description: Safety guardrails for LLM workflows in R, now on CRAN.
+  description: Inspectable safety guardrails for LLM workflows in R.
   links:
   - text: View CRAN release
     href: https://CRAN.R-project.org/package=llmshieldr
@@ -51,19 +51,44 @@ reference:
       - scan_output
       - scan_conversation
       - scan_stream
+      - stream_guard
       - scan_tool_call
       - scan_tool_output
+      - scan_url_target
+      - scan_grounding
+      - scan_document
       - scanner_options
       - redaction_strategy
+      - output_contract
+      - validate_output_contract
+      - context_policy
+      - grounding_policy
+      - url_policy
+      - document_input
+      - entity_recognizer
+      - native_recognizers
+      - secret_registry
 
   - title: Orchestration
     contents:
       - secure_chat
       - shield_ollama
+      - shield_gemini
       - ollama_reviewer
       - remote_reviewer
       - trust_boundary
       - rate_guard
+      - tool_policy
+      - guard_tool
+      - telemetry_options
+
+  - title: Optional Detector Adapters
+    contents:
+      - guardrail_provider
+      - prompt_guard_provider
+      - presidio_provider
+      - gitleaks_provider
+      - opa_provider
 
   - title: Audit and Explanation
     contents:
@@ -71,6 +96,9 @@ reference:
       - explain_findings
       - example_prompts
       - evaluate_security_cases
+      - summarize_security_evaluation
+      - compare_policies
+      - owasp_crosswalk
       - reviewer_prompt
 
   - title: Constructors
@@ -88,16 +116,15 @@ articles:
     navbar: ~
     contents:
       - getting-started
-      - ollama-usage
+      - complete-guide
       - policy-design
       - custom-rules
-      - rag-pipeline
-      - owasp-coverage
-      - evaluation
-      - threat-model
-      - operations
-      - architecture
-      - ecosystem-context
+      - rag-use-case
+      - developer-structure
+      - finance-use-case
+      - pharma-use-case
+      - providers-gemini-ollama
+      - faq
 
 search:
   enabled: true
@@ -106,4 +133,4 @@ footer:
   structure:
     left: [developed_by]
   components:
-    developed_by: Developed by <a href="https://www.linkedin.com/in/indraneelchakraborty/" target="_blank">Indraneel Chakraborty</a>
+    developed_by: Developed by <a href="https://www.linkedin.com/in/indraneelchakraborty/" target="_blank" rel="noopener noreferrer">Indraneel Chakraborty</a>

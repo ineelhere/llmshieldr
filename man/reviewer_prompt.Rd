@@ -4,7 +4,10 @@
 \alias{reviewer_prompt}
 \title{Return the default semantic reviewer prompt}
 \usage{
-reviewer_prompt()
+reviewer_prompt(show_stats = FALSE)
+}
+\arguments{
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A single prompt string.

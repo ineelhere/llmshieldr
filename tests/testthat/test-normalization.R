@@ -23,3 +23,21 @@ test_that("encoded payload scanner catches base64 injection text", {
   expect_equal(report$action, "block")
   expect_true(any(grepl("\\.encoded$", vapply(report$findings, function(x) x$rule_id, character(1)))))
 })
+
+test_that("base64-like identifiers with non-UTF-8 bytes do not crash scanning", {
+  expect_no_error(
+    report <- scan_prompt("api_key = 'abcdefghijklmnop123456'")
+  )
+  expect_equal(report$action, "redact")
+})
+
+test_that("normalization maps findings back to untouched original text", {
+  safe <- "Caf\u00e9 in \u041c\u043e\u0441\u043a\u0432\u0430"
+  expect_equal(scan_prompt(safe)$text_clean, safe)
+
+  report <- scan_prompt("Email \uff4eeel@example.com now.")
+  expect_equal(report$action, "redact")
+  expect_equal(report$text_clean, "Email [REDACTED] now.")
+  email <- Filter(function(x) identical(x$rule_id, "llm02.pii.email"), report$findings)[[1L]]
+  expect_equal(email$match, "\uff4eeel@example.com")
+})

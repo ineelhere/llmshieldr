@@ -11,7 +11,10 @@ scan_output(
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  contract = NULL,
+  show_tokens = FALSE,
+  stage = "output",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -27,7 +30,14 @@ scan_output(
 
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
+\item{contract}{Optional destination contract from \code{\link[=output_contract]{output_contract()}}.}
+
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{stage}{Internal trust-boundary stage.}
+
+\item{show_stats}{Show elapsed time, token estimate, network status, and
+transfer metrics when available.}
 }
 \value{
 A \code{shieldr_report}.
@@ -46,6 +56,11 @@ and adds output-specific checks for common failure modes:
 \item system-prompt structural markers such as "# System" or role declarations
 \item high-confidence medical or financial claim markers
 }
+
+Agency checks in \code{checks = "rules"} match known phrases and action verbs;
+they cannot infer every paraphrase or distinguish every quotation from a
+model's own intent. For broader intent review, supply a semantic \code{reviewer}
+with \code{checks = "both"} and evaluate it on your application data.
 
 Use \code{checks = "nlp"} when you want a lightweight local NLP-only pass over
 model output. The return value is a \code{\link[=shieldr_report]{shieldr_report()}} with the same scoring

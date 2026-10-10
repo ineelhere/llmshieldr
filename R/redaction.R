@@ -29,6 +29,7 @@
 #' @param hash_algo Digest algorithm passed to [digest::digest()] for
 #'   `operator = "hash"`.
 #' @param hash_prefix Number of digest characters to keep in hash labels.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_redaction_strategy` object.
 #' @examples
@@ -46,7 +47,10 @@ redaction_strategy <- function(operator = c("replace", "mask", "hash", "drop", "
                                replacement = "[REDACTED]",
                                mask = "*",
                                hash_algo = "sha256",
-                               hash_prefix = 12L) {
+                               hash_prefix = 12L,
+                               show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "redaction_strategy")
+  on.exit(.stats_end(stats), add = TRUE)
   operator <- match.arg(operator)
   .check_string(replacement, "replacement", allow_empty = TRUE)
   .check_string(mask, "mask")

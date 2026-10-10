@@ -7,13 +7,17 @@
 scan_tool_call(
   tool_name,
   arguments = list(),
-  allowed_tools = NULL,
+  allowed_tools = character(),
   policy = "enterprise_default",
   reviewer = NULL,
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  tool_policy = NULL,
+  subject = NULL,
+  state = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -22,7 +26,8 @@ scan_tool_call(
 \item{arguments}{Tool arguments as a list, data frame, character string, or
 other JSON-serializable value.}
 
-\item{allowed_tools}{Optional character vector of approved tool names.}
+\item{allowed_tools}{Character vector of approved tool names. The default
+empty vector denies every tool; \code{NULL} explicitly disables the allowlist.}
 
 \item{policy}{A \code{shieldr_policy} or built-in policy name.}
 
@@ -35,6 +40,14 @@ other JSON-serializable value.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{tool_policy}{Optional richer policy from \code{\link[=tool_policy]{tool_policy()}}.}
+
+\item{subject}{Optional authorization context passed to the tool policy.}
+
+\item{state}{Optional mutable call-limit state used by guarded dispatchers.}
+
+\item{show_stats}{Show execution statistics as messages.}
 }
 \value{
 A \code{shieldr_report}.
@@ -42,8 +55,9 @@ A \code{shieldr_report}.
 \description{
 \code{scan_tool_call()} validates tool-call intent and arguments before an
 application executes the tool. It serializes the tool name and arguments,
-scans that text with \code{\link[=scan_prompt]{scan_prompt()}}, and adds an explicit finding when the
-tool is outside an allowlist.
+scans that text with \code{\link[=scan_prompt]{scan_prompt()}}, and applies the configured allowlist,
+schema, authorization, validator, budget, and approval policy. The default
+empty allowlist denies every tool.
 }
 \details{
 This helper does not execute tools. It is designed to sit immediately before

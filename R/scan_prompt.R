@@ -1,8 +1,8 @@
 #' Scan a prompt
 #'
 #' Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
-#' Findings retain OWASP LLM Top 10 categories when known; see
-#' <https://genai.owasp.org/llm-top-10/>.
+#' Findings retain OWASP LLM Top 10:2026 categories when known; see
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
 #'
 #' @details
 #' `scan_prompt()` is usually the first guardrail in a workflow. It normalizes
@@ -16,11 +16,14 @@
 #' intent checks, using `tokenizers` for word tokenization and `SnowballC` for
 #' stemming when those optional packages are installed. `checks = "llm"` uses
 #' only the semantic reviewer when one is supplied. `checks = "both"` combines
-#' policy rules with semantic review. If LLM review returns malformed JSON, the
-#' function warns and continues with the findings it already has.
+#' policy rules with semantic review. Reviewer failures block by default;
+#' `policy_controls(on_reviewer_error = "rules_only")` allows a rules-only fallback.
 #'
-#' Redaction replaces matched spans with `[REDACTED]`. Function-based findings
-#' can influence score and action even when they do not provide exact spans.
+#' Redaction replaces matched spans with `[REDACTED]`. A `redact` finding that
+#' does not provide a valid span is promoted to a blocking redaction-integrity
+#' finding by default, so `text_clean` is never presented as sanitized while
+#' the detected text remains present. Use `list_rules()` to identify custom
+#' redact rules that cannot guarantee spans.
 #'
 #' @param text Prompt text.
 #' @param policy A `shieldr_policy` or built-in policy name such as `"comprehensive"`.
@@ -31,6 +34,10 @@
 #'   Ignored when `redact = FALSE`.
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show elapsed time, token estimate, network status, and
+#'   transfer metrics when available.
+#' @param stage Internal trust-boundary stage. Advanced callers should normally
+#'   use the stage-specific public scanner instead.
 #'
 #' @return A `shieldr_report`.
 #' @examples
@@ -46,7 +53,13 @@ scan_prompt <- function(text,
                         redact = TRUE,
                         redaction = NULL,
                         scanners = scanner_options(),
-                        show_tokens = FALSE) {
+                        show_tokens = FALSE,
+                        stage = "prompt",
+                        show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_prompt")
+  on.exit(.stats_end(stats), add = TRUE)
+  .stats_text_tokens(stats, text)
+  .stats_track_reviewer(stats, reviewer, checks)
   .check_string(text, "text", allow_empty = TRUE)
   policy <- .as_policy(policy)
   checks <- .validate_checks(checks)
@@ -57,27 +70,43 @@ scan_prompt <- function(text,
   scanners <- .validate_scanner_options(scanners)
   show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer_for_checks(reviewer, checks)
+  .check_choice(stage, "stage", c("prompt", "context", "tool_call", "document"))
 
-  text_norm <- .normalise_text(text)
+  normalised <- .normalise_text_with_map(text)
+  text_norm <- normalised$text
   findings <- list()
   reviewer_errors <- list()
-  findings <- c(findings, .run_scanners(text, text_norm, policy, scanners, stage = "prompt"))
+  findings <- c(findings, .run_scanners(text, text_norm, policy, scanners, stage = stage))
 
+  detection_findings <- list()
   if (checks %in% c("rules", "both")) {
-    findings <- c(findings, .run_rules(text_norm, policy))
+    detection_findings <- c(detection_findings, .run_rules(text_norm, policy, stage = stage))
   } else if (identical(checks, "nlp")) {
-    findings <- c(findings, .run_nlp(text_norm, policy))
+    detection_findings <- c(detection_findings, .run_nlp(text_norm, policy))
   }
   if (checks %in% c("llm", "both") && !is.null(reviewer)) {
-    semantic <- .semantic_review(text_norm, reviewer, policy$name)
+    semantic <- .semantic_review(text_norm, reviewer, policy$name, policy$controls)
     reviewer_errors <- c(reviewer_errors, attr(semantic, "reviewer_errors") %||% list())
-    findings <- c(findings, semantic)
+    detection_findings <- c(detection_findings, semantic)
+  }
+  findings <- c(findings, .map_findings_to_original(detection_findings, normalised, text))
+  if (length(reviewer_errors) > 0L &&
+      policy$controls$on_reviewer_error %in% c("block", "escalate")) {
+    findings <- c(findings, list(.reviewer_failure_finding()))
   }
 
   findings <- .dedupe_findings(findings)
   risk_score <- .score_findings(findings)
   action <- .resolve_action(risk_score, findings, policy)
-  text_clean <- if (isTRUE(redact)) .apply_redaction(text_norm, findings, redaction) else text_norm
+  text_clean <- if (isTRUE(redact)) .apply_redaction(text, findings, redaction) else text
+  redaction_integrity <- .enforce_redaction_integrity(
+    action, findings, text = text, enabled = isTRUE(redact)
+  )
+  if (length(redaction_integrity$findings) > length(findings)) {
+    findings <- redaction_integrity$findings
+    risk_score <- .score_findings(findings)
+    action <- .resolve_action(risk_score, findings, policy)
+  }
 
   shieldr_report(
     action = action,
@@ -88,11 +117,75 @@ scan_prompt <- function(text,
     checks = checks,
     tokens = if (isTRUE(show_tokens)) .count_tokens(text) else NULL,
     metadata = .report_metadata(
-      stage = "prompt",
+      stage = stage,
+      policy_version = policy$version,
+      policy_fingerprint = policy$fingerprint,
+      decision_schema_version = policy$decision_schema_version,
       reviewer_errors = reviewer_errors,
+      review_status = .review_status(checks, reviewer, reviewer_errors),
+      reviewer_failure_action = if (length(reviewer_errors) > 0L) policy$controls$on_reviewer_error else NULL,
+      redaction_complete = redaction_integrity$complete,
+      invalid_redaction_rule_ids = redaction_integrity$rule_ids,
       scanners = scanners
     )
   )
+}
+
+.enforce_redaction_integrity <- function(action, findings, text = NULL, enabled = TRUE) {
+  ids <- .invalid_redaction_rule_ids(findings, text)
+  complete <- !identical(action, "redact") || (isTRUE(enabled) && length(ids) == 0L)
+  if (!isTRUE(enabled) || !identical(action, "redact") || length(ids) == 0L) {
+    return(list(findings = findings, rule_ids = ids, complete = complete))
+  }
+  failure <- .synthetic_finding(
+    "llm02.redaction.incomplete", "llm02", "critical",
+    paste0(
+      "Redaction was requested but one or more findings had a missing or invalid span: ",
+      paste(ids, collapse = ", "), "."
+    ),
+    action = "block"
+  )
+  failure$invalid_rule_ids <- ids
+  list(
+    findings = .dedupe_findings(c(findings, list(failure))),
+    rule_ids = ids,
+    complete = FALSE
+  )
+}
+
+.invalid_redaction_rule_ids <- function(findings, text = NULL) {
+  if (length(findings) == 0L) return(character())
+  text_length <- if (is.null(text)) NULL else nchar(text, type = "chars")
+  missing <- vapply(findings, function(finding) {
+    if (!identical(finding$action %||% "redact", "redact")) return(FALSE)
+    start <- if (is.null(finding$start) || length(finding$start) == 0L) {
+      NA_integer_
+    } else {
+      suppressWarnings(as.integer(finding$start[[1L]]))
+    }
+    end <- if (is.null(finding$end) || length(finding$end) == 0L) {
+      NA_integer_
+    } else {
+      suppressWarnings(as.integer(finding$end[[1L]]))
+    }
+    is.na(start) || is.na(end) || start < 1L || end < start ||
+      (!is.null(text_length) && (start > text_length || end > text_length))
+  }, logical(1))
+  unique(vapply(findings[missing], function(finding) finding$rule_id %||% "unknown", character(1)))
+}
+
+.reviewer_failure_finding <- function() {
+  .synthetic_finding(
+    "llm02.reviewer.failure", "llm02", "critical",
+    "Required semantic reviewer failed or returned invalid findings.",
+    action = "block"
+  )
+}
+
+.review_status <- function(checks, reviewer, errors) {
+  if (!checks %in% c("llm", "both")) return("not_requested")
+  if (is.null(reviewer)) return("not_configured")
+  if (length(errors) > 0L) "failed" else "passed"
 }
 
 #' Preflight-check a prompt
@@ -114,7 +207,12 @@ preflight_check <- function(text,
                             redact = TRUE,
                             redaction = NULL,
                             scanners = scanner_options(),
-                            show_tokens = FALSE) {
+                            show_tokens = FALSE,
+                            show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "preflight_check")
+  on.exit(.stats_end(stats), add = TRUE)
+  .stats_text_tokens(stats, text)
+  .stats_track_reviewer(stats, reviewer, checks)
   scan_prompt(
     text = text,
     policy = policy,
@@ -142,12 +240,13 @@ preflight_check <- function(text,
 #'
 #' @return A list of finding lists.
 #' @keywords internal
-.run_rules <- function(text, policy) {
+.run_rules <- function(text, policy, stage = NULL) {
   .check_string(text, "text", allow_empty = TRUE)
   .check_policy(policy)
 
   findings <- list()
   for (rule in policy$rules) {
+    if (!is.null(stage) && !stage %in% (rule$stages %||% c("prompt", "context", "output", "tool_call", "tool_output", "document"))) next
     if (!is.null(rule$pattern)) {
       matches <- tryCatch(
         gregexpr(rule$pattern, text, perl = TRUE),
@@ -163,17 +262,21 @@ preflight_check <- function(text,
       }
       ends <- starts + lengths - 1L
       for (i in seq_along(starts)) {
-        findings[[length(findings) + 1L]] <- .finding(
+        finding <- .finding(
           rule = rule,
           match = substr(text, starts[[i]], ends[[i]]),
           start = starts[[i]],
           end = ends[[i]],
           source = "rules"
         )
+        finding$stage <- stage
+        findings[[length(findings) + 1L]] <- finding
       }
     } else if (!is.null(rule$fn)) {
       result <- rule$fn(text)
-      findings <- c(findings, .coerce_fn_findings(result, rule))
+      fn_findings <- .coerce_fn_findings(result, rule)
+      fn_findings <- lapply(fn_findings, function(finding) { finding$stage <- stage; finding })
+      findings <- c(findings, fn_findings)
     }
   }
 
@@ -195,7 +298,9 @@ preflight_check <- function(text,
     name = policy$name,
     rules = rules,
     thresholds = policy$thresholds,
-    trusted_sources = policy$trusted_sources
+    trusted_sources = policy$trusted_sources,
+    controls = policy$controls,
+    version = policy$version
   )
   .run_rules(text, nlp_policy)
 }
@@ -308,8 +413,9 @@ preflight_check <- function(text,
 #' `owasp`, `severity`, and `description`. Reviewers may also return
 #' `confidence`, `evidence`, `recommended_action`, and `span`. `span` may be a
 #' two-element numeric vector or an object with `start` and `end`. The reviewer
-#' can be a function or an object with `$chat()`. Malformed JSON is treated as a
-#' soft failure because deterministic rule findings should still be usable.
+#' can be a function or an object with `$chat()`. Malformed JSON and call
+#' failures are recorded and block by default; policy controls may escalate or
+#' explicitly allow a deterministic rules-only fallback.
 #' Custom reviewer instructions should be added by wrapping the reviewer and
 #' prepending context before delegating to the model, while keeping this JSON
 #' schema intact.
@@ -322,7 +428,7 @@ preflight_check <- function(text,
 #'
 #' @return A list of finding lists.
 #' @keywords internal
-.semantic_review <- function(text, reviewer, policy_name) {
+.semantic_review <- function(text, reviewer, policy_name, controls = policy_controls()) {
   prompt <- paste(
     .shieldr_reviewer_prompt,
     paste0("Policy: ", policy_name),
@@ -332,18 +438,20 @@ preflight_check <- function(text,
   )
 
   errors <- list()
-  response <- tryCatch(
-    .call_reviewer(reviewer, prompt),
-    error = function(e) {
-      errors[[length(errors) + 1L]] <<- .reviewer_error(
-        "call_failed",
-        conditionMessage(e)
-      )
-      cli::cli_warn("Semantic reviewer failed; continuing with rule findings only.")
-      NULL
-    }
+  controls <- .validate_policy_controls(controls)
+  response <- .retry_call(
+    function() .call_reviewer(reviewer, prompt),
+    retries = controls$reviewer_retries,
+    timeout_seconds = controls$reviewer_timeout_seconds
   )
+  if (inherits(response, "error")) {
+    error_type <- if (grepl("time limit|timeout|timed out", conditionMessage(response), ignore.case = TRUE)) "timeout" else "call_failed"
+    errors[[length(errors) + 1L]] <- .reviewer_error(error_type, conditionMessage(response))
+    cli::cli_warn("Semantic reviewer failed; applying {.val {controls$on_reviewer_error}} policy.")
+    return(.with_reviewer_errors(list(), errors))
+  }
   if (is.null(response)) {
+    errors[[length(errors) + 1L]] <- .reviewer_error("empty_response", "Reviewer returned NULL.")
     return(.with_reviewer_errors(list(), errors))
   }
   response <- paste(as.character(response), collapse = "\n")
@@ -399,7 +507,7 @@ preflight_check <- function(text,
 .coerce_reviewer_finding <- function(item, index) {
   errors <- list()
 
-  severity <- tolower(as.character(item$severity %||% "medium"))
+  severity <- tolower(.reviewer_scalar(item$severity, "medium"))
   if (!severity %in% .shieldr_severities()) {
     errors[[length(errors) + 1L]] <- .reviewer_error(
       "invalid_severity",
@@ -410,7 +518,7 @@ preflight_check <- function(text,
     severity <- "medium"
   }
 
-  recommended_action <- tolower(as.character(item$recommended_action %||% item$action %||% NA_character_))
+  recommended_action <- tolower(.reviewer_scalar(item$recommended_action %||% item$action, NA_character_))
   if (!is.na(recommended_action) && nzchar(recommended_action) && !recommended_action %in% .shieldr_rule_actions()) {
     errors[[length(errors) + 1L]] <- .reviewer_error(
       "invalid_recommended_action",
@@ -430,8 +538,8 @@ preflight_check <- function(text,
 
   confidence <- NA_real_
   if (!is.null(item$confidence) && length(item$confidence) > 0L) {
-    confidence <- suppressWarnings(as.numeric(item$confidence[[1]]))
-    if (is.na(confidence) || confidence < 0 || confidence > 1) {
+    confidence <- tryCatch(suppressWarnings(as.numeric(item$confidence[[1]])), error = function(e) NA_real_)
+    if (length(confidence) != 1L || is.na(confidence) || confidence < 0 || confidence > 1) {
       errors[[length(errors) + 1L]] <- .reviewer_error(
         "invalid_confidence",
         "Reviewer confidence must be a number between 0 and 1; dropping confidence.",
@@ -450,22 +558,38 @@ preflight_check <- function(text,
     )
   }
 
+  rule_id <- .reviewer_scalar(item$rule_id, "llm.semantic.review")
+  if (!grepl("^[A-Za-z0-9_.-]{1,80}$", rule_id)) {
+    errors[[length(errors) + 1L]] <- .reviewer_error("invalid_rule_id", "Reviewer rule_id was invalid.", finding_index = index)
+    rule_id <- "llm.semantic.review"
+  }
+  owasp <- tolower(.reviewer_scalar(item$owasp, NA_character_))
+  if (!is.na(owasp) && !owasp %in% sprintf("llm%02d", 1:10)) {
+    errors[[length(errors) + 1L]] <- .reviewer_error("invalid_owasp", "Reviewer OWASP 2026 category was invalid.", finding_index = index)
+    owasp <- NA_character_
+  }
   finding <- list(
-    rule_id = as.character(item$rule_id %||% "llm.semantic.review"),
-    owasp = if (is.null(item$owasp)) NA_character_ else tolower(as.character(item$owasp)),
+    rule_id = rule_id,
+    owasp = owasp,
     severity = severity,
     action = action,
-    description = as.character(item$description %||% "Semantic reviewer finding."),
-    match = as.character(item$match %||% item$evidence %||% NA_character_),
+    description = .reviewer_scalar(item$description, "Semantic reviewer finding."),
+    match = .reviewer_scalar(item$match %||% item$evidence, NA_character_),
     start = span$start,
     end = span$end,
     source = "llm",
     confidence = confidence,
-    evidence = as.character(item$evidence %||% NA_character_),
+    evidence = .reviewer_scalar(item$evidence, NA_character_),
     recommended_action = if (is.na(recommended_action)) NA_character_ else recommended_action
   )
 
   list(finding = finding, errors = errors)
+}
+
+.reviewer_scalar <- function(x, default) {
+  if (is.null(x) || length(x) == 0L) return(default)
+  value <- tryCatch(as.character(x[[1L]]), error = function(e) character())
+  if (length(value) != 1L || is.na(value)) default else value
 }
 
 .coerce_reviewer_span <- function(span) {
@@ -538,59 +662,163 @@ preflight_check <- function(text,
   text
 }
 
-# Effective confusable map. Unicode escapes keep this source file ASCII-safe.
+# Effective confusable map. Hexadecimal names avoid source-encoding warnings
+# under non-UTF-8 R locales; names are converted to Unicode at load time.
 .homoglyph_map <- c(
-  "\u0410" = "A", "\u0391" = "A", "\uFF21" = "A",
-  "\u0430" = "a", "\u03B1" = "a", "\uFF41" = "a",
-  "\u0412" = "B", "\u0392" = "B", "\uFF22" = "B",
-  "\u0421" = "C", "\u03F9" = "C", "\uFF23" = "C",
-  "\u0441" = "c", "\u03F2" = "c", "\uFF43" = "c",
-  "\u0415" = "E", "\u0395" = "E", "\uFF25" = "E",
-  "\u0435" = "e", "\u03B5" = "e", "\uFF45" = "e",
-  "\u041D" = "H", "\u0397" = "H", "\uFF28" = "H",
-  "\u04BB" = "h", "\uFF48" = "h",
-  "\u0406" = "I", "\u0399" = "I", "\uFF29" = "I",
-  "\u0456" = "i", "\u03B9" = "i", "\uFF49" = "i",
-  "\u0408" = "J", "\uFF2A" = "J",
-  "\u0458" = "j", "\uFF4A" = "j",
-  "\u041A" = "K", "\u039A" = "K", "\uFF2B" = "K",
-  "\u043A" = "k", "\u03BA" = "k", "\uFF4B" = "k",
-  "\u041C" = "M", "\u039C" = "M", "\uFF2D" = "M",
-  "\u043C" = "m", "\u03BC" = "m", "\uFF4D" = "m",
-  "\u039D" = "N", "\uFF2E" = "N",
-  "\u043D" = "h", "\u03BD" = "v", "\uFF4E" = "n",
-  "\u041E" = "O", "\u039F" = "O", "\uFF2F" = "O",
-  "\u043E" = "o", "\u03BF" = "o", "\uFF4F" = "o",
-  "\u0420" = "P", "\u03A1" = "P", "\uFF30" = "P",
-  "\u0440" = "p", "\u03C1" = "p", "\uFF50" = "p",
-  "\u0405" = "S", "\uFF33" = "S",
-  "\u0455" = "s", "\uFF53" = "s",
-  "\u0422" = "T", "\u03A4" = "T", "\uFF34" = "T",
-  "\u0442" = "t", "\u03C4" = "t", "\uFF54" = "t",
-  "\u0425" = "X", "\u03A7" = "X", "\uFF38" = "X",
-  "\u0445" = "x", "\u03C7" = "x", "\uFF58" = "x",
-  "\u0423" = "Y", "\u03A5" = "Y", "\uFF39" = "Y",
-  "\u0443" = "y", "\u03C5" = "y", "\uFF59" = "y"
+  "0410" = "A", "0391" = "A", "FF21" = "A",
+  "0430" = "a", "03B1" = "a", "FF41" = "a",
+  "0412" = "B", "0392" = "B", "FF22" = "B",
+  "0421" = "C", "03F9" = "C", "FF23" = "C",
+  "0441" = "c", "03F2" = "c", "FF43" = "c",
+  "0415" = "E", "0395" = "E", "FF25" = "E",
+  "0435" = "e", "03B5" = "e", "FF45" = "e",
+  "041D" = "H", "0397" = "H", "FF28" = "H",
+  "04BB" = "h", "FF48" = "h",
+  "0406" = "I", "0399" = "I", "FF29" = "I",
+  "0456" = "i", "03B9" = "i", "FF49" = "i",
+  "0408" = "J", "FF2A" = "J",
+  "0458" = "j", "FF4A" = "j",
+  "041A" = "K", "039A" = "K", "FF2B" = "K",
+  "043A" = "k", "03BA" = "k", "FF4B" = "k",
+  "041C" = "M", "039C" = "M", "FF2D" = "M",
+  "043C" = "m", "03BC" = "m", "FF4D" = "m",
+  "039D" = "N", "FF2E" = "N",
+  "043D" = "h", "03BD" = "v", "FF4E" = "n",
+  "041E" = "O", "039F" = "O", "FF2F" = "O",
+  "043E" = "o", "03BF" = "o", "FF4F" = "o",
+  "0420" = "P", "03A1" = "P", "FF30" = "P",
+  "0440" = "p", "03C1" = "p", "FF50" = "p",
+  "0405" = "S", "FF33" = "S",
+  "0455" = "s", "FF53" = "s",
+  "0422" = "T", "03A4" = "T", "FF34" = "T",
+  "0442" = "t", "03C4" = "t", "FF54" = "t",
+  "0425" = "X", "03A7" = "X", "FF38" = "X",
+  "0445" = "x", "03C7" = "x", "FF58" = "x",
+  "0423" = "Y", "03A5" = "Y", "FF39" = "Y",
+  "0443" = "y", "03C5" = "y", "FF59" = "y"
 )
+names(.homoglyph_map) <- vapply(names(.homoglyph_map), function(hex) {
+  intToUtf8(strtoi(hex, base = 16L))
+}, character(1))
 
 .normalise_text <- function(text, collapse_whitespace = TRUE, collapse_delimited = TRUE) {
-  text <- stringi::stri_trans_nfkc(text)
-  text <- stringi::stri_replace_all_regex(text, "\\p{Cf}+", "", vectorize_all = FALSE)
-  if (isTRUE(collapse_whitespace)) {
-    text <- gsub("\\s+", " ", trimws(text), perl = TRUE)
+  .normalise_text_with_map(text, collapse_whitespace, collapse_delimited)$text
+}
+
+# Build a detection-only Unicode view while retaining offsets back to the
+# original string. Cleaned/released text is always derived from the original.
+.normalise_text_with_map <- function(text,
+                                     collapse_whitespace = TRUE,
+                                     collapse_delimited = TRUE) {
+  clusters <- stringi::stri_split_boundaries(text, type = "character")[[1L]]
+  if (length(clusters) == 0L) {
+    return(list(text = "", start = integer(), end = integer()))
   }
-  for (i in seq_along(.homoglyph_map)) {
-    text <- stringi::stri_replace_all_fixed(
-      text,
-      names(.homoglyph_map)[[i]],
-      .homoglyph_map[[i]],
-      vectorize_all = FALSE
-    )
+
+  cluster_lengths <- nchar(clusters, type = "chars")
+  cluster_starts <- cumsum(c(1L, utils::head(cluster_lengths, -1L)))
+  cluster_ends <- cluster_starts + cluster_lengths - 1L
+  normalised_clusters <- stringi::stri_trans_nfkc(clusters)
+  split_clusters <- lapply(normalised_clusters, function(value) {
+    if (!nzchar(value)) character() else strsplit(value, "", fixed = TRUE)[[1L]]
+  })
+  output_lengths <- lengths(split_clusters)
+  chars <- unlist(split_clusters, use.names = FALSE)
+  starts <- rep(cluster_starts, output_lengths)
+  ends <- rep(cluster_ends, output_lengths)
+
+  if (length(chars) > 0L) {
+    keep <- !stringi::stri_detect_regex(chars, "^\\p{Cf}$")
+    chars <- chars[keep]
+    starts <- starts[keep]
+    ends <- ends[keep]
   }
-  if (isTRUE(collapse_delimited)) {
-    text <- .collapse_delimited_words(text)
+
+  # Confusable folding is useful for mixed-script spoofing, but corrupts
+  # ordinary Cyrillic and Greek when applied globally.
+  current <- paste0(chars, collapse = "")
+  token_hits <- gregexpr("[\\p{L}\\p{M}\\p{N}_-]+", current, perl = TRUE)[[1L]]
+  if (length(token_hits) > 0L && !identical(token_hits[[1L]], -1L)) {
+    token_lengths <- attr(token_hits, "match.length")
+    for (i in seq_along(token_hits)) {
+      first <- as.integer(token_hits[[i]])
+      last <- first + as.integer(token_lengths[[i]]) - 1L
+      token <- substr(current, first, last)
+      scripts <- c(
+        latin = stringi::stri_detect_regex(token, "\\p{Latin}"),
+        cyrillic = stringi::stri_detect_regex(token, "\\p{Cyrillic}"),
+        greek = stringi::stri_detect_regex(token, "\\p{Greek}")
+      )
+      if (sum(scripts) < 2L) next
+      positions <- seq.int(first, last)
+      replacements <- unname(.homoglyph_map[chars[positions]])
+      replace <- !is.na(replacements)
+      chars[positions[replace]] <- replacements[replace]
+    }
   }
-  text
+
+  if (isTRUE(collapse_whitespace) && length(chars) > 0L) {
+    whitespace <- stringi::stri_detect_regex(chars, "^\\s$")
+    keep <- rep(TRUE, length(chars))
+    if (any(whitespace)) {
+      runs <- rle(whitespace)
+      run_ends <- cumsum(runs$lengths)
+      run_starts <- run_ends - runs$lengths + 1L
+      for (i in which(runs$values)) {
+        idx <- seq.int(run_starts[[i]], run_ends[[i]])
+        if (run_starts[[i]] == 1L || run_ends[[i]] == length(chars)) {
+          keep[idx] <- FALSE
+        } else {
+          chars[idx[[1L]]] <- " "
+          starts[idx[[1L]]] <- min(starts[idx])
+          ends[idx[[1L]]] <- max(ends[idx])
+          if (length(idx) > 1L) keep[idx[-1L]] <- FALSE
+        }
+      }
+      chars <- chars[keep]
+      starts <- starts[keep]
+      ends <- ends[keep]
+    }
+  }
+
+  if (isTRUE(collapse_delimited) && length(chars) > 0L) {
+    current <- paste0(chars, collapse = "")
+    matches <- gregexpr("\\b(?:[A-Za-z][ ._-]){2,}[A-Za-z]\\b", current, perl = TRUE)[[1L]]
+    if (length(matches) > 0L && !identical(matches[[1L]], -1L)) {
+      match_lengths <- attr(matches, "match.length")
+      keep <- rep(TRUE, length(chars))
+      for (i in seq_along(matches)) {
+        first <- as.integer(matches[[i]])
+        last <- first + as.integer(match_lengths[[i]]) - 1L
+        positions <- seq.int(first, last)
+        keep[positions[chars[positions] %in% c(" ", ".", "_", "-")]] <- FALSE
+      }
+      chars <- chars[keep]
+      starts <- starts[keep]
+      ends <- ends[keep]
+    }
+  }
+
+  list(text = paste0(chars, collapse = ""), start = starts, end = ends)
+}
+
+.map_findings_to_original <- function(findings, normalised, original) {
+  if (length(findings) == 0L || length(normalised$start) == 0L) return(findings)
+  lapply(findings, function(finding) {
+    start <- suppressWarnings(as.integer(finding$start %||% NA_integer_)[[1L]])
+    end <- suppressWarnings(as.integer(finding$end %||% NA_integer_)[[1L]])
+    if (is.na(start) || is.na(end) || start < 1L || end < start ||
+        start > length(normalised$start)) {
+      return(finding)
+    }
+    end <- min(end, length(normalised$end))
+    original_start <- min(normalised$start[seq.int(start, end)])
+    original_end <- max(normalised$end[seq.int(start, end)])
+    finding$start <- as.integer(original_start)
+    finding$end <- as.integer(original_end)
+    finding$match <- substr(original, original_start, original_end)
+    finding
+  })
 }
 
 .collapse_delimited_words <- function(text) {
@@ -670,7 +898,8 @@ preflight_check <- function(text,
     match = match,
     start = start,
     end = end,
-    source = source
+    source = source,
+    confidence = rule$confidence %||% NA_real_
   )
 }
 

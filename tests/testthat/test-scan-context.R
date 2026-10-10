@@ -48,3 +48,13 @@ test_that("scan_context can attach row token counts", {
   expect_true(all(vapply(reports, function(report) is.integer(report$tokens), logical(1))))
   expect_true(all(vapply(reports, function(report) report$tokens > 0L, logical(1))))
 })
+
+test_that("scan_context redacts against original text only once", {
+  reports <- scan_context(data.frame(
+    text = "Contact \uff4eeel@example.com now.",
+    stringsAsFactors = FALSE
+  ))
+
+  expect_equal(reports[[1L]]$action, "redact")
+  expect_equal(reports[[1L]]$text_clean, "Contact [REDACTED] now.")
+})

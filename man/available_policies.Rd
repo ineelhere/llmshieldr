@@ -4,11 +4,13 @@
 \alias{available_policies}
 \title{List available built-in policies}
 \usage{
-available_policies(selected = NULL)
+available_policies(selected = NULL, show_stats = FALSE)
 }
 \arguments{
 \item{selected}{Optional policy name or \code{shieldr_policy} to mark in the
 returned table.}
+
+\item{show_stats}{Show lookup time and available usage metrics.}
 }
 \value{
 A data frame with policy names, descriptions, rule counts,

@@ -4,7 +4,7 @@
 \alias{.run_rules}
 \title{Run policy rules on text}
 \usage{
-.run_rules(text, policy)
+.run_rules(text, policy, stage = NULL)
 }
 \arguments{
 \item{text}{Normalised text.}

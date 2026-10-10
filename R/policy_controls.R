@@ -17,6 +17,9 @@
 #'   before the chat call.
 #' - `on_output_block`: applied when model output is blocked after the chat
 #'   call.
+#' - `on_reviewer_error`: applied when requested semantic review fails or
+#'   returns invalid findings. `"block"` is the default; `"escalate"` records a
+#'   human-review outcome; `"rules_only"` opts into deterministic findings.
 #'
 #' `refuse` returns `refusal_message` as the result output. `escalate` returns
 #' no output and records the final action as `"escalate"` for downstream
@@ -26,10 +29,15 @@
 #' @param on_context_block One of `"drop"`, `"keep_redacted"`, `"block"`,
 #'   `"refuse"`, or `"escalate"`.
 #' @param on_output_block One of `"block"`, `"refuse"`, or `"escalate"`.
+#' @param on_reviewer_error One of `"block"`, `"escalate"`, or `"rules_only"`.
+#' @param reviewer_timeout_seconds Optional elapsed-time limit for each reviewer
+#'   attempt. The underlying client must support interruption.
+#' @param reviewer_retries Number of retries after the first failed attempt.
 #' @param refusal_message Message returned as `result$output` when a control
 #'   maps a block to `refuse`.
 #' @param escalation_message Optional human-readable reason stored in policy
 #'   metadata when a control maps a block to `escalate`.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A list of policy controls.
 #' @examples
@@ -47,10 +55,19 @@ policy_controls <- function(on_prompt_block = "block",
                             on_context_block = "drop",
                             on_output_block = "block",
                             refusal_message = "I can't safely complete that request.",
-                            escalation_message = "Human review requested by llmshieldr policy.") {
+                             escalation_message = "Human review requested by llmshieldr policy.",
+                             on_reviewer_error = "block",
+                             reviewer_timeout_seconds = NULL,
+                             reviewer_retries = 0L,
+                             show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "policy_controls")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_choice(on_prompt_block, "on_prompt_block", c("block", "refuse", "escalate"))
   .check_choice(on_context_block, "on_context_block", c("drop", "keep_redacted", "block", "refuse", "escalate"))
   .check_choice(on_output_block, "on_output_block", c("block", "refuse", "escalate"))
+  .check_choice(on_reviewer_error, "on_reviewer_error", c("block", "escalate", "rules_only"))
+  .validate_optional_positive(reviewer_timeout_seconds, "reviewer_timeout_seconds")
+  .validate_count(reviewer_retries, "reviewer_retries")
   .check_string(refusal_message, "refusal_message", allow_empty = TRUE)
   .check_string(escalation_message, "escalation_message", allow_empty = TRUE)
 
@@ -58,6 +75,9 @@ policy_controls <- function(on_prompt_block = "block",
     on_prompt_block = on_prompt_block,
     on_context_block = on_context_block,
     on_output_block = on_output_block,
+    on_reviewer_error = on_reviewer_error,
+    reviewer_timeout_seconds = reviewer_timeout_seconds,
+    reviewer_retries = as.integer(reviewer_retries),
     refusal_message = refusal_message,
     escalation_message = escalation_message
   )
@@ -76,6 +96,9 @@ policy_controls <- function(on_prompt_block = "block",
     on_prompt_block = controls$on_prompt_block,
     on_context_block = controls$on_context_block,
     on_output_block = controls$on_output_block,
+    on_reviewer_error = controls$on_reviewer_error,
+    reviewer_timeout_seconds = controls$reviewer_timeout_seconds,
+    reviewer_retries = controls$reviewer_retries,
     refusal_message = controls$refusal_message,
     escalation_message = controls$escalation_message
   )

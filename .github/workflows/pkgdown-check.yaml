@@ -1,0 +1,46 @@
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main, dev]
+
+name: pkgdown-check
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pkgdown-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pkgdown-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::pkgdown
+            local::.
+          needs: website
+
+      - name: Build pkgdown site without deployment
+        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
+        shell: Rscript {0}
+
+      - name: Upload pkgdown preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkgdown-preview-${{ github.run_id }}
+          path: docs
+          if-no-files-found: error
+          retention-days: 7

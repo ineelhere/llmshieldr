@@ -12,7 +12,14 @@ shieldr_audit(
   output_raw = NULL,
   elapsed_ms,
   token_estimate,
-  action
+  action,
+  content_mode = c("metadata", "full"),
+  tool_reports = NULL,
+  decision_id = NULL,
+  policy_version = NULL,
+  metrics = list(),
+  fingerprint_key = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -32,6 +39,27 @@ shieldr_audit(
 
 \item{action}{Final action. \code{secure_chat()} may return \code{"refuse"} or
 \code{"escalate"} when policy controls map a blocked report to those outcomes.}
+
+\item{content_mode}{\code{"metadata"} (default) removes prompt/output text,
+finding excerpts, and reviewer error details from the audit object.
+\code{"full"} retains them and should only be used in explicitly protected
+storage. \code{\link[=write_audit_log]{write_audit_log()}} still requires \code{include_content = TRUE} to
+persist the full content.}
+
+\item{tool_reports}{Optional list of tool-request and tool-output reports.}
+
+\item{decision_id}{Correlation identifier. A local identifier is generated
+when omitted.}
+
+\item{policy_version}{Policy configuration version.}
+
+\item{metrics}{Privacy-safe structured timing, token, network, and request
+metrics.}
+
+\item{fingerprint_key}{Optional secret key used to HMAC finding matches before
+metadata-only content removal. The key is never stored.}
+
+\item{show_stats}{Show construction time and audit token estimate.}
 }
 \value{
 A \code{shieldr_audit} S3 object.

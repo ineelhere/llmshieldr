@@ -26,7 +26,7 @@
 #' @param malicious_urls Whether to flag URLs whose hosts are explicitly
 #'   blocked or fall outside `allowed_url_hosts`.
 #' @param max_tokens Optional maximum estimated tokens for a single scanned
-#'   text. Exceeding the limit creates an OWASP LLM10 block finding.
+#'   text. Exceeding the limit creates an OWASP LLM06:2026 block finding.
 #' @param allowed_languages Optional language allowlist. Uses `language_fn`
 #'   when supplied, otherwise a minimal ASCII/non-Latin heuristic.
 #' @param language_fn Optional function that receives text and returns a single
@@ -36,6 +36,13 @@
 #' @param blocked_url_hosts Optional character vector of blocked URL hosts.
 #' @param allowed_url_hosts Optional character vector of allowed URL hosts. When
 #'   supplied, URL hosts outside the allowlist are flagged.
+#' @param url_policy Optional canonical destination policy from [url_policy()].
+#'   Legacy host arguments are merged into a conservative HTTP/HTTPS policy.
+#' @param recognizers Optional list from [entity_recognizer()] or
+#'   [native_recognizers()].
+#' @param providers Optional list of adapters from [guardrail_provider()].
+#' @param secrets Optional registry from [secret_registry()].
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_scanner_options` object.
 #' @examples
@@ -53,9 +60,16 @@ scanner_options <- function(invisible_text = TRUE,
                             max_tokens = NULL,
                             allowed_languages = NULL,
                             language_fn = NULL,
-                            blocked_topics = NULL,
-                            blocked_url_hosts = NULL,
-                            allowed_url_hosts = NULL) {
+                             blocked_topics = NULL,
+                             blocked_url_hosts = NULL,
+                             allowed_url_hosts = NULL,
+                             url_policy = NULL,
+                             recognizers = list(),
+                             providers = list(),
+                             secrets = NULL,
+                             show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scanner_options")
+  on.exit(.stats_end(stats), add = TRUE)
   .validate_flag(invisible_text, "invisible_text")
   .validate_flag(encoded_payloads, "encoded_payloads")
   .validate_flag(urls, "urls")
@@ -76,6 +90,10 @@ scanner_options <- function(invisible_text = TRUE,
   if (!is.null(allowed_url_hosts) && !is.character(allowed_url_hosts)) {
     cli::cli_abort("{.arg allowed_url_hosts} must be a character vector or {.code NULL}.")
   }
+  if (!is.null(url_policy)) .validate_url_policy(url_policy)
+  .validate_recognizer_list(recognizers)
+  .validate_provider_list(providers)
+  .validate_secret_registry(secrets)
 
   structure(
     list(
@@ -88,7 +106,11 @@ scanner_options <- function(invisible_text = TRUE,
       language_fn = language_fn,
       blocked_topics = blocked_topics,
       blocked_url_hosts = blocked_url_hosts,
-      allowed_url_hosts = allowed_url_hosts
+      allowed_url_hosts = allowed_url_hosts,
+      url_policy = url_policy,
+      recognizers = recognizers,
+      providers = providers,
+      secrets = secrets
     ),
     class = "shieldr_scanner_options"
   )
@@ -134,6 +156,18 @@ scanner_options <- function(invisible_text = TRUE,
   if (!is.null(scanners$blocked_topics)) {
     findings <- c(findings, .scan_topics(normalised_text, scanners$blocked_topics))
   }
+  if (length(scanners$recognizers) > 0L) {
+    findings <- c(findings, .run_recognizers(scanners$recognizers, original_text, stage))
+  }
+  if (!is.null(scanners$secrets)) {
+    findings <- c(findings, .scan_secret_registry(original_text, scanners$secrets))
+  }
+  if (length(scanners$providers) > 0L) {
+    findings <- c(findings, .run_guardrail_providers(
+      scanners$providers, original_text, stage,
+      metadata = list(normalised_text = normalised_text)
+    ))
+  }
 
   lapply(findings, function(finding) {
     finding$stage <- stage
@@ -142,17 +176,24 @@ scanner_options <- function(invisible_text = TRUE,
 }
 
 .scan_invisible_text <- function(text) {
-  if (!stringi::stri_detect_regex(text, "\\p{Cf}")) {
-    return(list())
-  }
-  list(.scanner_finding(
-    rule_id = "llm01.scanner.invisible_text",
-    owasp = "llm01",
-    severity = "medium",
-    action = "redact",
-    description = "Text contains invisible Unicode format characters.",
-    match = NA_character_
-  ))
+  hits <- gregexpr("\\p{Cf}+", text, perl = TRUE)[[1L]]
+  if (length(hits) == 0L || identical(hits[[1L]], -1L)) return(list())
+  lengths <- attr(hits, "match.length")
+  lapply(seq_along(hits), function(i) {
+    start <- as.integer(hits[[i]])
+    end <- start + as.integer(lengths[[i]]) - 1L
+    finding <- .scanner_finding(
+      rule_id = "llm01.scanner.invisible_text",
+      owasp = "llm01",
+      severity = "medium",
+      action = "redact",
+      description = "Text contains invisible Unicode format characters.",
+      match = substr(text, start, end)
+    )
+    finding$start <- start
+    finding$end <- end
+    finding
+  })
 }
 
 .scan_encoded_payloads <- function(text, policy) {
@@ -200,7 +241,10 @@ scanner_options <- function(invisible_text = TRUE,
     for (i in seq_along(base64_hits)) {
       raw_value <- substr(text, base64_hits[[i]], base64_hits[[i]] + lengths[[i]] - 1L)
       decoded <- tryCatch(
-        rawToChar(jsonlite::base64_dec(raw_value)),
+        {
+          value <- rawToChar(jsonlite::base64_dec(raw_value))
+          if (!isTRUE(stringi::stri_enc_isutf8(value))) "" else value
+        },
         error = function(e) ""
       )
       candidates <- c(candidates, decoded)
@@ -218,19 +262,23 @@ scanner_options <- function(invisible_text = TRUE,
 
   out <- list()
   for (url in urls) {
-    host <- .url_host(url)
-    blocked <- !is.null(scanners$blocked_url_hosts) && host %in% scanners$blocked_url_hosts
-    outside_allowlist <- !is.null(scanners$allowed_url_hosts) && !host %in% scanners$allowed_url_hosts
-
-    if (isTRUE(scanners$malicious_urls) && (blocked || outside_allowlist)) {
-      out[[length(out) + 1L]] <- .scanner_finding(
-        rule_id = "llm05.scanner.url.host",
-        owasp = "llm05",
-        severity = "high",
-        action = "block",
-        description = "URL host is blocked or outside the configured allowlist.",
-        match = url
-      )
+    destination_policy <- scanners$url_policy %||% url_policy(
+      allowed_schemes = c("http", "https"),
+      allowed_hosts = scanners$allowed_url_hosts,
+      blocked_hosts = unique(c("localhost", "localhost.localdomain", scanners$blocked_url_hosts %||% character())),
+      block_private = TRUE
+    )
+    blocked_findings <- if (isTRUE(scanners$malicious_urls)) {
+      .url_policy_findings(url, destination_policy)
+    } else {
+      list()
+    }
+    if (length(blocked_findings) > 0L) {
+      blocked_findings <- lapply(blocked_findings, function(finding) {
+        finding$source <- "scanner"
+        finding
+      })
+      out <- c(out, blocked_findings)
     } else if (isTRUE(scanners$urls)) {
       out[[length(out) + 1L]] <- .scanner_finding(
         rule_id = "llm02.scanner.url.present",
@@ -256,13 +304,6 @@ scanner_options <- function(invisible_text = TRUE,
   }, character(1))
 }
 
-.url_host <- function(url) {
-  parsed <- tryCatch(utils::URLdecode(url), error = function(e) url)
-  host <- sub("^https?://", "", parsed, ignore.case = TRUE)
-  host <- sub("[:/].*$", "", host)
-  tolower(host)
-}
-
 .scan_token_limit <- function(text, max_tokens) {
   tokens <- .count_tokens(text)
   if (tokens <= max_tokens) {
@@ -270,7 +311,7 @@ scanner_options <- function(invisible_text = TRUE,
   }
   list(.scanner_finding(
     rule_id = "llm10.scanner.token_limit",
-    owasp = "llm10",
+    owasp = "llm06",
     severity = "critical",
     action = "block",
     description = "Text exceeds the configured scanner token limit.",
@@ -289,7 +330,7 @@ scanner_options <- function(invisible_text = TRUE,
   }
   list(.scanner_finding(
     rule_id = "llm09.scanner.language",
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "medium",
     action = "block",
     description = "Detected language is outside the configured allowlist.",
@@ -320,7 +361,7 @@ scanner_options <- function(invisible_text = TRUE,
     topic <- topic_names[[i]]
     out[[length(out) + 1L]] <- .scanner_finding(
       rule_id = "llm09.scanner.topic_ban",
-      owasp = "llm09",
+      owasp = "llm07",
       severity = "high",
       action = "block",
       description = paste0("Text matches blocked topic pattern: ", topic),

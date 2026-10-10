@@ -5,6 +5,7 @@
 ^\.RData$
 ^\.RDataTmp$
 ^\.Rprofile$
+^\.[Rr]environ$
 ^\.Ruserdata$
 ^\.Rbuildignore$
 ^renv$

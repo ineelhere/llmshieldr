@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 
@@ -181,9 +181,9 @@ Finance workflows often tighten language around recommendations and promises.
 finance <- policy("finance_strict")
 finance <- add_rule(
   finance,
-  id = "llm09.promissory_return",
+  id = "llm07.promissory_return",
   pattern = "(?i)guaranteed\\s+(alpha|profit|return)",
-  owasp = "llm09",
+  owasp = "llm07",
   severity = "critical",
   action = "block",
   description = "Promissory investment performance claim."
@@ -198,8 +198,12 @@ Use `list_rules()` to inspect a policy before deployment.
 list_rules(guardrails)
 ```
 
-The resulting table includes `has_pattern` and `has_fn`, which make it easy to
-audit whether a policy is mostly regex-based, function-based, or mixed.
+The resulting table includes `has_pattern`, `has_fn`, and
+`redaction_span_guaranteed`. Function-based `redact` rules are flagged because
+their output cannot be proven to contain spans by inspecting the rule object.
+At runtime, a `redact` decision with a missing or out-of-bounds span is promoted
+to `block`; this prevents `text_clean` from being presented as sanitized while
+detected content remains unchanged.
 
 Custom rule ids that do not follow the `llmXX.` naming convention still work,
 but `shieldr_rule()` warns because OWASP risk summaries are clearest when rule

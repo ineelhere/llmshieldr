@@ -1,19 +1,16 @@
 Package: llmshieldr
 Title: Safety Guardrails for Large Language Model Workflows
-Version: 0.1.0
-Description: A model-agnostic safety layer for developers building with
-    large language model (LLM) applications. Maps starter controls to the Open
-    Worldwide Application Security Project Top 10 for Large Language
-    Model Applications 2025 risk categories
-    <https://genai.owasp.org/llm-top-10/> via a modular rule engine.
-    Supports regular-expression rules, lightweight natural language processing
-    (NLP) intent checks, optional scanners, and semantic large language model
-    reviewer checks on prompts, conversations, retrieved context, tool inputs
-    and outputs, streaming chunks, and model outputs. Supports workflows with
-    the 'Ollama' local web service <https://ollama.com/> via 'ellmer', remote
-    reviewer endpoints, and other chat interfaces callable from 'R'.
-    Intended as an experimental guardrail layer that teams should evaluate
-    against their own workflows before relying on it in production.
+Version: 0.1.0.9000
+Description: A model-agnostic safety layer for large language model (LLM)
+    applications in 'R'. Provides composable policies and inspectable checks
+    for prompts, conversations, retrieved context, documents, tool calls and
+    outputs, streams, URLs, and model responses. Supports deterministic rules,
+    optional local or remote detectors, semantic review, provider-neutral chat
+    workflows through 'ellmer', audits, and evaluation helpers. Maps controls
+    to the OWASP LLM Top 10:2026
+    <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
+    This experimental package must be evaluated against each deployment's
+    threats and traffic before production use.
 Authors@R:
     person("Indraneel", "Chakraborty", , "hello.indraneel@gmail.com",
            role = c("aut", "cre", "cph"),
@@ -27,13 +24,16 @@ Imports:
     cli,
     rlang,
     digest,
-    stringi
+    stringi,
+    methods
 Suggests:
-    ellmer,
+    ellmer (>= 0.3.0),
+    S7,
     httr2,
     processx,
     filelock,
     htmltools,
+    jsonvalidate,
     covr,
     lintr,
     plumber,
@@ -43,11 +43,13 @@ Suggests:
     rmarkdown,
     withr,
     dplyr,
+    reticulate,
     tokenizers,
     SnowballC
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-URL: https://www.indraneelchakraborty.com/llmshieldr/, https://github.com/ineelhere/llmshieldr, https://genai.owasp.org/llm-top-10/
+URL: https://www.indraneelchakraborty.com/llmshieldr/,
+    https://github.com/ineelhere/llmshieldr
 BugReports: https://github.com/ineelhere/llmshieldr/issues

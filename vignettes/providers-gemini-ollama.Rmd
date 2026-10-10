@@ -1,0 +1,131 @@
+---
+title: "Gemini and Ollama"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Gemini and Ollama}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+`secure_chat()` uses the same provider-neutral path for Gemini, Ollama, and
+other providers supported by `ellmer`. All example chunks are unevaluated:
+building the documentation never installs packages, reads credentials, probes
+a service, downloads a model, or sends a request.
+
+## Install ellmer
+
+```{r install-ellmer}
+install.packages("ellmer")
+```
+
+## Gemini
+
+Store one API key in your user-level `~/.Renviron`, not in project files or
+source control:
+
+```text
+GEMINI_API_KEY=replace-with-your-real-key
+```
+
+`GOOGLE_API_KEY` is also supported. Restart R after editing `.Renviron`.
+Do not print, log, or include the key in an audit.
+
+Model availability changes. Inspect the models available to your account,
+choose one that meets your requirements, and pin its name in production:
+
+```{r list-gemini-models}
+ellmer::models_google_gemini()
+```
+
+This example pins a stable Gemini model. Check the current model list before
+deploying because availability and retirement dates change:
+
+```{r gemini-example}
+library(llmshieldr)
+
+gemini_result <- secure_chat(
+  prompt = "Explain in one sentence why LLM output should be checked.",
+  provider = "gemini",
+  model = "gemini-3.8-flash",
+  checks = "rules",
+  show_stats = TRUE
+)
+
+gemini_result[c("action", "output")]
+```
+
+Google controls model availability, quotas, pricing, regions, and data-use
+terms. Review the current terms and your organization's data policy before
+sending private, confidential, or regulated content.
+
+## Ollama
+
+Start Ollama and pull a model outside R. For example:
+
+```text
+ollama serve
+ollama pull gemma3:1b
+```
+
+Pass the model name explicitly so the workflow does not depend on whichever
+local model happens to be listed first:
+
+```{r ollama-example}
+library(llmshieldr)
+
+ollama_result <- secure_chat(
+  prompt = "Explain in one sentence why LLM output should be checked.",
+  provider = "ollama",
+  model = "gemma3:1b",
+  checks = "rules",
+  show_stats = TRUE
+)
+
+ollama_result[c("action", "output")]
+```
+
+Use `ellmer::models_ollama()` interactively to inspect installed models. An
+Ollama endpoint is local only when its configured base URL is local; review
+the endpoint, model provenance, and host security before sending sensitive
+text.
+
+## Recommended Next Steps
+
+After the basic request works, try one change at a time:
+
+| Goal | Next step |
+|---|---|
+| Review meaning, not only patterns | Use `checks = "both"` with a separately evaluated reviewer. |
+| Guard retrieved documents | Add `context` and a `context_policy()`. |
+| Constrain responses | Add an `output_contract()`. |
+| Guard tools | Expose only required tools and configure `tool_policy()`. |
+| Inspect usage | Set `show_tokens = TRUE` and `show_stats = TRUE`. |
+| Evaluate changes | Run representative benign, sensitive, and adversarial cases with `evaluate_security_cases()`. |
+
+Semantic review may send the same text to a second model or service. Configure
+`reviewer_provider`, `reviewer_model`, and `reviewer_provider_args` explicitly
+when that boundary differs from the assistant.
+
+## Compatibility Wrappers
+
+`shield_gemini()` and `shield_ollama()` are deprecated compatibility wrappers.
+Use `secure_chat(provider = ...)` in new code.
+
+## Troubleshooting
+
+- **Gemini key not found:** confirm the variable is in `~/.Renviron`, then
+  restart R.
+- **Gemini model or quota error:** list models for the active project and
+  check current quota and regional availability.
+- **Ollama unavailable:** start the service and confirm `ollama list` contains
+  the exact model passed to `secure_chat()`.
+- **Reviewer returns invalid JSON:** use a more capable reviewer, test the
+  reviewer contract, and set `on_reviewer_error` deliberately.

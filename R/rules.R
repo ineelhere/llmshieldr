@@ -2,6 +2,7 @@
   "You are a security reviewer for llmshieldr. ",
   "Return only JSON: an array of objects with rule_id, owasp, severity, description, ",
   "and optional confidence, evidence, recommended_action, and span. ",
+  "Use OWASP LLM Top 10 2026 category ids llm01 through llm10. ",
   "Use severity values low, medium, high, or critical. ",
   "Use recommended_action values allow, redact, or block when supplied."
 )
@@ -17,6 +18,7 @@
 #' finding schema.
 #'
 #' @return A single prompt string.
+#' @param show_stats Show construction time and available usage metrics.
 #' @examples
 #' reviewer_prompt()
 #'
@@ -31,12 +33,17 @@
 #'   base_reviewer(paste(custom_context, prompt, sep = "\n\n"))
 #' }
 #' @export
-reviewer_prompt <- function() .shieldr_reviewer_prompt
+reviewer_prompt <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "reviewer_prompt")
+  on.exit(.stats_end(stats), add = TRUE)
+  .shieldr_reviewer_prompt
+}
 
 #' Construct a `shieldr_rule`
 #'
 #' Creates a validated rule for the llmshieldr rule engine. Rules map to OWASP
-#' LLM Top 10 categories where possible; see <https://genai.owasp.org/llm-top-10/>.
+#' LLM Top 10:2026 categories where possible; see
+#' <https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final>.
 #'
 #' @details
 #' A rule is the atomic unit of a policy. Each rule either supplies a regular
@@ -62,6 +69,10 @@ reviewer_prompt <- function() .shieldr_reviewer_prompt
 #' @param severity One of `"low"`, `"medium"`, `"high"`, or `"critical"`.
 #' @param action One of `"allow"`, `"redact"`, or `"block"`.
 #' @param description Human-readable rule description.
+#' @param stages Stages where the rule runs. Defaults to all text stages.
+#' @param confidence Optional detector confidence between 0 and 1. Severity
+#'   remains an impact measure and action remains a policy decision.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_rule` S3 object.
 #' @examples
@@ -78,7 +89,12 @@ shieldr_rule <- function(id,
                          owasp = NULL,
                          severity = "medium",
                          action = "redact",
-                         description = "") {
+                         description = "",
+                         stages = c("prompt", "context", "output", "tool_call", "tool_output", "document"),
+                         confidence = NULL,
+                         show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "shieldr_rule")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_string(id, "id")
   if (!grepl("^llm[0-9]{2}\\.", id)) {
     cli::cli_warn(c(
@@ -101,6 +117,11 @@ shieldr_rule <- function(id,
   .check_choice(severity, "severity", .shieldr_severities())
   .check_choice(action, "action", .shieldr_rule_actions())
   .check_string(description, "description", allow_empty = TRUE)
+  allowed_stages <- c("prompt", "context", "output", "tool_call", "tool_output", "document")
+  if (!is.character(stages) || length(stages) == 0L || anyNA(stages) || any(!stages %in% allowed_stages)) {
+    cli::cli_abort("{.arg stages} must contain valid text stages.")
+  }
+  if (!is.null(confidence)) .check_number_between(confidence, "confidence", 0, 1)
 
   structure(
     list(
@@ -110,7 +131,9 @@ shieldr_rule <- function(id,
       owasp = if (is.null(owasp)) NULL else tolower(owasp),
       severity = severity,
       action = action,
-      description = description
+      description = description,
+      stages = unique(stages),
+      confidence = confidence
     ),
     class = "shieldr_rule"
   )
@@ -128,7 +151,7 @@ shieldr_rule <- function(id,
 #' `trusted_sources` is used by [scan_context()] only. If it is `NULL`, all
 #' sources are treated as trusted. If it is a character vector and `source_col`
 #' is supplied to [scan_context()], rows with source values outside the allowlist
-#' receive an OWASP LLM08 finding.
+#' receive an OWASP LLM01:2026 finding.
 #'
 #' `controls` is used by [secure_chat()] after scanner reports have already
 #' resolved to `allow`, `redact`, or `block`. Use [policy_controls()] to decide
@@ -143,6 +166,8 @@ shieldr_rule <- function(id,
 #' @param rate_guard A `shieldr_rate_guard` environment, or `NULL`.
 #' @param trusted_sources Optional character vector of trusted context sources.
 #' @param controls Optional list from [policy_controls()].
+#' @param version Policy configuration version recorded in reports and audits.
+#' @param show_stats Show construction time and available usage metrics.
 #'
 #' @return A `shieldr_policy` S3 object.
 #' @examples
@@ -153,7 +178,11 @@ shieldr_policy <- function(name,
                            thresholds,
                            rate_guard = NULL,
                            trusted_sources = NULL,
-                           controls = NULL) {
+                           controls = NULL,
+                           version = "1",
+                           show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "shieldr_policy")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_string(name, "name")
   .check_rule_list(rules, "rules")
   thresholds <- .validate_thresholds(thresholds)
@@ -162,6 +191,7 @@ shieldr_policy <- function(name,
     cli::cli_abort("{.arg trusted_sources} must be a character vector or {.code NULL}.")
   }
   controls <- .validate_policy_controls(controls)
+  .check_string(version, "version")
 
   structure(
     list(
@@ -170,7 +200,17 @@ shieldr_policy <- function(name,
       thresholds = thresholds,
       rate_guard = rate_guard,
       trusted_sources = trusted_sources,
-      controls = controls
+      controls = controls,
+      version = version,
+      decision_schema_version = "1.0",
+      fingerprint = digest::digest(list(
+        name = name,
+        rules = lapply(rules, function(rule) rule[c("id", "pattern", "owasp", "severity", "action", "description", "stages", "confidence")]),
+        thresholds = thresholds,
+        trusted_sources = trusted_sources,
+        controls = controls,
+        version = version
+      ), algo = "sha256")
     ),
     class = "shieldr_policy"
   )
@@ -180,17 +220,21 @@ shieldr_policy <- function(name,
 #'
 #' @param x A `shieldr_policy`.
 #' @param ... Unused.
+#' @param show_stats Show formatting time and network status as messages.
 #'
 #' @return The policy, invisibly.
 #' @export
-print.shieldr_policy <- function(x, ...) {
+print.shieldr_policy <- function(x, ..., show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "print.shieldr_policy")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_policy(x)
   cli::cli_inform(c(
     "llmshieldr policy",
     "name: {x$name}",
     "rules: {length(x$rules)}",
     "redact_at: {x$thresholds$redact_at}",
-    "block_at: {x$thresholds$block_at}"
+    "block_at: {x$thresholds$block_at}",
+    "version: {x$version}"
   ))
   invisible(x)
 }
@@ -208,6 +252,9 @@ print.shieldr_policy <- function(x, ...) {
 #' reviewer, or a combined mode. `metadata` carries optional operational
 #' details such as semantic reviewer parse errors, scanner settings, context row
 #' indexes, source labels, tool names, or conversation roles.
+#' Findings with a 2026 OWASP category retain the stable lowercase `owasp`
+#' code and add an edition-qualified `owasp_edition` value such as
+#' `"LLM02:2026"`.
 #'
 #' @param action Resolved action: `"allow"`, `"redact"`, or `"block"`.
 #' @param text_clean Cleaned or redacted text.
@@ -218,6 +265,7 @@ print.shieldr_policy <- function(x, ...) {
 #' @param timestamp ISO8601 timestamp.
 #' @param tokens Optional token count for the original text.
 #' @param metadata Optional list of operational metadata.
+#' @param show_stats Show construction time and available token count.
 #'
 #' @return A `shieldr_report` S3 object.
 #' @examples
@@ -231,7 +279,14 @@ shieldr_report <- function(action,
                            checks,
                            timestamp = .now_iso(),
                            tokens = NULL,
-                           metadata = list()) {
+                           metadata = list(),
+                           show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "shieldr_report")
+  on.exit(.stats_end(stats), add = TRUE)
+  if (!is.null(stats) && !is.null(tokens)) {
+    stats$tokens <- tokens
+    stats$token_source <- "report"
+  }
   .check_choice(action, "action", .shieldr_report_actions())
   .check_string(text_clean, "text_clean", allow_empty = TRUE)
   if (!is.list(findings)) {
@@ -247,6 +302,18 @@ shieldr_report <- function(action,
   if (!is.list(metadata)) {
     cli::cli_abort("{.arg metadata} must be a list.")
   }
+  metadata$taxonomy_version <- metadata$taxonomy_version %||% "OWASP-LLM-Top-10-2026"
+  findings <- lapply(findings, function(finding) {
+    if (is.list(finding) && !is.null(finding$owasp) && !is.na(finding$owasp)) {
+      finding$taxonomy_version <- finding$taxonomy_version %||% metadata$taxonomy_version
+      if (identical(finding$taxonomy_version, "OWASP-LLM-Top-10-2026") &&
+          grepl("^llm(0[1-9]|10)$", finding$owasp)) {
+        finding$owasp_edition <- finding$owasp_edition %||%
+          paste0(toupper(finding$owasp), ":2026")
+      }
+    }
+    finding
+  })
 
   structure(
     list(
@@ -268,11 +335,19 @@ shieldr_report <- function(action,
 #'
 #' @param x A `shieldr_report`.
 #' @param ... Unused.
+#' @param show_stats Show formatting time, network status, and report token
+#'   count when available.
 #'
 #' @return The report, invisibly.
 #' @export
-print.shieldr_report <- function(x, ...) {
+print.shieldr_report <- function(x, ..., show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "print.shieldr_report")
+  on.exit(.stats_end(stats), add = TRUE)
   .check_report(x, allow_null = FALSE)
+  if (!is.null(stats) && !is.null(x$tokens)) {
+    stats$tokens <- x$tokens
+    stats$token_source <- "report"
+  }
   lines <- c(
     "llmshieldr report",
     "action: {x$action}",
@@ -307,6 +382,20 @@ print.shieldr_report <- function(x, ...) {
 #' @param token_estimate Integer token estimate.
 #' @param action Final action. `secure_chat()` may return `"refuse"` or
 #'   `"escalate"` when policy controls map a blocked report to those outcomes.
+#' @param content_mode `"metadata"` (default) removes prompt/output text,
+#'   finding excerpts, and reviewer error details from the audit object.
+#'   `"full"` retains them and should only be used in explicitly protected
+#'   storage. [write_audit_log()] still requires `include_content = TRUE` to
+#'   persist the full content.
+#' @param tool_reports Optional list of tool-request and tool-output reports.
+#' @param decision_id Correlation identifier. A local identifier is generated
+#'   when omitted.
+#' @param policy_version Policy configuration version.
+#' @param metrics Privacy-safe structured timing, token, network, and request
+#'   metrics.
+#' @param fingerprint_key Optional secret key used to HMAC finding matches before
+#'   metadata-only content removal. The key is never stored.
+#' @param show_stats Show construction time and audit token estimate.
 #'
 #' @return A `shieldr_audit` S3 object.
 #' @examples
@@ -319,11 +408,28 @@ shieldr_audit <- function(input_report = NULL,
                           output_raw = NULL,
                           elapsed_ms,
                           token_estimate,
-                          action) {
+                          action,
+                          content_mode = c("metadata", "full"),
+                          tool_reports = NULL,
+                          decision_id = NULL,
+                          policy_version = NULL,
+                          metrics = list(),
+                          fingerprint_key = NULL,
+                          show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "shieldr_audit")
+  on.exit(.stats_end(stats), add = TRUE)
+  if (!is.null(stats)) {
+    stats$tokens <- token_estimate
+    stats$token_source <- "audit estimate"
+  }
+  content_mode <- match.arg(content_mode)
   .check_report(input_report, allow_null = TRUE)
   .check_report(output_report, allow_null = TRUE)
   if (!is.null(context_reports)) {
     .check_report_list(context_reports, "context_reports")
+  }
+  if (!is.null(tool_reports)) {
+    .check_report_list(tool_reports, "tool_reports")
   }
   .check_string(prompt_clean, "prompt_clean", allow_empty = TRUE)
   if (!is.null(output_raw)) {
@@ -334,26 +440,101 @@ shieldr_audit <- function(input_report = NULL,
     cli::cli_abort("{.arg token_estimate} must be a single integer-like value.")
   }
   .check_choice(action, "action", .shieldr_final_actions())
+  if (is.null(decision_id)) decision_id <- .decision_id()
+  .check_string(decision_id, "decision_id")
+  if (!is.null(policy_version)) .check_string(policy_version, "policy_version")
+  if (!is.list(metrics)) cli::cli_abort("{.arg metrics} must be a list.")
+  if (!is.null(fingerprint_key)) .check_string(fingerprint_key, "fingerprint_key")
+
+  if (identical(content_mode, "metadata")) {
+    input_report <- .audit_metadata_report(input_report, fingerprint_key)
+    output_report <- .audit_metadata_report(output_report, fingerprint_key)
+    if (!is.null(context_reports)) {
+      context_reports <- lapply(context_reports, .audit_metadata_report, fingerprint_key = fingerprint_key)
+    }
+    if (!is.null(tool_reports)) {
+      tool_reports <- lapply(tool_reports, .audit_metadata_report, fingerprint_key = fingerprint_key)
+    }
+    prompt_clean <- NULL
+    output_raw <- NULL
+  }
 
   structure(
     list(
       input_report = input_report,
       output_report = output_report,
       context_reports = context_reports,
+      tool_reports = tool_reports,
       prompt_clean = prompt_clean,
       output_raw = output_raw,
       elapsed_ms = elapsed_ms,
       token_estimate = as.integer(token_estimate),
-      action = action
+      action = action,
+      content_mode = content_mode,
+      decision_id = decision_id,
+      policy_version = policy_version,
+      decision_schema_version = "1.0",
+      metrics = metrics
     ),
     class = "shieldr_audit"
   )
 }
 
+.decision_id <- function() {
+  seed <- paste(
+    format(Sys.time(), "%Y%m%d%H%M%OS6", tz = "UTC"),
+    Sys.getpid(), proc.time()[["elapsed"]], sep = ":"
+  )
+  paste0("dec_", substr(digest::digest(seed, algo = "sha256"), 1L, 20L))
+}
+
+.audit_metadata_report <- function(report, fingerprint_key = NULL) {
+  if (is.null(report)) {
+    return(NULL)
+  }
+  report$text_clean <- ""
+  report$findings <- lapply(report$findings, function(finding) {
+    value <- finding$match %||% finding$evidence %||% NULL
+    if (!is.null(fingerprint_key) && !is.null(value) && length(value) > 0L && !is.na(value[[1L]]) && nzchar(as.character(value[[1L]]))) {
+      finding$fingerprint <- digest::hmac(
+        key = fingerprint_key, object = as.character(value[[1L]]),
+        algo = "sha256", serialize = FALSE
+      )
+    }
+    keep <- intersect(
+      c("rule_id", "owasp", "owasp_edition", "taxonomy_version", "severity", "action",
+        "start", "end", "source", "synthetic", "confidence", "fingerprint",
+        "entity_type", "provider_id", "provider_version", "recognizer_id",
+        "recognizer_version", "registry_version"),
+      names(finding)
+    )
+    finding[keep]
+  })
+  metadata <- report$metadata %||% list()
+  keep <- intersect(
+    c("stage", "row_index", "chunk_index", "overlap", "role", "tool_name",
+      "allowed", "admission", "admission_reason", "taxonomy_version",
+      "policy_version", "policy_fingerprint", "decision_schema_version",
+      "review_status", "reviewer_failure_action", "schema_checked",
+      "authorization_checked", "call_count", "side_effect_count",
+      "document_id", "tenant", "source_id", "mime_type",
+      "extraction_method", "ocr_used", "hidden_text_checked"),
+    names(metadata)
+  )
+  report$metadata <- metadata[keep]
+  if (!is.null(metadata$reviewer_errors)) {
+    report$metadata$reviewer_error_types <- vapply(
+      metadata$reviewer_errors,
+      function(error) as.character(error$type %||% "unknown"),
+      character(1)
+    )
+  }
+  report
+}
+
 #' Construct a `shieldr_result`
 #'
-#' A `shieldr_result` is the high-level return value from [secure_chat()] and
-#' [shield_ollama()].
+#' A `shieldr_result` is the high-level return value from [secure_chat()].
 #'
 #' @details
 #' `output` is `NULL` when the final action is `block`; otherwise it contains
@@ -367,6 +548,7 @@ shieldr_audit <- function(input_report = NULL,
 #' @param risk_summary Named numeric vector keyed by OWASP category.
 #' @param action Final action. May be `"allow"`, `"redact"`, `"block"`,
 #'   `"refuse"`, or `"escalate"`.
+#' @param show_stats Show construction time and audit token estimate.
 #'
 #' @return A `shieldr_result` S3 object.
 #' @examples
@@ -376,7 +558,14 @@ shieldr_audit <- function(input_report = NULL,
 shieldr_result <- function(output = NULL,
                            audit,
                            risk_summary,
-                           action) {
+                           action,
+                           show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "shieldr_result")
+  on.exit(.stats_end(stats), add = TRUE)
+  if (!is.null(stats) && inherits(audit, "shieldr_audit")) {
+    stats$tokens <- audit$token_estimate %||% NA_real_
+    stats$token_source <- "audit estimate"
+  }
   if (!is.null(output)) {
     .check_string(output, "output", allow_empty = TRUE)
   }
@@ -415,6 +604,9 @@ shieldr_result <- function(output = NULL,
 #' designed to be readable, testable, and easy to replace with organization-
 #' specific rules when needed.
 #'
+#' @param show_stats Show construction time, network status, and available
+#'   usage metrics as messages.
+#'
 #' @return A `shieldr_rule`.
 #' @examples
 #' rule_injection_basic()
@@ -424,7 +616,9 @@ NULL
 
 #' @rdname builtin_rules
 #' @export
-rule_injection_basic <- function() {
+rule_injection_basic <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_injection_basic")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm01.injection.basic",
     pattern = paste(
@@ -445,7 +639,9 @@ rule_injection_basic <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_injection_indirect <- function() {
+rule_injection_indirect <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_injection_indirect")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm01.injection.indirect",
     pattern = paste(
@@ -465,7 +661,9 @@ rule_injection_indirect <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_nlp_intent <- function() {
+rule_nlp_intent <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_nlp_intent")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm01.nlp.intent",
     fn = .nlp_intent_findings,
@@ -478,7 +676,9 @@ rule_nlp_intent <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_pii_email <- function() {
+rule_pii_email <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_pii_email")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.pii.email",
     pattern = "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
@@ -491,7 +691,9 @@ rule_pii_email <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_pii_phone <- function() {
+rule_pii_phone <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_pii_phone")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.pii.phone",
     pattern = "\\b(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}\\b",
@@ -504,7 +706,9 @@ rule_pii_phone <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_pii_ssn <- function() {
+rule_pii_ssn <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_pii_ssn")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.pii.ssn",
     pattern = "\\b\\d{3}-\\d{2}-\\d{4}\\b",
@@ -517,7 +721,9 @@ rule_pii_ssn <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_secrets_api_key <- function() {
+rule_secrets_api_key <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_secrets_api_key")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.secret.api_key",
     pattern = paste(
@@ -535,7 +741,9 @@ rule_secrets_api_key <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_secrets_bearer <- function() {
+rule_secrets_bearer <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_secrets_bearer")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.secret.bearer",
     pattern = "\\bBearer\\s+[A-Za-z0-9._~+/=-]{20,}\\b",
@@ -548,7 +756,9 @@ rule_secrets_bearer <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_secrets_aws <- function() {
+rule_secrets_aws <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_secrets_aws")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.secret.aws",
     pattern = "\\bAKIA[A-Z0-9]{16}\\b",
@@ -561,7 +771,9 @@ rule_secrets_aws <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_secrets_password <- function() {
+rule_secrets_password <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_secrets_password")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.secret.password",
     pattern = paste(
@@ -580,7 +792,9 @@ rule_secrets_password <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_phi_condition <- function() {
+rule_phi_condition <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_phi_condition")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm02.phi.condition",
     pattern = paste(
@@ -600,16 +814,23 @@ rule_phi_condition <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_agency_language <- function() {
+rule_agency_language <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_agency_language")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm06.agency.language",
     pattern = paste(
       "(?i)",
+      "\\bI(?:\\s+will|'ll|\\s+am\\s+going\\s+to|'m\\s+going\\s+to)\\s+",
+      "(?:(?:go\\s+ahead\\s+and|now|immediately)\\s+)*",
+      "(?:delete|erase|remove|purge|wipe|destroy|overwrite|drop|",
+      "modify|update|alter|grant|revoke|send|submit|notify|",
+      "transfer|publish|upload|export|buy|sell|unblind)\\b|",
       "\\bI\\s+will\\s+now\\b|\\bI\\s+have\\s+(sent|deleted|modified|notified|submitted)\\b|",
       "\\bI\\s+am\\s+granting\\b|\\bproceeding\\s+to\\b|\\bexecuting\\b",
       sep = ""
     ),
-    owasp = "llm06",
+    owasp = "llm03",
     severity = "critical",
     action = "block",
     description = "Model claims or proposes autonomous agency."
@@ -618,7 +839,9 @@ rule_agency_language <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_system_prompt_leak <- function() {
+rule_system_prompt_leak <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_system_prompt_leak")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm07.system_prompt.extraction",
     pattern = paste(
@@ -627,7 +850,7 @@ rule_system_prompt_leak <- function() {
       "what\\s+are\\s+your\\s+(system\\s+)?instructions",
       sep = ""
     ),
-    owasp = "llm07",
+    owasp = "llm08",
     severity = "critical",
     action = "block",
     description = "System prompt extraction attempt."
@@ -636,7 +859,9 @@ rule_system_prompt_leak <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_diagnosis_claim <- function() {
+rule_diagnosis_claim <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_diagnosis_claim")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm09.diagnosis.claim",
     pattern = paste(
@@ -646,7 +871,7 @@ rule_diagnosis_claim <- function() {
       "\\bthe\\s+only\\s+treatment\\b|\\b100%\\s+accurate\\b|\\bproven\\s+to\\b",
       sep = ""
     ),
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "critical",
     action = "block",
     description = "High-confidence diagnosis, treatment, or misinformation claim."
@@ -655,7 +880,9 @@ rule_diagnosis_claim <- function() {
 
 #' @rdname builtin_rules
 #' @export
-rule_financial_advice <- function() {
+rule_financial_advice <- function(show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "rule_financial_advice")
+  on.exit(.stats_end(stats), add = TRUE)
   shieldr_rule(
     id = "llm09.financial.advice",
     pattern = paste(
@@ -665,7 +892,7 @@ rule_financial_advice <- function() {
       "\\bthis\\s+is\\s+financial\\s+advice\\b",
       sep = ""
     ),
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "high",
     action = "redact",
     description = "Financial advice or investment claim."
@@ -715,7 +942,7 @@ rule_financial_advice <- function() {
       "DROP\\s+TABLE|DELETE\\s+FROM\\s+.+WHERE\\s+1\\s*=\\s*1",
       sep = ""
     ),
-    owasp = "llm05",
+    owasp = "llm10",
     severity = "critical",
     action = "block",
     description = "Unsafe code or command pattern."
@@ -737,7 +964,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm06.investment_advice.action",
     pattern = "(?i)\\bI\\s+will\\s+(buy|sell|trade|invest)\\b|\\bplacing\\s+the\\s+order\\b",
-    owasp = "llm06",
+    owasp = "llm03",
     severity = "critical",
     action = "block",
     description = "Autonomous investment-action language."
@@ -770,7 +997,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm07.system_prompt.marker",
     pattern = "(?i)(^|\\s)#\\s*System\\b|\\bYou\\s+are\\s+an\\s+AI\\b|\\bYour\\s+instructions\\b|\\b(system|developer)\\s*:",
-    owasp = "llm07",
+    owasp = "llm08",
     severity = "critical",
     action = "block",
     description = "System-prompt structural marker in model output."
@@ -781,7 +1008,7 @@ rule_financial_advice <- function() {
   shieldr_rule(
     id = "llm09.misinformation.marker",
     pattern = "(?i)\\b(guaranteed|definitely\\s+cures|the\\s+only\\s+treatment|100%\\s+accurate|proven\\s+to)\\b",
-    owasp = "llm09",
+    owasp = "llm07",
     severity = "critical",
     action = "block",
     description = "High-confidence medical or financial misinformation marker."
@@ -844,7 +1071,7 @@ rule_financial_advice <- function() {
   if (has(harmful_action_terms) && has(harmful_content_terms)) {
     findings[[length(findings) + 1L]] <- list(
       rule_id = "llm05.nlp.harmful_intent",
-      owasp = "llm05",
+      owasp = "llm10",
       severity = "critical",
       action = "block",
       description = "NLP signal: harmful content word appears with an action verb.",

@@ -14,13 +14,31 @@ secure_chat(
   redaction = NULL,
   scanners = scanner_options(),
   show_tokens = FALSE,
+  context_authorize = NULL,
+  context_policy = NULL,
+  audit_content = c("metadata", "full"),
+  audit_key = NULL,
+  allowed_tools = character(),
+  tool_policy = NULL,
+  tool_subject = NULL,
+  output_contract = NULL,
+  grounding = NULL,
+  telemetry = NULL,
+  show_stats = FALSE,
+  provider = NULL,
+  model = NULL,
+  reviewer_model = NULL,
+  provider_args = list(),
+  reviewer_provider = NULL,
+  reviewer_provider_args = NULL,
   ...
 )
 }
 \arguments{
 \item{prompt}{User prompt.}
 
-\item{chat}{An \code{ellmer} chat object, an object with \verb{$chat()}, or a function.}
+\item{chat}{An existing \code{ellmer} chat object, an object with \verb{$chat()}, or a
+function. Supply either \code{chat} or a provider name, not both.}
 
 \item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
 
@@ -36,6 +54,64 @@ secure_chat(
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
 
+\item{context_authorize}{Optional function passed to \code{\link[=scan_context]{scan_context()}} to
+authorize each retrieved row before it is included in the model prompt.}
+
+\item{context_policy}{Optional provenance and authorization requirements from
+\code{\link[=context_policy]{context_policy()}}.}
+
+\item{audit_content}{\code{"metadata"} (default) omits prompt, output, finding
+excerpts and reviewer details from the audit. \code{"full"} retains them in
+memory; \code{\link[=write_audit_log]{write_audit_log()}} requires a separate explicit opt-in to write
+them.}
+
+\item{audit_key}{Optional secret key used for HMAC fingerprints in
+metadata-only audit findings. The key is never stored.}
+
+\item{allowed_tools}{Explicit names of registered \code{ellmer} tools allowed
+during this call. The default empty vector denies tool-enabled chats before
+calling the model. Allowed calls are scanned before tool execution.}
+
+\item{tool_policy}{Optional richer policy from \code{\link[=tool_policy]{tool_policy()}}. Its allowlist
+replaces \code{allowed_tools} and it adds schema, subject, spend, and loop limits.}
+
+\item{tool_subject}{Optional authorization context passed to \code{tool_policy}.}
+
+\item{output_contract}{Optional destination contract from \code{\link[=output_contract]{output_contract()}}.}
+
+\item{grounding}{Optional citation policy from \code{\link[=grounding_policy]{grounding_policy()}}. Citation
+IDs are checked against admitted context \code{document_id} values (or row IDs).}
+
+\item{telemetry}{Optional privacy-safe event exporter from
+\code{\link[=telemetry_options]{telemetry_options()}}.}
+
+\item{show_stats}{Show elapsed time, token use, network status, and
+transfer metrics when available.}
+
+\item{provider}{Any provider name supported by \code{ellmer::chat()}, optionally
+in ellmer's \code{"provider/model"} form. \code{"gemini"} is accepted as an alias
+for \code{"google_gemini"}. An existing chat object passed as \code{provider} is
+still accepted as a legacy alias for \code{chat}.}
+
+\item{model}{Optional assistant model name. Do not supply it when \code{provider}
+already contains a model. With Ollama, \code{NULL} discovers the first local
+model.}
+
+\item{reviewer_model}{Model for the separate semantic reviewer, created only
+when \code{checks = "llm"} or \code{"both"} and \code{reviewer} is \code{NULL}. \code{NULL} uses the
+assistant provider and model.}
+
+\item{provider_args}{Named list of additional arguments passed to
+\code{ellmer::chat()} and then to the selected assistant provider constructor.}
+
+\item{reviewer_provider}{Optional ellmer provider name for the semantic
+reviewer. \code{NULL} uses the assistant provider.}
+
+\item{reviewer_provider_args}{Named list of provider arguments for the
+reviewer. When the reviewer uses the assistant provider, \code{NULL} reuses
+\code{provider_args}; otherwise it passes no additional arguments. Use \code{list()}
+to explicitly pass none.}
+
 \item{...}{Reserved for backwards-compatible aliases.}
 }
 \value{
@@ -46,16 +122,22 @@ Orchestrates prompt scanning, optional context scanning, chat execution,
 output scanning, rate guarding, and audit creation.
 }
 \details{
-\code{secure_chat()} is the main end-to-end workflow when you already have an
-\code{ellmer} chat object or another object with a \verb{$chat()} method. Plain
-functions are also accepted for small tests. The function executes these
-steps:
+\code{secure_chat()} accepts any provider supported by \code{ellmer::chat()}. Set
+\code{provider} to an ellmer provider name, optionally supply \code{model}, and pass
+provider-specific constructor options through \code{provider_args}. It creates a
+separate semantic-review chat when review is requested; that chat may use a
+different provider, model, and argument list. You can instead supply an
+existing \code{ellmer} chat object, another object with a \verb{$chat()} method, or a
+function through \code{chat}. Provider-created assistant chats are initialized
+only after prompt and context checks permit a model call. A provider-created
+semantic reviewer is initialized earlier when \code{checks} requires it. The
+function executes these steps:
 \enumerate{
 \item Scan the prompt with \code{\link[=scan_prompt]{scan_prompt()}}.
 \item If the prompt is blocked, return a \code{\link[=shieldr_result]{shieldr_result()}} without calling the chat.
 \item If context is supplied, scan it with \code{\link[=scan_context]{scan_context()}} and append only
-allowed context rows to the cleaned prompt, using row IDs, source labels,
-and separators.
+allowed context rows to the cleaned prompt, using row IDs, opaque source
+references, and separators.
 \item Reserve request and token budget with the policy rate guard, if present.
 \item Call the chat object.
 \item Scan model output with \code{\link[=scan_output]{scan_output()}}.
@@ -69,15 +151,16 @@ and \code{redact} beats \code{allow}. Policy controls can map blocked prompt or 
 reports to final actions of \code{refuse} or \code{escalate}.
 }
 \examples{
+local_chat <- function(prompt) paste("Checked:", prompt)
+result <- secure_chat(
+  "Summarize this public note.",
+  chat = local_chat,
+  checks = "rules"
+)
+result[c("action", "output")]
+
 \dontrun{
-model <- ellmer::models_ollama()$id[1]
-if (is.na(model)) {
-  stop(
-    "Check if you have any Ollama models available, ",
-    "or enter a specific name as a string for the model argument."
-  )
-}
-chat <- ellmer::chat_ollama(model = model)
-secure_chat("hello", chat, show_tokens = TRUE)
+secure_chat("hello", provider = "ollama", model = "gemma3:1b")
+secure_chat("hello", provider = "anthropic")
 }
 }

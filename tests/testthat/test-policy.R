@@ -51,9 +51,29 @@ test_that("add_rule, remove_rule, and list_rules work", {
 
   listed <- capture.output(rules <- list_rules(policy))
   expect_length(listed, 0)
-  expect_named(rules, c("id", "owasp", "severity", "action", "has_pattern", "has_fn"))
+  expect_named(rules, c(
+    "id", "owasp", "severity", "action", "has_pattern", "has_fn",
+    "redaction_span_guaranteed"
+  ))
 
   policy <- remove_rule(policy, "llm01.demo.block")
   expect_equal(length(policy$rules), 0)
   expect_warning(policy <- remove_rule(policy, "missing"), "not found")
+})
+
+test_that("list_rules flags function redaction rules without guaranteed spans", {
+  guardrails <- build_policy(rules = list(
+    shieldr_rule(
+      "llm02.test.spanless", fn = function(text) TRUE,
+      action = "redact"
+    ),
+    shieldr_rule(
+      "llm01.test.block", fn = function(text) TRUE,
+      action = "block"
+    )
+  ))
+
+  rules <- list_rules(guardrails)
+  expect_false(rules$redaction_span_guaranteed[rules$id == "llm02.test.spanless"])
+  expect_true(rules$redaction_span_guaranteed[rules$id == "llm01.test.block"])
 })

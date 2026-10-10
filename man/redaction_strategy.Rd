@@ -9,7 +9,8 @@ redaction_strategy(
   replacement = "[REDACTED]",
   mask = "*",
   hash_algo = "sha256",
-  hash_prefix = 12L
+  hash_prefix = 12L,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ redaction_strategy(
 \code{operator = "hash"}.}
 
 \item{hash_prefix}{Number of digest characters to keep in hash labels.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_redaction_strategy} object.

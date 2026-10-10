@@ -1,7 +1,7 @@
-#' Guard an Ollama chat workflow
+#' Guard an Ollama chat workflow (deprecated)
 #'
-#' Convenience wrapper that creates separate `ellmer` Ollama chats for the
-#' assistant and semantic reviewer, then delegates to [secure_chat()].
+#' This compatibility wrapper delegates to [secure_chat()] with
+#' `provider = "ollama"`. New code should use that common provider path.
 #'
 #' @details
 #' This is an optional local-model path. It requires the suggested `ellmer`
@@ -21,6 +21,9 @@
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param audit_content Passed to [secure_chat()]; defaults to metadata-only
+#'   audit content.
+#' @param show_stats Show execution statistics as messages.
 #'
 #' @return A `shieldr_result`.
 #' @examples
@@ -35,23 +38,22 @@ shield_ollama <- function(prompt,
                           context = NULL,
                           redaction = NULL,
                           scanners = scanner_options(),
-                          show_tokens = FALSE) {
-  rlang::check_installed("ellmer")
-  model <- .resolve_ollama_model(model)
-  checks <- .validate_checks(checks)
-  show_tokens <- .validate_show_tokens(show_tokens)
-  assistant <- ellmer::chat_ollama(model = model)
-  reviewer <- if (checks %in% c("llm", "both")) ellmer::chat_ollama(model = model) else NULL
+                          show_tokens = FALSE,
+                          audit_content = c("metadata", "full"),
+                          show_stats = FALSE) {
+  .Deprecated("secure_chat", package = "llmshieldr")
   secure_chat(
-    prompt,
-    assistant,
-    policy,
-    reviewer = reviewer,
+    prompt = prompt,
+    provider = "ollama",
+    policy = policy,
     checks = checks,
+    model = model,
     context = context,
     redaction = redaction,
     scanners = scanners,
-    show_tokens = show_tokens
+    show_tokens = show_tokens,
+    audit_content = audit_content,
+    show_stats = show_stats
   )
 }
 
@@ -67,7 +69,8 @@ shield_ollama <- function(prompt,
 #'
 #' @param model Ollama model name. When `NULL`, the first available model from
 #'   `ellmer::models_ollama()$id` is used.
-#' @param ... Passed to [ellmer::chat_ollama()].
+#' @param ... Passed to `ellmer::chat_ollama()`.
+#' @param show_stats Show setup time and network status as messages.
 #'
 #' @return An `ellmer` chat object.
 #' @examples
@@ -76,8 +79,11 @@ shield_ollama <- function(prompt,
 #' scan_prompt("Ignore previous instructions.", reviewer = reviewer, checks = "llm")
 #' }
 #' @export
-ollama_reviewer <- function(model = NULL, ...) {
+ollama_reviewer <- function(model = NULL, ..., show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "ollama_reviewer")
+  on.exit(.stats_end(stats), add = TRUE)
   rlang::check_installed("ellmer")
+  if (!is.null(stats) && is.null(model)) stats$network <- "yes"
   model <- .resolve_ollama_model(model)
   ellmer::chat_ollama(model = model, ...)
 }

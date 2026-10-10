@@ -12,7 +12,9 @@ scan_prompt(
   redact = TRUE,
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  stage = "prompt",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -32,14 +34,20 @@ Ignored when \code{redact = FALSE}.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{stage}{Internal trust-boundary stage. Advanced callers should normally
+use the stage-specific public scanner instead.}
+
+\item{show_stats}{Show elapsed time, token estimate, network status, and
+transfer metrics when available.}
 }
 \value{
 A \code{shieldr_report}.
 }
 \description{
 Scans user prompt text with rule-based, NLP, and optional semantic reviewer checks.
-Findings retain OWASP LLM Top 10 categories when known; see
-\url{https://genai.owasp.org/llm-top-10/}.
+Findings retain OWASP LLM Top 10:2026 categories when known; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 \code{scan_prompt()} is usually the first guardrail in a workflow. It normalizes
@@ -53,11 +61,14 @@ regular expressions and an NLP intent rule. \code{checks = "nlp"} runs only NLP
 intent checks, using \code{tokenizers} for word tokenization and \code{SnowballC} for
 stemming when those optional packages are installed. \code{checks = "llm"} uses
 only the semantic reviewer when one is supplied. \code{checks = "both"} combines
-policy rules with semantic review. If LLM review returns malformed JSON, the
-function warns and continues with the findings it already has.
+policy rules with semantic review. Reviewer failures block by default;
+\code{policy_controls(on_reviewer_error = "rules_only")} allows a rules-only fallback.
 
-Redaction replaces matched spans with \verb{[REDACTED]}. Function-based findings
-can influence score and action even when they do not provide exact spans.
+Redaction replaces matched spans with \verb{[REDACTED]}. A \code{redact} finding that
+does not provide a valid span is promoted to a blocking redaction-integrity
+finding by default, so \code{text_clean} is never presented as sanitized while
+the detected text remains present. Use \code{list_rules()} to identify custom
+redact rules that cannot guarantee spans.
 }
 \examples{
 scan_prompt("hello")

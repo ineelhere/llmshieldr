@@ -4,7 +4,7 @@
 \alias{policy}
 \title{Load a built-in policy}
 \usage{
-policy(name = "enterprise_default", overrides = list())
+policy(name = "enterprise_default", overrides = list(), show_stats = FALSE)
 }
 \arguments{
 \item{name}{Built-in policy name. Defaults to \code{"enterprise_default"}.}
@@ -12,6 +12,8 @@ policy(name = "enterprise_default", overrides = list())
 \item{overrides}{Optional list with \code{rules}, \code{thresholds}, \code{rate_guard}, or
 \code{trusted_sources} entries. \code{controls} may be supplied with
 \code{\link[=policy_controls]{policy_controls()}} to tune orchestration behavior in \code{\link[=secure_chat]{secure_chat()}}.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_policy}.

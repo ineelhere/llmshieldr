@@ -14,7 +14,9 @@ scan_stream(
   on_block = c("stop", "return"),
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  show_stats = FALSE,
+  report_content = c("metadata", "full")
 )
 }
 \arguments{
@@ -38,6 +40,11 @@ when scanning the next chunk.}
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{show_stats}{Show execution statistics as messages.}
+
+\item{report_content}{\code{"metadata"} (default) strips text and evidence from
+per-window reports; \code{"full"} retains them in memory.}
 }
 \value{
 A \code{shieldr_stream_result} list with \code{action}, \code{text}, and \code{reports}.
@@ -45,7 +52,11 @@ A \code{shieldr_stream_result} list with \code{action}, \code{text}, and \code{r
 \description{
 \code{scan_stream()} scans character chunks as they arrive from a streaming model
 API. Each scan uses the current chunk plus a configurable overlap from the
-previous text so rules can catch phrases split across chunk boundaries.
+previous text so rules can catch phrases split across chunk boundaries. The
+returned \code{text} is scanned again as a whole and contains only releasable
+text: a blocked result has an empty string and a redacted result contains
+the cleaned text. This helper accepts chunks after they have been received;
+callers must not forward raw chunks before the final decision.
 }
 \details{
 This helper is intentionally transport-agnostic: pass the text chunks you

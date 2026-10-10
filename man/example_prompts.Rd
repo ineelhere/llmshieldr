@@ -4,7 +4,10 @@
 \alias{example_prompts}
 \title{Example prompts}
 \usage{
-example_prompts()
+example_prompts(show_stats = FALSE)
+}
+\arguments{
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A data frame with columns \code{feature}, \code{type}, \code{policy}, \code{prompt}, and
@@ -12,8 +15,8 @@ A data frame with columns \code{feature}, \code{type}, \code{policy}, \code{prom
 }
 \description{
 Returns example prompts spanning clean, injection, PII, secret, agency, and
-misinformation cases, with at least one example touching each OWASP LLM Top
-10 category.
+misinformation cases. Feature labels use the OWASP LLM Top 10:2026
+category where a direct mapping is meaningful.
 }
 \details{
 The example data is a small teaching and testing corpus. It is not a

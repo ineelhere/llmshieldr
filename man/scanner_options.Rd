@@ -14,7 +14,12 @@ scanner_options(
   language_fn = NULL,
   blocked_topics = NULL,
   blocked_url_hosts = NULL,
-  allowed_url_hosts = NULL
+  allowed_url_hosts = NULL,
+  url_policy = NULL,
+  recognizers = list(),
+  providers = list(),
+  secrets = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -31,7 +36,7 @@ payloads by decoding candidates and scanning the decoded text.}
 blocked or fall outside \code{allowed_url_hosts}.}
 
 \item{max_tokens}{Optional maximum estimated tokens for a single scanned
-text. Exceeding the limit creates an OWASP LLM10 block finding.}
+text. Exceeding the limit creates an OWASP LLM06:2026 block finding.}
 
 \item{allowed_languages}{Optional language allowlist. Uses \code{language_fn}
 when supplied, otherwise a minimal ASCII/non-Latin heuristic.}
@@ -46,6 +51,18 @@ named character vector. Matches create topic-ban findings.}
 
 \item{allowed_url_hosts}{Optional character vector of allowed URL hosts. When
 supplied, URL hosts outside the allowlist are flagged.}
+
+\item{url_policy}{Optional canonical destination policy from \code{\link[=url_policy]{url_policy()}}.
+Legacy host arguments are merged into a conservative HTTP/HTTPS policy.}
+
+\item{recognizers}{Optional list from \code{\link[=entity_recognizer]{entity_recognizer()}} or
+\code{\link[=native_recognizers]{native_recognizers()}}.}
+
+\item{providers}{Optional list of adapters from \code{\link[=guardrail_provider]{guardrail_provider()}}.}
+
+\item{secrets}{Optional registry from \code{\link[=secret_registry]{secret_registry()}}.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_scanner_options} object.

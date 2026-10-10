@@ -4,14 +4,16 @@
 \alias{list_rules}
 \title{List policy rules}
 \usage{
-list_rules(policy)
+list_rules(policy, show_stats = FALSE)
 }
 \arguments{
 \item{policy}{A \code{shieldr_policy} or built-in policy name such as \code{"comprehensive"}.}
+
+\item{show_stats}{Show listing time and available usage metrics.}
 }
 \value{
 A data frame with columns \code{id}, \code{owasp}, \code{severity}, \code{action},
-\code{has_pattern}, and \code{has_fn}.
+\code{has_pattern}, \code{has_fn}, and \code{redaction_span_guaranteed}.
 }
 \description{
 \code{list_rules()} returns a compact inventory of a policy's rule set. It is
@@ -19,9 +21,10 @@ intended for audits, examples, tests, and pre-deployment reviews.
 }
 \details{
 The \code{has_pattern} and \code{has_fn} columns identify whether each rule is regex
-based or function based. Regex rules can produce redaction spans directly.
-Function rules may produce findings without spans unless the function
-returns span metadata.
+based or function based. \code{redaction_span_guaranteed} is \code{TRUE} for
+non-redaction rules and regex redaction rules. It is \code{FALSE} for function
+redaction rules because their output cannot be proven to contain spans by
+inspecting the rule object; runtime scanning still validates actual spans.
 }
 \examples{
 list_rules(policy("custom"))

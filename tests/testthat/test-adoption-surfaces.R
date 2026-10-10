@@ -64,6 +64,15 @@ test_that("stream scanning catches boundary-spanning output", {
 
   expect_s3_class(result, "shieldr_stream_result")
   expect_equal(result$action, "block")
+  expect_identical(result$text, "")
+})
+
+test_that("stream result never exposes a split email in its text", {
+  result <- scan_stream(c("Contact ", "a@example.com"), on_block = "return")
+
+  expect_equal(result$action, "redact")
+  expect_false(grepl("a@example.com", result$text, fixed = TRUE))
+  expect_match(result$text, "[REDACTED]", fixed = TRUE)
 })
 
 test_that("evaluation helper returns action metrics", {

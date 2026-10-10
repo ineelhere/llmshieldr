@@ -13,7 +13,8 @@ scan_conversation(
   checks = "rules",
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ likely column such as \code{content}, \code{text}, or \code{message} is inferred
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{show_stats}{Show execution statistics as messages.}
 }
 \value{
 A list of \code{shieldr_report} objects, one per message.

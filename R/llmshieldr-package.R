@@ -1,13 +1,13 @@
 #' llmshieldr: Safety Guardrails for Large Language Model Workflows
 #'
-#' A model-agnostic safety layer for 'R' developers building with large language
-#' model applications. The package maps starter controls to the Open
-#' Worldwide Application Security Project Top 10 for Large Language
-#' Model Applications 2025 risk categories through composable policies,
-#' deterministic rules, optional semantic review, lightweight natural language
-#' processing intent checks, conversation, tool-call, streaming-output,
-#' retrieval-augmented generation context, and output scanning,
-#' workflows with the 'Ollama' local web service, rate guards, and audit logs.
+#' Inspectable, model-agnostic guardrails for large language model applications
+#' in R. The package scans prompts, conversations, retrieved context, documents,
+#' tool calls and outputs, streams, URLs, and model responses. Composable
+#' policies combine deterministic rules, optional detectors and semantic
+#' review, rate limits, output contracts, grounding checks, and privacy-aware
+#' audits. [secure_chat()] applies these checks around provider-neutral chat
+#' workflows; the individual `scan_*()` functions guard application-owned
+#' boundaries.
 #'
 #' @importFrom cli cli_abort cli_bullets cli_warn col_cyan col_green col_grey col_red col_yellow
 #' @importFrom digest digest

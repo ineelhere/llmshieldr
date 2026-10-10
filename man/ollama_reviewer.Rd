@@ -4,13 +4,15 @@
 \alias{ollama_reviewer}
 \title{Create a local Ollama reviewer}
 \usage{
-ollama_reviewer(model = NULL, ...)
+ollama_reviewer(model = NULL, ..., show_stats = FALSE)
 }
 \arguments{
 \item{model}{Ollama model name. When \code{NULL}, the first available model from
 \code{ellmer::models_ollama()$id} is used.}
 
-\item{...}{Passed to \code{\link[ellmer:chat_ollama]{ellmer::chat_ollama()}}.}
+\item{...}{Passed to \code{ellmer::chat_ollama()}.}
+
+\item{show_stats}{Show setup time and network status as messages.}
 }
 \value{
 An \code{ellmer} chat object.

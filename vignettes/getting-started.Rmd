@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 ```
 
@@ -33,9 +33,10 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = TRUE)
 }
 ```
 
-`llmshieldr` adds a safety layer around LLM calls in R. It does not require a
-specific model service. You can use an `ellmer` chat object, anything with a
-`$chat()` method, a remote reviewer function, or the optional Ollama helper.
+`llmshieldr` adds a safety layer around LLM calls in R without requiring a
+specific model service. `secure_chat()` accepts any provider supported by
+`ellmer::chat()`, an existing chat object, an object with a `$chat()` method,
+or an R function. Gemini and Ollama use this same provider-neutral path.
 
 ## Load a Policy
 
@@ -105,7 +106,7 @@ report <- scan_prompt(
 
 report$action
 report$text_clean
-explain_findings(report$findings)
+explain_findings(report)
 ```
 
 ::: {.llmshieldr-info-box}
@@ -176,27 +177,28 @@ result$action
 result$risk_summary
 ```
 
-For the quickest local Ollama path, use `shield_ollama()`. This chunk is not
-evaluated during site builds because it requires a running Ollama service and a
-local model.
+To use a real provider, replace the callback with a provider name and model.
+Keep the first experiment small:
 
-```{r, eval = FALSE}
-ollama_result <- shield_ollama(
-  prompt = "Summarize this support issue in a short paragraph.",
-  policy = policy("baseline"),
-  checks = "rules",
-  show_tokens = TRUE
+```{r provider-next-step, eval = FALSE}
+secure_chat(
+  "Explain why LLM output should be checked.",
+  provider = "gemini",
+  model = "gemini-3.8-flash",
+  checks = "rules"
 )
-
-ollama_result$output
-ollama_result$action
-ollama_result$risk_summary
 ```
+
+For Ollama, change `provider` to `"ollama"` and `model` to the local model
+name. The dedicated provider vignette shows one opt-in request for each
+provider and the required `.Renviron` setup. Neither vignette makes a provider
+call while it is built.
 
 If `secure_chat()` blocks retrieved context rows, those rows are excluded from
 the final prompt and a warning identifies the triggered rules. Included context
-rows are assembled with row labels, source labels, and separators. CSV audit
-logs include `context_row_index` and `context_source` for context-stage
+rows are assembled with row labels, opaque source references, and separators;
+unscanned source metadata is never copied verbatim into the model prompt. CSV
+audit logs include `context_row_index` and `context_source` for context-stage
 findings.
 
 Use `policy_controls()` to tune orchestration outcomes.
@@ -215,12 +217,12 @@ refusing_policy <- policy(
 )
 ```
 
-For more local LLM patterns, see
-`vignette("ollama-usage", package = "llmshieldr")`.
+For Gemini credentials and local Ollama patterns, see
+`vignette("providers-gemini-ollama", package = "llmshieldr")`.
 
-`risk_summary` aggregates triggered findings by OWASP category. For example,
-PII rules contribute to `llm02`, injection rules to `llm01`, and rate-limit
-failures to `llm10`.
+`risk_summary` groups triggered findings by stable lowercase category code.
+Use `owasp_crosswalk()` for all OWASP LLM Top 10:2026 names, edition-qualified
+IDs, and predecessor mappings.
 
 ## Inspect Output
 
@@ -267,15 +269,45 @@ scan_tool_call(
 scan_tool_output("search_docs", "Result includes neel@example.com")
 ```
 
-For streaming APIs, scan chunks with rolling context so split phrases can still
-be detected.
+For consequential tools, require an application-managed approval decision.
+The callback is invoked only after allowlist, schema, authorization, validator,
+spend, and call-limit checks pass. Your application must authenticate the
+approver and prevent replay of approval identifiers.
 
 ```{r}
-scan_stream(
-  c("I will now ", "delete the records."),
-  on_block = "return"
+approved_tools <- tool_policy(
+  allowed_tools = c("search_docs", "delete_record"),
+  approval_required = "delete_record",
+  approve = function(subject, tool_name, arguments) {
+    list(
+      approved = identical(subject$approval_token, "example-approved"),
+      id = "change-123"
+    )
+  }
+)
+
+scan_tool_call(
+  "delete_record",
+  list(id = 42),
+  tool_policy = approved_tools,
+  subject = list(approval_token = "example-approved")
 )
 ```
+
+For streaming APIs, use `stream_guard()` when text must not be released until
+the complete response passes its final scan. Raw provider chunks go only to
+`$push()`; `$finish()` emits the cleaned text after an allow or redact decision.
+
+```{r}
+released <- character()
+guard <- stream_guard(function(text) released <<- c(released, text))
+guard$push("A short public ")
+guard$push("response.")
+guard$finish()
+```
+
+Use `scan_stream()` for batch or post-hoc chunk reports when its caller already
+controls release.
 
 ## Customize Scanners and Redaction
 
@@ -298,7 +330,9 @@ scan_prompt(
 ```
 
 Redaction operators include `replace`, `mask`, `hash`, `drop`, and `keep`.
-Only findings with span metadata can rewrite text.
+Only findings with span metadata can rewrite text. If a scan would otherwise
+return `redact` but any redact finding lacks a valid in-bounds span, the default
+runtime decision is `block`, and metadata identifies the invalid rule IDs.
 
 ## Write an Audit Log
 
@@ -308,17 +342,21 @@ write_audit_log(result$audit, path)
 readLines(path)
 ```
 
-The audit object records input and output reports, context reports when
-present, cleaned prompt text, raw model output, elapsed time, token estimate,
-and the final action.
+The default audit records report metadata, context and tool decisions, elapsed
+time, token estimates, and the final action. Prompt text, output text, finding
+excerpts, and reviewer details are omitted. Retaining content in memory
+requires `secure_chat(..., audit_content = "full")`; writing it requires the
+separate `write_audit_log(..., include_content = TRUE)` opt-in.
 
 With `show_tokens = TRUE`, token counts use `ellmer` usage records when they
 are available and fall back to `ceiling(nchar(text) / 4)`. They are intended
 for operational safety limits, not exact billing.
 
-For stricter budget behavior, create a guard with `rate_guard(strict = TRUE)`.
-For shared guards in parallel or async code on one machine, use
-`rate_guard(concurrent = TRUE)` and install the optional `filelock` package.
+`rate_guard()` can bound requests, estimated or reported tokens, output tokens,
+tool calls, side effects, and elapsed time. Use `strict = TRUE` for pre-call
+token reservation, `concurrent = TRUE` with optional `filelock` for shared
+work on one machine, or supply a backend that implements the shared-counter
+contract for a deployment-managed store.
 
 ## Evaluate a Starter Corpus
 

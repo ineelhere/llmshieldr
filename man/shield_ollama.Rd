@@ -2,7 +2,7 @@
 % Please edit documentation in R/shield_ollama.R
 \name{shield_ollama}
 \alias{shield_ollama}
-\title{Guard an Ollama chat workflow}
+\title{Guard an Ollama chat workflow (deprecated)}
 \usage{
 shield_ollama(
   prompt,
@@ -12,7 +12,9 @@ shield_ollama(
   context = NULL,
   redaction = NULL,
   scanners = scanner_options(),
-  show_tokens = FALSE
+  show_tokens = FALSE,
+  audit_content = c("metadata", "full"),
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -32,13 +34,18 @@ shield_ollama(
 \item{scanners}{Optional scanner configuration from \code{\link[=scanner_options]{scanner_options()}}.}
 
 \item{show_tokens}{Whether to attach token counts when \code{ellmer} is available.}
+
+\item{audit_content}{Passed to \code{\link[=secure_chat]{secure_chat()}}; defaults to metadata-only
+audit content.}
+
+\item{show_stats}{Show execution statistics as messages.}
 }
 \value{
 A \code{shieldr_result}.
 }
 \description{
-Convenience wrapper that creates separate \code{ellmer} Ollama chats for the
-assistant and semantic reviewer, then delegates to \code{\link[=secure_chat]{secure_chat()}}.
+This compatibility wrapper delegates to \code{\link[=secure_chat]{secure_chat()}} with
+\code{provider = "ollama"}. New code should use that common provider path.
 }
 \details{
 This is an optional local-model path. It requires the suggested \code{ellmer}

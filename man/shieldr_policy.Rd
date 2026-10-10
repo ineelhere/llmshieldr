@@ -10,7 +10,9 @@ shieldr_policy(
   thresholds,
   rate_guard = NULL,
   trusted_sources = NULL,
-  controls = NULL
+  controls = NULL,
+  version = "1",
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -26,6 +28,10 @@ values between 0 and 1.}
 \item{trusted_sources}{Optional character vector of trusted context sources.}
 
 \item{controls}{Optional list from \code{\link[=policy_controls]{policy_controls()}}.}
+
+\item{version}{Policy configuration version recorded in reports and audits.}
+
+\item{show_stats}{Show construction time and available usage metrics.}
 }
 \value{
 A \code{shieldr_policy} S3 object.
@@ -41,7 +47,7 @@ so advanced users and tests can construct exact policy objects.
 \code{trusted_sources} is used by \code{\link[=scan_context]{scan_context()}} only. If it is \code{NULL}, all
 sources are treated as trusted. If it is a character vector and \code{source_col}
 is supplied to \code{\link[=scan_context]{scan_context()}}, rows with source values outside the allowlist
-receive an OWASP LLM08 finding.
+receive an OWASP LLM01:2026 finding.
 
 \code{controls} is used by \code{\link[=secure_chat]{secure_chat()}} after scanner reports have already
 resolved to \code{allow}, \code{redact}, or \code{block}. Use \code{\link[=policy_controls]{policy_controls()}} to decide

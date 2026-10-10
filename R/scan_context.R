@@ -1,7 +1,8 @@
 #' Scan retrieved context rows
 #'
-#' Scans data-frame context chunks and adds OWASP LLM08-style anomaly and
-#' source-trust findings before returning row-aligned reports.
+#' Scans data-frame context chunks and adds OWASP 2026 context anomaly and
+#' source-trust findings and an explicit admission decision before returning
+#' row-aligned reports.
 #'
 #' @details
 #' Retrieved context is a separate trust boundary in RAG systems. A prompt may
@@ -18,9 +19,9 @@
 #'
 #' Instruction density counts `ignore`, `forget`, `override`, `instead`, and
 #' `disregard` per 100 tokens. Rows above `anomaly_threshold` receive synthetic
-#' OWASP LLM08 findings. If `source_col` is supplied and
+#' OWASP LLM09:2026 findings. If `source_col` is supplied and
 #' `policy$trusted_sources` is a character vector, untrusted source values also
-#' receive a synthetic OWASP LLM08 finding.
+#' receive a synthetic OWASP LLM01:2026 finding.
 #'
 #' @param data A data frame.
 #' @param text_col Column containing context text. Supply a string or bare name.
@@ -29,10 +30,17 @@
 #' @param reviewer Optional reviewer function or object with `$chat()`.
 #' @param checks One of `"rules"`, `"nlp"`, `"llm"`, or `"both"`.
 #' @param source_col Optional source column used with `policy$trusted_sources`.
+#' @param authorize Optional function receiving one context row as a one-row data
+#'   frame. It must return exactly `TRUE` to admit the row. Errors and all other
+#'   values deny admission. Enforce tenant scope in the retrieval query too.
+#' @param context_policy Optional provenance, tenant, ACL, trust, and freshness
+#'   requirements from [context_policy()].
 #' @param anomaly_threshold Z-score threshold for anomaly findings.
 #' @param redaction Optional redaction strategy from [redaction_strategy()].
 #' @param scanners Optional scanner configuration from [scanner_options()].
 #' @param show_tokens Whether to attach token counts when `ellmer` is available.
+#' @param show_stats Show elapsed time, token estimate, network status, and
+#'   transfer metrics when available.
 #'
 #' @return A list of `shieldr_report` objects, one per row.
 #' @examples
@@ -49,7 +57,13 @@ scan_context <- function(data,
                          anomaly_threshold = 2.5,
                          redaction = NULL,
                          scanners = scanner_options(),
-                         show_tokens = FALSE) {
+                         show_tokens = FALSE,
+                         authorize = NULL,
+                         context_policy = NULL,
+                         show_stats = FALSE) {
+  stats <- .stats_begin(show_stats, "scan_context")
+  on.exit(.stats_end(stats), add = TRUE)
+  .stats_track_reviewer(stats, reviewer, checks)
   if (!is.data.frame(data)) {
     cli::cli_abort("{.arg data} must be a data frame.")
   }
@@ -60,6 +74,10 @@ scan_context <- function(data,
   show_tokens <- .validate_show_tokens(show_tokens)
   .validate_reviewer_for_checks(reviewer, checks)
   .check_number_between(anomaly_threshold, "anomaly_threshold", 0, Inf)
+  if (!is.null(authorize) && !is.function(authorize)) {
+    cli::cli_abort("{.arg authorize} must be a function or {.code NULL}.")
+  }
+  .validate_context_policy(context_policy, allow_null = TRUE)
 
   text_name <- if (missing(text_col) || is.null(text_col)) {
     .infer_scan_context_text_col(data)
@@ -77,6 +95,7 @@ scan_context <- function(data,
 
   text <- as.character(data[[text_name]])
   text[is.na(text)] <- ""
+  .stats_text_tokens(stats, paste(text, collapse = "\n"))
   if (length(text) == 0L) {
     return(list())
   }
@@ -89,10 +108,40 @@ scan_context <- function(data,
   reports <- vector("list", length(text))
   for (i in seq_along(text)) {
     extra <- list()
+    source_value <- if (!is.null(source_name)) {
+      as.character(data[[source_name]][[i]])
+    } else if (!is.null(context_policy) && context_policy$source_col %in% names(data)) {
+      as.character(data[[context_policy$source_col]][[i]])
+    } else {
+      NA_character_
+    }
+    source_allowed <- is.null(trusted_sources) ||
+      (!is.na(source_value) && source_value %in% trusted_sources)
+    authorized <- if (is.null(authorize)) {
+      TRUE
+    } else {
+      isTRUE(tryCatch(authorize(data[i, , drop = FALSE]), error = function(e) FALSE))
+    }
+    context_decision <- if (is.null(context_policy)) {
+      list(admit = TRUE, reasons = character())
+    } else {
+      .context_policy_admission(data[i, , drop = FALSE], context_policy)
+    }
+    admission <- if (source_allowed && authorized && context_decision$admit) "admit" else "drop"
+    admission_reasons <- c(
+      if (!source_allowed) "source",
+      if (!authorized) "authorization",
+      context_decision$reasons
+    )
+    admission_reason <- if (length(admission_reasons) > 0L) {
+      paste(unique(admission_reasons), collapse = ",")
+    } else {
+      NULL
+    }
     if (is.finite(length_z[[i]]) && length_z[[i]] > anomaly_threshold || is.infinite(length_z[[i]])) {
       extra[[length(extra) + 1L]] <- .synthetic_finding(
         "llm08.anomaly.length",
-        "llm08",
+        "llm09",
         "high",
         "Context chunk has anomalous character length."
       )
@@ -100,26 +149,30 @@ scan_context <- function(data,
     if (is.finite(density_z[[i]]) && density_z[[i]] > anomaly_threshold || is.infinite(density_z[[i]])) {
       extra[[length(extra) + 1L]] <- .synthetic_finding(
         "llm08.anomaly.instruction_density",
-        "llm08",
+        "llm09",
         "high",
         "Context chunk has anomalous instruction-word density."
       )
     }
-    if (!is.null(source_name) && !is.null(trusted_sources)) {
-      source_value <- as.character(data[[source_name]][[i]])
-      if (is.na(source_value) || !source_value %in% trusted_sources) {
-        extra <- c(
-          list(
-            .synthetic_finding(
-              "llm08.untrusted_source",
-              "llm08",
-              "medium",
-              "Context source is not in the policy trusted-source allowlist."
-            )
-          ),
-          extra
-        )
-      }
+    if (!source_allowed) {
+      extra <- c(list(.synthetic_finding(
+        "llm08.untrusted_source", "llm01", "critical",
+        "Context source is absent or outside the trusted-source allowlist.",
+        action = "block"
+      )), extra)
+    }
+    if (!authorized) {
+      extra <- c(list(.synthetic_finding(
+        "llm08.unauthorized_context", "llm02", "critical",
+        "Context row was not authorized for this request.", action = "block"
+      )), extra)
+    }
+    if (!context_decision$admit) {
+      extra <- c(list(.synthetic_finding(
+        "llm09.context.admission", "llm09", "critical",
+        paste0("Context row failed admission requirements: ", paste(context_decision$reasons, collapse = ", "), "."),
+        action = "block"
+      )), extra)
     }
 
     report <- scan_prompt(
@@ -129,15 +182,27 @@ scan_context <- function(data,
       checks = checks,
       redaction = redaction,
       scanners = scanners,
-      show_tokens = show_tokens
+      show_tokens = show_tokens,
+      stage = "context"
     )
     findings <- .dedupe_findings(c(extra, report$findings))
     risk_score <- .score_findings(findings)
     action <- .resolve_action(risk_score, findings, policy)
-    source_value <- if (!is.null(source_name)) as.character(data[[source_name]][[i]]) else NULL
+    redaction_integrity <- .enforce_redaction_integrity(action, findings, text = text[[i]])
+    if (length(redaction_integrity$findings) > length(findings)) {
+      findings <- redaction_integrity$findings
+      risk_score <- .score_findings(findings)
+      action <- .resolve_action(risk_score, findings, policy)
+    }
+    redaction_rule_ids <- unique(c(
+      report$metadata$invalid_redaction_rule_ids %||% character(),
+      redaction_integrity$rule_ids
+    ))
+    redaction_complete <- !identical(report$metadata$redaction_complete, FALSE) &&
+      isTRUE(redaction_integrity$complete)
     reports[[i]] <- shieldr_report(
       action = action,
-      text_clean = .apply_redaction(report$text_clean, findings, redaction),
+      text_clean = report$text_clean,
       findings = findings,
       risk_score = risk_score,
       policy = policy$name,
@@ -146,11 +211,22 @@ scan_context <- function(data,
       tokens = report$tokens,
       metadata = .report_metadata(
         stage = "context",
+        policy_version = policy$version,
+        policy_fingerprint = policy$fingerprint,
+        decision_schema_version = policy$decision_schema_version,
         row_index = i,
         text_col = text_name,
         source_col = source_name,
-        source = source_value,
+        source = if (is.na(source_value)) NULL else source_value,
+        document_id = if ("document_id" %in% names(data)) as.character(data$document_id[[i]]) else NULL,
+        tenant = if (!is.null(context_policy) && context_policy$tenant_col %in% names(data)) as.character(data[[context_policy$tenant_col]][[i]]) else NULL,
+        admission = admission,
+        admission_reason = admission_reason,
         reviewer_errors = report$metadata$reviewer_errors %||% list(),
+        review_status = report$metadata$review_status %||% "not_requested",
+        reviewer_failure_action = report$metadata$reviewer_failure_action %||% NULL,
+        redaction_complete = redaction_complete,
+        invalid_redaction_rule_ids = redaction_rule_ids,
         scanners = scanners
       )
     )

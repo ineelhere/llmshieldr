@@ -4,12 +4,15 @@
 \alias{print.shieldr_report}
 \title{Print a \code{shieldr_report}}
 \usage{
-\method{print}{shieldr_report}(x, ...)
+\method{print}{shieldr_report}(x, ..., show_stats = FALSE)
 }
 \arguments{
 \item{x}{A \code{shieldr_report}.}
 
 \item{...}{Unused.}
+
+\item{show_stats}{Show formatting time, network status, and report token
+count when available.}
 }
 \value{
 The report, invisibly.

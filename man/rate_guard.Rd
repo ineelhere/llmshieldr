@@ -7,9 +7,14 @@
 rate_guard(
   max_tokens = NULL,
   max_requests = NULL,
+  max_output_tokens = NULL,
+  max_tool_calls = NULL,
+  max_elapsed_seconds = NULL,
   window_seconds = 3600L,
   strict = FALSE,
-  concurrent = FALSE
+  concurrent = FALSE,
+  backend = NULL,
+  show_stats = FALSE
 )
 }
 \arguments{
@@ -18,13 +23,27 @@ rate_guard(
 
 \item{max_requests}{Maximum requests per window, or \code{NULL}.}
 
+\item{max_output_tokens}{Maximum output tokens reserved before each model
+call and enforced on the returned output estimate.}
+
+\item{max_tool_calls}{Maximum tool requests in one guarded chat.}
+
+\item{max_elapsed_seconds}{Optional model-call wall-time limit.}
+
 \item{window_seconds}{Window length in seconds.}
 
 \item{strict}{Whether \code{\link[=secure_chat]{secure_chat()}} should reserve estimated prompt tokens
 before calling the model.}
 
-\item{concurrent}{Whether to protect \verb{$usage()} and \verb{$update()} with a
-file-based lock from the suggested \code{filelock} package.}
+\item{concurrent}{Whether to persist counters in a locked state file shared
+by worker processes on the same machine. Requires \code{filelock}.}
+
+\item{backend}{Optional shared quota backend as a list of \code{usage}, \code{reserve},
+and \code{rollback} functions. This lets server deployments provide Redis,
+database, or service-backed atomic accounting without a core dependency.}
+
+\item{show_stats}{Show construction or check time and available usage
+metrics as messages.}
 }
 \value{
 When creating a guard, a \code{shieldr_rate_guard} environment. When
@@ -32,8 +51,8 @@ checking a guard, \code{TRUE} if usage is within limits.
 }
 \description{
 Rate guards are explicit stateful environments used to cap token and request
-budgets for LLM workflows. Resource exhaustion is covered by OWASP LLM10; see
-\url{https://genai.owasp.org/llm-top-10/}.
+budgets for LLM workflows. Unbounded consumption is OWASP LLM06:2026; see
+\url{https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main/2026/final}.
 }
 \details{
 Calling \code{rate_guard()} with limits creates a new \code{shieldr_rate_guard}
@@ -62,9 +81,9 @@ mutable state, because rate limiting is inherently session-based.
 The rate guard is not safe for concurrent use by default. Parallel or async R
 code (\code{future}, \code{parallel}, \code{callr}) that shares a single guard environment
 will produce inaccurate counts. Use \code{concurrent = TRUE} and install the
-\code{filelock} package to make each \verb{$usage()}, \verb{$reserve()}, \verb{$update()}, and
-\verb{$rollback()} call acquire a file-based lock within a single machine.
-Cross-machine coordination is not supported.
+\code{filelock} package to persist counters in a locked state file shared by
+serialized or forked copies of the guard on one machine. Cross-machine
+coordination requires \verb{backend=}.
 }
 
 \section{Pre-call Reservation}{
