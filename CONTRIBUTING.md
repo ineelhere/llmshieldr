@@ -36,10 +36,17 @@ render `README.Rmd` after changing their sources.
   must use the `.9000` development suffix.
 - `main` represents the latest stable release. Changes reach `main` through a
   release pull request after checks pass and the version is finalized.
-- Pull requests and pushes to `dev` build pkgdown as a downloadable preview but
-  never deploy it.
-- The public pkgdown site deploys only when a stable GitHub release is
-  published from a tag that exactly matches `v<DESCRIPTION Version>`.
+- Pull requests build pkgdown as a downloadable preview without deploying it.
+- Pushes to `dev` publish development documentation under `/dev/`. The same
+  deployment rebuilds the stable site from `main` so GitHub Pages receives both
+  versions as one artifact.
+- Publishing a stable GitHub release rebuilds the stable site from its tag and
+  refreshes the development site from `dev`. The release tag must exactly match
+  `v<DESCRIPTION Version>`.
+- The pkgdown **Versions** menu switches between the stable site at `/` and the
+  development site at `/dev/`.
+- The `github-pages` environment must allow deployments from the `dev` branch
+  and stable version tags matching `v*`.
 - After a stable release, resume development on `dev` with a `.9000` version.
 
 Install the current development branch with:

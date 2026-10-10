@@ -18,11 +18,18 @@ home:
 navbar:
   structure:
     left: [intro, reference, articles]
-    right: [search, cran, github, lightswitch]
+    right: [search, versions, cran, github, lightswitch]
   components:
     intro:
       text: Get Started
       href: articles/getting-started.html
+    versions:
+      text: Versions
+      menu:
+      - text: Stable
+        href: https://www.indraneelchakraborty.com/llmshieldr/
+      - text: Development
+        href: https://www.indraneelchakraborty.com/llmshieldr/dev/
     cran:
       text: CRAN
       href: https://CRAN.R-project.org/package=llmshieldr
