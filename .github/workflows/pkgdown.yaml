@@ -15,6 +15,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  RENV_CONFIG_AUTOLOADER_ENABLED: "FALSE"
+
 jobs:
   build-stable:
     runs-on: ubuntu-latest

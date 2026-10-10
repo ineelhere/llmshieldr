@@ -11,6 +11,9 @@ concurrency:
   group: pkgdown-check-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  RENV_CONFIG_AUTOLOADER_ENABLED: "FALSE"
+
 jobs:
   pkgdown-check:
     runs-on: ubuntu-latest
