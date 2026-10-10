@@ -44,8 +44,12 @@ cleaned text, findings, risk score, and metadata - useful for debugging, policy 
 ```r
 install.packages("llmshieldr")
 
-# Development version
-remotes::install_github("ineelhere/llmshieldr")
+# Development version from the dev branch
+# install.packages("pak")
+pak::pak("ineelhere/llmshieldr@dev")
+
+# Reproducible development install from a commit
+# pak::pak("ineelhere/llmshieldr@<commit-sha>")
 ```
 
 Optional integrations - providers, JSON Schema, HTTP adapters, local model verification, and NLP

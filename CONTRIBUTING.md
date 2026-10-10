@@ -30,6 +30,24 @@ Edit `README.Rmd` and Roxygen comments in `R/`. Do not hand-edit generated
 `README.md`, `man/*.Rd`, or `NAMESPACE` files. Run `devtools::document()` and
 render `README.Rmd` after changing their sources.
 
+## Branch and Release Policy
+
+- `dev` is the integration branch for the development package. Its version
+  must use the `.9000` development suffix.
+- `main` represents the latest stable release. Changes reach `main` through a
+  release pull request after checks pass and the version is finalized.
+- Pull requests and pushes to `dev` build pkgdown as a downloadable preview but
+  never deploy it.
+- The public pkgdown site deploys only when a stable GitHub release is
+  published from a tag that exactly matches `v<DESCRIPTION Version>`.
+- After a stable release, resume development on `dev` with a `.9000` version.
+
+Install the current development branch with:
+
+```r
+pak::pak("ineelhere/llmshieldr@dev")
+```
+
 ## Style Expectations
 
 - Prefer clear function names and explicit validation.
