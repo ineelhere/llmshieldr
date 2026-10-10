@@ -1,8 +1,10 @@
 on:
+  push:
+    branches: [dev]
   release:
     types: [released]
 
-name: pkgdown-stable
+name: pkgdown-site
 
 permissions:
   contents: read
@@ -14,26 +16,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  pkgdown:
+  build-stable:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out stable source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || 'main' }}
+          path: stable
 
-      - name: Verify release version and tag
+      - name: Verify stable version and release tag
         run: |
           version <- unname(read.dcf("DESCRIPTION", fields = "Version")[1, 1])
-          tag <- sub("^refs/tags/", "", Sys.getenv("GITHUB_REF"))
           if (grepl("[.]9000$", version)) {
-            stop("Stable pkgdown deployment requires a non-development version.")
+            stop("Stable pkgdown documentation requires a non-development version.")
           }
-          if (!identical(tag, paste0("v", version))) {
-            stop("Release tag must equal v", version, "; got ", tag, ".")
+
+          if (identical(Sys.getenv("GITHUB_EVENT_NAME"), "release")) {
+            tag <- Sys.getenv("RELEASE_TAG")
+            if (!identical(tag, paste0("v", version))) {
+              stop("Release tag must equal v", version, "; got ", tag, ".")
+            }
           }
         shell: Rscript {0}
+        working-directory: stable
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
 
       - uses: r-lib/actions/setup-pandoc@v2
 
@@ -43,20 +52,134 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          working-directory: stable
           extra-packages: |
             any::pkgdown
             local::.
           needs: website
 
-      - name: Build site
+      - name: Build stable site
+        run: |
+          version_navbar <- list(
+            navbar = list(
+              structure = list(
+                right = c("search", "versions", "cran", "github", "lightswitch")
+              ),
+              components = list(
+                versions = list(
+                  text = "Versions",
+                  menu = list(
+                    list(
+                      text = "Stable",
+                      href = "https://www.indraneelchakraborty.com/llmshieldr/"
+                    ),
+                    list(
+                      text = "Development",
+                      href = "https://www.indraneelchakraborty.com/llmshieldr/dev/"
+                    )
+                  )
+                )
+              )
+            )
+          )
+          pkgdown::build_site_github_pages(
+            new_process = FALSE,
+            install = FALSE,
+            override = version_navbar
+          )
+        shell: Rscript {0}
+        working-directory: stable
+        env:
+          PKGDOWN_DEV_MODE: release
+
+      - name: Upload stable site
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkgdown-stable-site
+          path: stable/docs
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  build-development:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out development source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'dev' }}
+          path: development
+
+      - name: Verify development version
+        run: |
+          version <- unname(read.dcf("DESCRIPTION", fields = "Version")[1, 1])
+          if (!grepl("[.]9000$", version)) {
+            stop("Development pkgdown documentation requires a .9000 version.")
+          }
+        shell: Rscript {0}
+        working-directory: development
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: development
+          extra-packages: |
+            any::pkgdown
+            local::.
+          needs: website
+
+      - name: Build development site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
         shell: Rscript {0}
+        working-directory: development
+        env:
+          PKGDOWN_DEV_MODE: devel
+
+      - name: Upload development site
+        uses: actions/upload-artifact@v7
+        with:
+          name: pkgdown-development-site
+          path: development/docs/dev
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    needs: [build-stable, build-development]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download stable site
+        uses: actions/download-artifact@v8
+        with:
+          name: pkgdown-stable-site
+          path: site
+
+      - name: Download development site
+        uses: actions/download-artifact@v8
+        with:
+          name: pkgdown-development-site
+          path: site/dev
+
+      - name: Verify assembled site
+        run: |
+          test -f site/index.html
+          test -f site/dev/index.html
 
       - uses: actions/configure-pages@v5
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
-          path: docs
+          path: site
 
       - id: deployment
         uses: actions/deploy-pages@v4
