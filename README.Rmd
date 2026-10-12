@@ -39,6 +39,19 @@ cleaned text, findings, risk score, and metadata - useful for debugging, policy 
        width="100%" />
 </div>
 
+## Watch the talk
+
+See `llmshieldr` in action in the R/Pharma GenAI Day session *Applying GenAI Security
+Guardrails in R*.
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=L0S5ozizddM">
+    <img src="https://img.youtube.com/vi/L0S5ozizddM/maxresdefault.jpg"
+         alt="Watch Applying GenAI Security Guardrails in R on YouTube"
+         width="800" />
+  </a>
+</div>
+
 ## Install
 
 Install the released package from CRAN:

@@ -39,6 +39,20 @@ metadata - useful for debugging, policy reviews, and audits.
 
 </div>
 
+## Watch the talk
+
+See `llmshieldr` in action in the R/Pharma GenAI Day session *Applying
+GenAI Security Guardrails in R*.
+
+<div align="center">
+
+<a href="https://www.youtube.com/watch?v=L0S5ozizddM">
+<img src="https://img.youtube.com/vi/L0S5ozizddM/maxresdefault.jpg"
+         alt="Watch Applying GenAI Security Guardrails in R on YouTube"
+         width="800" /> </a>
+
+</div>
+
 ## Install
 
 Install the released package from CRAN:
@@ -93,8 +107,8 @@ explain_findings(reports$attack)
 ```
 
 Always branch on `action`; a successful function call is not the same as
-an `allow` decision. For a `redact` decision, pass `text_clean` onward
-instead of the original text.
+an `allow` decision. When a scan report returns `redact`, pass
+`text_clean` onward instead of the original text.
 
 ### Guard a complete model call
 
@@ -135,7 +149,7 @@ c(
 ### Admit RAG context row by row
 
 Treat retrieved text as untrusted. This example admits the approved row
-and drops the poisoned, wrong-source row before prompt assembly:
+and marks the poisoned, wrong-source row for exclusion:
 
 ``` r
 retrieved <- data.frame(
@@ -228,8 +242,8 @@ object ownership, and business limits at execution time.
 ### Encode output for its destination
 
 Output contracts add shape and destination checks independently of
-content rules. For example, an HTML contract returns encoded text that
-is safe to insert as text, rather than executable markup:
+content rules. For example, an HTML contract returns encoded text for an
+HTML text context, rather than executable markup:
 
 ``` r
 html_report <- validate_output_contract(
